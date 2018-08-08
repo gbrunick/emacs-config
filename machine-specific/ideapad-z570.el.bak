@@ -1,0 +1,121 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;  Machine specific initialization
+;;
+
+(defun gpb-add-tree-to-load-path (root)
+  "Add path and all subdirs of path to load-path"
+  ;; (byte-recompile-directory root)
+  (add-to-list 'load-path root)
+  (let ((default-directory (expand-file-name root)))
+    (normal-top-level-add-subdirs-to-load-path)))
+
+(gpb-add-tree-to-load-path (expand-file-name "~/src/emacs"))
+
+;; Version specific initialization
+(cond
+ ((eq emacs-major-version 23)
+  (setq find-function-C-source-directory
+        "/usr/local/src/emacs23-23.3+1/src"))
+  ;;       byte-compile-dest-file-function
+  ;;       (lambda (x) (format "~/lib/common/emacs23-elc/%sc"
+  ;;                           (file-name-nondirectory x))))
+  ;; (add-to-list 'load-path "~/lib/common/emacs23-elc"))
+
+ ((eq emacs-major-version 24)
+  (setq find-function-C-source-directory
+        "/usr/local/src/emacs-snapshot-20121122/src"))
+  ;;       byte-compile-dest-file-function
+  ;;       (lambda (x) (format "~/lib/common/emacs24-elc/%sc"
+  ;;                           (file-name-nondirectory x))))
+  ;; (add-to-list 'load-path "~/lib/common/emacs24-elc"))
+ )
+
+;; Add directories to load path
+;; (add-to-list 'load-path (gpb-get-dir "src/gpb-ipc"))
+;; (let ((lib-dir (expand-file-name "~/lib/common/emacs-lisp"))
+;;       (debug-on-error debug-on-error))
+;;   ;; (byte-recompile-directory lib-dir 0)
+;;   (gpb-add-tree-to-load-path lib-dir))
+
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(default ((t :family "DejaVu Sans Mono" :height 96)))
+ '(success ((t (:foreground "lime green" :weight bold)))))
+ ;; '(mode-line ((t (:inherit default :background "#2B2B2B" :foreground "#8FB28F" :box (:line-width -1 :color "#5F7F5F" :style released-button)))))
+ ;; '(mode-line-highlight ((t nil)))
+ ;; '(mode-line-inactive ((t (:box (:line-width -1 :color nil :style released-button) :foreground "#5F7F5F" :background "#383838" :inherit (default))))))
+ ;; '(company-tooltip ((t (:background "grey85" :foreground "black"))))
+ ;; '(company-tooltip-selection ((t (:inherit company-tooltip :background "#a0b0f0"))))
+ ;; '(completions-common-part ((t (:inherit default :foreground "grey55"))))
+ ;; '(completions-first-difference ((t (:inherit default))))
+ ;; '(cursor ((t (:background "yellow2" :foreground "#DCDCCC"))))
+ ;; '(mode-line ((t (:inherit default))))
+ ;; '(mode-line-inactive ((t (:inherit default))))
+ ;; '(region ((t (:background "tan3")))))
+
+;; (custom-set-faces
+;;  ;; custom-set-faces was added by Custom.
+;;  ;; If you edit it by hand, you could mess it up, so be careful.
+;;  ;; Your init file should contain only one such instance.
+;;  ;; If there is more than one, they won't work right.
+;;  '(default ((t (:background "grey98" :foreground "black"
+;;                 :family "DejaVu Sans Mono"
+;;                 :height 96))))
+;;  '(company-tooltip ((t (:background "grey85" :foreground "black"))))
+;;  '(company-tooltip-selection ((t (:inherit company-tooltip :background "#a0b0f0"))))
+;;  '(completions-common-part ((t (:inherit default :foreground "grey55"))))
+;;  '(completions-first-difference ((t (:inherit default))))
+;;  '(font-lock-builtin-face ((t (:foreground "dark slate blue"))))
+;;  '(font-lock-comment-delimiter-face ((t (:inherit font-lock-comment-face))))
+;;  '(font-lock-comment-face ((t (:foreground "grey35"))))
+;;  '(font-lock-function-name-face ((t (:foreground "Blue"))))
+;;  '(font-lock-keyword-face ((t (:foreground "SeaGreen4"))))
+;;  '(font-lock-string-face ((t (:foreground "sienna"))))
+;;  '(highlight ((t (:background "gainsboro"))))
+;;  '(region ((t (:background "pale goldenrod")))))
+
+
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(ansi-color-faces-vector
+   [default bold shadow italic underline bold bold-italic bold])
+ '(custom-enabled-themes (quote (gpb-zenburn)))
+ '(debug-on-quit nil)
+ '(fci-rule-color "#073642")
+ '(vc-annotate-background nil)
+ '(vc-annotate-color-map
+   (quote
+    ((20 . "#dc322f")
+     (40 . "#cb4b16")
+     (60 . "#b58900")
+     (80 . "#859900")
+     (100 . "#2aa198")
+     (120 . "#268bd2")
+     (140 . "#d33682")
+     (160 . "#6c71c4")
+     (180 . "#dc322f")
+     (200 . "#cb4b16")
+     (220 . "#b58900")
+     (240 . "#859900")
+     (260 . "#2aa198")
+     (280 . "#268bd2")
+     (300 . "#d33682")
+     (320 . "#6c71c4")
+     (340 . "#dc322f")
+     (360 . "#cb4b16"))))
+ '(vc-annotate-very-old-color nil))
+
+(require 'gpb-recent-files)
+(setq gpb-fl--recent-file-list-symbol 'gpb-rf-recent-file-list)
+
+;; ediff settings
+(setq ediff-split-window-function 'split-window-horizontally
+      ;;ediff-window-setup-function 'gpb-ediff-setup-windows-plain
+      ediff-window-setup-function 'ediff-setup-windows-plain)

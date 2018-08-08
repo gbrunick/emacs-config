@@ -1,0 +1,77 @@
+#!/usr/bin/python
+
+import sys
+import urlparse
+from os.path import *
+from gpb.recent_files import get_recent_files
+
+if __name__ == '__main__':
+    try:
+        script_name, count = sys.argv
+    except ValueError:
+        count = 300
+    else:
+        count = int(count)
+    recent_documents = get_recent_files()
+    for f in recent_documents[:count]:
+        print f
+    print len(recent_documents)
+
+    # if sys.platform == 'linux2':
+    #     import gtk
+    #     recent_manager = gtk.recent_manager_get_default()
+    #     recent_manager = gtk.RecentManager()
+    #     items = recent_manager.get_items()
+    #     def cmp_items(i1, i2):
+    #         return cmp(max(i2.get_visited(), i2.get_modified()),
+    #                    max(i1.get_visited(), i1.get_modified()))
+    #     items.sort(cmp=cmp_items)
+    #     for n, i in enumerate(items):
+    #         if n > 100:
+    #             break
+    #         uri = urlparse.unquote(i.get_uri())
+    #         #uri = i.get_uri()
+    #         if uri.startswith("file://"):
+    #             uri = uri[len("file://"):]
+    #         # if uri.startswith(r"/home/gbrunick"):
+    #         #     uri = "~" + uri[len("/home/gbrunick"):]
+    #         #uri = uri.replace(" ", r"\ ")
+    #         print uri
+    #     sys.exit()
+    # else:
+    #     raise RuntimeError("Platform %s is not supported." % sys.platform)
+
+
+# import urllib
+# from xml.dom import Node
+# #from Ft.Xml.Domlette import NonvalidatingReader, PrettyPrint
+# from xml.dom.minidom import parse
+
+# from os.path import *
+
+# if __name__ == "__main__":
+#     filenames = []
+#     import sys
+#     xbel = parse(expanduser("~/.recently-used.xbel"))
+#     count = 0
+#     for n in xbel.documentElement.childNodes:
+#         if n.nodeType == Node.ELEMENT_NODE:
+#             if n.nodeName == 'bookmark':
+#                 filename = n.getAttribute("href").replace("file://", "")
+#                 filename = urllib.unquote(filename)
+#                 visited = n.getAttribute("visited")
+#                 modified = n.getAttribute("modified")
+#                 timestamp = max(visited, modified)
+#                 filenames.append((timestamp, filename))
+#     filenames.sort(reverse=True)
+#     open("/tmp/log.txt", "wt").write(str(filenames))
+#     filenames = [f for v, f in filenames[:10]]
+
+#     # recenttf = open(expanduser("~/.recentf"), "r")
+#     # for line in recenttf:
+#     #     line = line.strip()
+#     #     if line.startswith('"'):
+#     #         filenames.append(line[1:-1])
+
+#     for name in filenames[:10]:
+#         print name

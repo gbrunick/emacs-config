@@ -1,0 +1,80 @@
+;; Run all tests in this buffer with `elk-test-run-buffer'.
+;; Or evaluate, then run individual tests with `elk-test-run':
+
+
+(deftest "gpb-util-find-last 1"
+  (assert-equal (gpb-util-find-last "\\."  "thisisatest") nil))
+
+(deftest "gpb-util-find-last 2"
+  (assert-equal (gpb-util-find-last "\\."  ".thisisatest") 0))
+
+(deftest "gpb-util-find-last 3"
+  (assert-equal (gpb-util-find-last "\\."  "this.is.a.test") 9))
+
+(deftest "gpb-util-find-last 4"
+  (assert-equal (let ((s "1a2 this 1k2 .is.1v2a.test"))
+                  (gpb-util-find-last "1.2"  s)
+                  (match-string-no-properties 0 s))
+                "1v2"))
+
+(deftest "gpb-util-split-string 1"
+  (assert-equal (gpb-util-split-string "this is a test" " ")
+                '("this" "is" "a" "test")))
+
+(deftest "gpb-util-split-string 2"
+  (assert-equal (gpb-util-split-string "this   is  a   test" " " )
+                '("this" "" "" "is" "" "a" "" "" "test")))
+
+(deftest "gpb-util-split-string 3"
+  (assert-equal (gpb-util-split-string "this   is  a   test" " "
+                                       nil 'omit-blanks)
+                '("this" "is" "a" "test")))
+
+(deftest "gpb-util-split-string 4"
+  (assert-equal (gpb-util-split-string "this   is \ta \ntest" "[ \t\n]+")
+                '("this" "is" "a" "test")))
+
+(deftest "gpb-util-split-string 5"
+  (assert-equal (gpb-util-split-string "" "[ \t\n]+" nil 'omit-blanks)
+                'nil))
+
+(deftest "gpb-util-join-strings 1"
+  (assert-equal (gpb-util-join-strings '("this" "that") ".")
+                "this.that"))
+
+(deftest "gpb-util-strip-string 1"
+  (assert-equal (gpb-util-strip-string "   this   \n")
+                "this"))
+
+(deftest "gpb-util-strip-string 1"
+  (assert-equal (gpb-util-strip-string "   this  that \n")
+                "this  that"))
+
+(deftest "gpb-util-join-strings 2"
+  (assert-equal (gpb-util-join-strings '("this" nil "that") ".")
+                "this..that"))
+
+(deftest "gpb-util-truncate-string 1"
+  (assert-equal (gpb-util-truncate-string "123456789" 'left 6)
+                "...789"))
+
+(deftest "gpb-util-truncate-string 2"
+  (assert-equal (gpb-util-truncate-string "123456789" 'center 6)
+                "1...89"))
+
+(deftest "gpb-util-truncate-string 3"
+  (assert-equal (gpb-util-truncate-string "123456789" 'right 6)
+                "123..."))
+
+(deftest "gpb-util-push-end 1"
+  (assert-equal (progn
+                  (setq gpb-util-push-end--test-var nil)
+                  (gpb-util-push-end 1 'gpb-util-push-end--test-var)
+                  gpb-util-push-end--test-var)
+                (list 1)))
+
+(deftest "gpb-util-push-end 2"
+  (assert-equal (progn
+                  (gpb-util-push-end 2 'gpb-util-push-end--test-var)
+                  gpb-util-push-end--test-var)
+                (list 1 2)))

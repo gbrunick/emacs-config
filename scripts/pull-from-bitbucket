@@ -1,0 +1,4 @@
+#! /bin/bash
+
+hg pull ssh://hg@bitbucket.org/gbrunick/emacs-configuration
+# hg pull https://gbrunick@bitbucket.org/gbrunick/emacs-configuration

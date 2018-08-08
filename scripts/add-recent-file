@@ -1,0 +1,76 @@
+#!/usr/bin/python
+
+import sys
+import urllib
+from os.path import *
+from gpb.get_platform import get_platform
+
+from gpb.recent_files import add_recent_file
+
+# A list is given at
+#    http://www.feedforall.com/mime-types.htm
+extension_map = {
+    ".pdf" : ("application/pdf", "Oktabus", "oktabus"),
+    ".ps" : ("application/postscript", "Oktabus", "oktabus"),
+    ".djvu" : ("image/vnd.djvu", "Oktabus", "oktabus"),
+    ".txt" : ("text/plain", "Emacs", "emacs-edit")
+}
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('filename', metavar='FILE', type=str,
+                        help='File to add')
+    parser.add_argument('--mime-type', metavar='MIME_TYPE',
+                        dest='mime_type', type=str, default=None,
+                        help="MIME type")
+    parser.add_argument('--app-exec', metavar='APP_EXEC',
+                        dest='app_exec', type=str, default=None,
+                        help="Application executable name")
+    parser.add_argument('--app-name', metavar='APP_NAME',
+                        dest='app_name', type=str, default=None,
+                        help="Application name")
+    args = parser.parse_args()
+    if args.app_name == None:
+        args.app_name = args.app_exec
+
+    # platform = get_platform()
+    # print platform
+    # if platform == 'linux2-gnome':
+    #     import gtk
+    #     try:
+    #         script, filename, mime_type, app_name, app_exec = sys.argv
+    #     except ValueError:
+    #         try:
+    #             script, filename = sys.argv
+    #             base, ext = splitext(filename)
+    #         except ValueError:
+    #             msg = "usage: %s filename [mimetype] [appname] [appexec]"
+    #             print msg % basename(sys.argv[0])
+    #             sys.exit(1)
+    #         except KeyError:
+    #             msg = "I don't know the mime type info for the file %s."
+    #             print msg % basename(sys.argv[0])
+    #             sys.exit(1)
+    #         mime_type, app_name, app_exec = extension_map[ext]
+
+    filename = abspath(args.filename)
+    if exists(filename):
+        try:
+            add_recent_file(filename, args.mime_type,
+                            args.app_name, args.app_exec)
+        except:
+            print "Error adding file"
+            raise
+            sys.exit(1)
+        else:
+            print "Added %r" % filename
+            sys.exit()
+    else:
+        print "Error: file does not exist."
+        sys.exit(1)
+
+    # else:
+    #     raise RuntimeError("Platform %s is not supported." % platform)
+

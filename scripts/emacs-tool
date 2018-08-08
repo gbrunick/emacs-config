@@ -1,0 +1,245 @@
+#! /usr/bin/env python
+
+"""emacs_tool - script for interacting with an emacs server."""
+
+# See http://stackoverflow.com/questions/2791489/how-do-i-take-out-the-focus-or-minimize-a-window-with-python
+
+from __future__ import with_statement
+
+import os
+import sys
+import time
+import subprocess
+
+from os.path import join, abspath
+from textwrap import dedent
+
+class CantFindEmacs():
+    pass
+
+class NoEmacsFrames():
+    pass
+
+def send_emacs_cmd(lisp, verbose=True):
+    cmd = 'emacsclient --eval "%s"' % lisp.replace('"', r'\"')
+    if verbose:
+        print cmd
+    emacsclient = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+    output, stderr = emacsclient.communicate()
+    if stderr:
+        print "emacs stderr output:", stderr
+    #print "response: ", output
+    return output.strip()
+
+def get_emacs_window_id():
+    current_frame = send_emacs_cmd(
+        "(frame-parameter (selected-frame) 'outer-window-id))")
+    print "current_frame: %r" % current_frame
+    if current_frame in [None,  "nil"]:
+        current_frame = send_emacs_cmd(
+            "(frame-parameter (selected-frame) 'window-id))")
+        print "current_frame: %r" % current_frame
+
+    if current_frame and current_frame != "nil":
+        current_frame = current_frame.replace('"', '').strip()
+        try:
+            return int(current_frame)
+        except:
+            pass
+
+def make_frame(args=None):
+    if sys.platform == "win32":
+        cmd = 'emacsclient -e "(raise-frame)"'
+        print cmd
+        try:
+            subprocess.check_call(cmd, shell=True)
+        except:
+            cmd = 'runemacs'
+            print cmd
+            subprocess.check_call(cmd, shell=True)
+        else:
+            pass
+            # cmd = 'emacsclient -e "(raise-frame)"'
+            # print cmd
+            # subprocess.check_call(cmd, shell=True)
+            # cmd = 'emacsclient -e "(select-frame-set-input-focus (selected-frame))"'
+            # print cmd
+            # subprocess.check_call(cmd, shell=True)
+        return
+    display = os.environ["DISPLAY"]
+    cmd = """emacsclient -e '(make-frame-on-display "%s")'""" % display
+    print cmd
+    subprocess.check_call(cmd, shell=True)
+    current_frame = get_emacs_window_id()
+    for x in range(10):
+        if current_frame:
+            break
+        time.sleep(0.5)
+        current_frame = get_emacs_window_id()
+
+    if args and args.maximize:
+        cmd = "wmctrl -i -r %s -b add,maximized_vert,maximized_horz"
+        cmd %= current_frame
+        subprocess.check_call(cmd, shell=True)
+        send_emacs_cmd("(split-window-horizontally)")
+
+    cmd = "xdotool windowactivate %i" % current_frame
+    subprocess.check_call(cmd, shell=True)
+
+def add_right_click_menu(args):
+    assert(sys.platform == "win32")
+    import _winreg
+    from os.path import abspath, join, split
+
+    windows_exec = join(split(sys.executable)[0], "pythonw.exe")
+    cmd = '"{}" "{}" edit -a "%l"'.format(windows_exec, abspath(__file__))
+
+    try:
+        key = _winreg.OpenKey(_winreg.HKEY_CLASSES_ROOT, "*\Shell\Open in emacs")
+    except WindowsError:
+        key = _winreg.CreateKey(_winreg.HKEY_CLASSES_ROOT, "*\Shell\Open in emacs")
+
+    _winreg.SetValue(key, "Command", _winreg.REG_SZ, cmd)
+
+    try:
+        key = _winreg.OpenKey(_winreg.HKEY_CLASSES_ROOT, "Directory\Shell\Open in emacs")
+    except WindowsError:
+        key = _winreg.CreateKey(_winreg.HKEY_CLASSES_ROOT, "Directory\Shell\Open in emacs")
+
+    _winreg.SetValue(key, "Command", _winreg.REG_SZ, cmd)
+
+
+
+def activate_emacs():
+    current_frame = get_emacs_window_id()
+    if sys.platform == "win32":
+        import win32gui
+        win32gui.SetForegroundWindow(int(current_frame))
+        # def window_enum_handler(hwnd, resultList):
+        #     if win32gui.IsWindowVisible(hwnd) and win32gui.GetWindowText(hwnd) != '':
+        #         resultList.append((hwnd, win32gui.GetWindowText(hwnd)))
+        # handles = []
+        # win32gui.EnumWindows(window_enum_handler, handles)
+        # print handles
+
+        # send_emacs_cmd("(select-frame-set-input-focus (selected-frame))")
+        return
+    if current_frame:
+        send_emacs_cmd("(raise-frame)")
+    else:
+        raise NoEmacsFrames()
+    cmd = "xdotool windowactivate %i" % current_frame
+    subprocess.check_call(cmd, shell=True)
+
+
+def edit_files(args):
+    # if args.activate:
+    #     try:
+    #         activate_emacs()
+    #     except NoEmacsFrames:
+    #         print "There are no currently no emacs frames"
+    #         make_frame()
+
+    print "edit command"
+    for f in args.files:
+        cmd = '(find-file "%s")' % abspath(f).replace("\\", "\\\\")
+        send_emacs_cmd(cmd)
+
+
+def pipe_stdin(args):
+    buf_name = args.buffer_name or "*emacs-pipe*"
+    buf_name = send_emacs_cmd("(generate-new-buffer-name \"%s\")" % buf_name)
+    # print buf_name
+    send_emacs_cmd("""\
+      (let ((buf (get-buffer-create %s))
+            (inhibit-read-only t))
+        (with-current-buffer buf
+          (erase-buffer)
+          (setq buffer-read-only t
+                truncate-lines t)
+          ;; (view-mode-enter)
+          (use-local-map (copy-keymap (or (current-local-map)
+                                          (make-sparse-keymap))))
+          (local-set-key \"q\" 'bury-buffer))
+        (switch-to-buffer buf))""" % buf_name)
+    if args.activate:
+        activate_emacs()
+    # We pass text to emacs using the command line, so the following
+    # value must be small enough to avoid an "Argument list too long"
+    # error in the shell.
+    read_buffer_size = 1000
+    text = sys.stdin.read(read_buffer_size)
+    while text:
+        send_emacs_cmd("""\
+            (with-current-buffer %s
+              (save-excursion
+                (let ((inhibit-read-only t)
+                      (pt-max (point-max)))
+                (goto-char pt-max)
+                (insert "%s")
+                (ansi-color-apply-on-region pt-max (point-max)))))"""
+            % (buf_name, text.replace("\\", "\\\\").replace('"', '\\"')))
+        text = sys.stdin.read(read_buffer_size)
+
+    # from tempfile import mkstemp
+    # handle, name = mkstemp()
+    # f = open(name, "wt")
+    # f.write(sys.stdin.read())
+    # f.close()
+    # if args.buffer_name:
+    #     cmd = '(gpb-show-pipe-output "%s" "%s")'
+    #     cmd %= (abspath(name).replace("\\", "\\\\"), args.buffer_name)
+    # else:
+    #     cmd = '(gpb-show-pipe-output "%s")' % abspath(name).replace("\\", "\\\\")
+    # send_emacs_cmd(cmd)
+    # os.remove(name)
+
+if __name__ == '__main__':
+    # with warnings.catch_warnings():
+    #     warnings.filterwarnings("ignore", category=deprecationwarning)
+    import sys
+    # print sys.argv
+    from argparse import ArgumentParser
+    parser = ArgumentParser(description=dedent("""\
+        This is a tool for interacting with emacs.
+        """))
+
+    subparsers = parser.add_subparsers(help='possible sub-commands')
+
+    # 'make-frame' command
+    subparser = subparsers.add_parser('make-frame', help='Create a new frame.')
+    subparser.add_argument('-m', '--maximize', action='store_true',
+                           help='Maximize the new frame')
+    subparser.set_defaults(func=make_frame)
+
+    # 'activate' command
+    help_ = 'Activate (i.e. show and raise) the emacs frame.'
+    subparser = subparsers.add_parser('activate', help=help_)
+    subparser.set_defaults(func=activate_emacs)
+
+    # 'edit' command
+    subparser = subparsers.add_parser('edit', help='Edit the file in emacs.')
+    subparser.add_argument('files', nargs='*', type=str, help='filenames')
+    subparser.add_argument('-a', '--activate', action='store_true',
+                           help='Activate the emacs frame')
+    subparser.set_defaults(func=edit_files)
+
+    # 'pipe' command
+    help_ = 'Pipe stdin to an emacs buffer.'
+    subparser = subparsers.add_parser('pipe', help=help_)
+    subparser.add_argument('-b', '--buffer-name', type=str,
+                           help='name of the buffer that holds the output',
+                           default="*emacs-pipe*")
+    subparser.add_argument('-a', '--activate', action='store_true',
+                           help='Activate the emacs frame')
+    subparser.set_defaults(func=pipe_stdin)
+
+    # 'add-right-click-menu'
+    help_ = 'Create an "Open with emacs" right-click menu in explorer.'
+    subparser = subparsers.add_parser('add-right-click-menu', help=help_)
+    subparser.set_defaults(func=add_right_click_menu)
+    # Execute the command
+    print
+    args = parser.parse_args()
+    args.func(args)

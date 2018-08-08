@@ -1,0 +1,4 @@
+#! /bin/bash
+
+hg push ssh://hg@bitbucket.org/gbrunick/emacs-configuration
+#hg push https://gbrunick@bitbucket.org/gbrunick/emacs-configuration

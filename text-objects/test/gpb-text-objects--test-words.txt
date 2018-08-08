@@ -1,0 +1,5 @@
+-*- eval: (show-point-mode); -*-
+
+This is a text file that is used by gpb-text-object-base.elk for
+testing gpb-text-object-base.txt.  You should no change this file
+except by adding code at the end.

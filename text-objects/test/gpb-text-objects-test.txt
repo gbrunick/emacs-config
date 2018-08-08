@@ -1,0 +1,797 @@
+-*- eval: (show-point-mode); -*-
+
+This is a text file that is used by gpb-text-object-base.elk for
+testing gpb-text-object-base.txt.  You should no change this file
+except by adding code at the end.
+
+(defun anything-eshell-history ()
+  "Preconfigured anything for eshell history."
+  (interactive)
+  (let* ((end (point))
+         (beg (save-excursion (eshell-bol) (point)))
+         flag-empty)
+    (when (eq beg end)
+      (insert " ")
+      (setq flag-empty t)
+      (setq end (point)))
+    (unwind-protect
+         (with-anything-show-completion beg end
+           (anything :sources 'anything-c-source-eshell-history
+                     :buffer "*Eshell history*"))
+      (when (and flag-empty
+                 (looking-back " "))
+        (delete-char -1)))))
+
+
+
+@app.route('/')
+def index():
+    # print 'hello_world'
+    return 'Hello World!'
+
+class DataObject(object):
+    pass
+
+class First(object):
+    "Utility class for formatting the first element in html."
+    def __init__(self):
+        self.tags = set()
+
+    def __call__(self, tag):
+        result = tag not in self.tags
+        self.tags.add(tag)
+        return result
+
+    def reset(self, tag):
+        try:
+            self.tags.remove(tag)
+        except KeyError:
+            # return "keyerror:", tag, self.tags
+            pass
+        return ""
+
+class Second(object):
+    def get_tag(elem, tag, default=""):
+        e = elem.find(tag)
+        if e != None:
+            return e.text
+        else:
+            return default
+
+class Third(object):
+
+    def get_tag(elem, tag, default=""):
+
+        e = elem.find(tag)
+
+        if e != None:
+
+            return e.text
+
+        else:
+
+            return e.text
+
+
+class Second(object):
+    def get_tag(elem, tag, default=""):
+This that other.
+
+def make_key(author, title, year):
+    """Compute a key using a standard algorithm.
+    """
+    log.debug('author=%r' % author)
+    log.debug('year=%r' % year)
+    log.debug('title=%r' % title)
+    def clean_string(s):
+        return re.sub("\\\\.|{|}|,", "", s).lower()
+    try:
+        first_author = author.split()[0]
+    except IndexError:
+        return False
+    first_author = clean_string(first_author)
+    clean_title = clean_string(title)
+    words_in_title = clean_title.split()
+    for article in ["and", "the", "a", "an", "in", "for",
+                    "on", "with", "of", "to"]:
+        while article in words_in_title:
+            words_in_title.remove(article)
+    letters_of_title = [ word[0] for word in words_in_title ]
+    letters_of_title = "".join(letters_of_title[:4])
+    log.debug('first_author=%r' % first_author)
+    log.debug('year=%r' % year)
+    log.debug('letters_of_title=%r' % letters_of_title)
+    return first_author + year + letters_of_title
+
+
+\begin{proof}
+  We will need the strictly positive definite symmetric matrix
+  \begin{equation*}
+    A \defeq \begin{bmatrix} 1+\lambda \\ \lambda \end{bmatrix}^{\otimes 2}
+             + \begin{bmatrix} 0 \\ (1+\lambda)^{-1/2} \end{bmatrix}^{\otimes 2}
+      % = \begin{bmatrix} 1 & \lambda \\ 0 & 1 \end{bmatrix}^T
+      %   \begin{bmatrix} 1 & \lambda \\ 0 & 1 \end{bmatrix}
+      = \begin{bmatrix}
+          (1+\lambda)^2 & \lambda (1+\lambda) \\
+          \lambda(1 + \lambda) & \lambda^2 + \frac{1}{1+\lambda}
+        \end{bmatrix},
+  \end{equation*}
+  which has been constructed so that
+  %where $v^{\otimes 2} \defeq v^T v$ and observe that
+  \begin{equation} \label{eq:29}
+    \eta^T A = A \eta = e_2.
+  \end{equation}
+  We now choose $\varepsilon > 0$ so small that
+  \begin{equation} \label{eq:24}
+    \varepsilon \leq A \leq I/\varepsilon,
+  \end{equation}
+  \begin{equation} \label{eq:31}
+    \varepsilon (1 + \lambda) < \lambda,
+  \end{equation}
+  \begin{equation} \label{eq:32}
+    (\sigma_1 + \varepsilon \sigma_2)^{\otimes 2} \geq \varepsilon \cdot I,
+  \end{equation}
+  and
+  \begin{equation} \label{eq:43}
+    \beta > r q_1  + \frac12 \, \frac{q_1}{(1-q_1)(1-\delta)}
+            \cdot (\alpha_1 + \delta \alpha_2)^T
+                  (\sigma_1 + \delta \sigma_2)^{-\otimes 2}
+                  (\alpha_1 + \delta \alpha_2)
+    \quad \text{for all $\delta \in [0,\varepsilon)$.}
+  \end{equation}
+
+  % We will need to introduce a number of constants through out the
+  % proof.  We will generally denote small strictly positive constants
+  % as $\varepsilon_i$ and large positive constants as $c_i$.
+  % Choose $\varepsilon_1 > 0$ so small that
+  % \begin{equation} \label{eq:31}
+  %   \varepsilon_1 (1 + \lambda) < \lambda,
+  % \end{equation}
+  % and
+  % \begin{equation} \label{eq:32}
+  %   (\sigma_1 + \varepsilon_1 \sigma_2)^{\otimes 2} > 0 \cdot I,
+  % \end{equation}
+  % and define the functions
+  We will also need the following barrier functions:
+  \begin{align*}
+    f(x,y) &= (x + \varepsilon y)^{q_1}, &
+    g(x) &= \begin{cases} x^{-\psup} & \text{when $x > 0$} \\
+                          \infty  & \text{ otherwise} \end{cases}, &
+    h(z) &= \langle A z, z \rangle.
+    % \gsub(x,y) &= x^q_1 + (x + \lambda y)^{q_1}, &
+    % \gsup(x,y) &= x^{-\psup} + (x + \lambda y)^{-\psup}, &
+  \end{align*}
+  Notice that
+  \begin{equation} \label{eq:33}
+    Df(x,y) = q_1 (x+\varepsilon y)^{q_1-1} (e_1 + \varepsilon e_2),
+  \end{equation}
+  % \begin{equation} \label{eq:33}
+  %   Df(x,y) = q_1 \begin{bmatrix}
+  %                     x^{q_1-1} + (x + \varepsilon_1 y)^{q_1-1} \\
+  %                     \varepsilon_1 (x + \varepsilon_1 y)^{q_1-1}
+  %              \end{bmatrix}
+  %           = q_1 \begin{bmatrix}
+  %                     1 & 1 \\ 0 & \varepsilon_1
+  %                   \end{bmatrix}
+  %                   \begin{bmatrix}
+  %                     x^{q_1-1} \\ (x+\varepsilon_1 y)^{q_1-1}
+  %                   \end{bmatrix},
+  % \end{equation}
+  so
+  \begin{equation} \label{eq:34}
+    \eta \cdot D f(x,y)
+    =  q_1 \, (x + \varepsilon y)^{q_1-1}
+       (-\lambda + \varepsilon (1+\lambda))
+       < 0, \quad \text{ $(x,y) \in D$,}
+  \end{equation}
+  % \begin{equation} \label{eq:34}
+  %   \eta \cdot D f(x,y)
+  %   = -\lambda q_1 x^{q_1-1}
+  %     - q_1 (\lambda - \varepsilon_1 (1+\lambda)) (x + \varepsilon_1
+  %                                                  y)^{q_1-1}
+  %     < 0, \quad \text{ $(x,y) \in D$,}
+  % \end{equation}
+  and
+  \begin{equation} \label{eq:108}
+    D^2 f(x,y) = q_1 \, (q_1-1) (x+\varepsilon y)^{q_1-2}
+              (e_1 + \varepsilon e_2)^{\otimes 2} \leq 0 \cdot I,
+   \qquad (x,y) \in D,
+  \end{equation}
+  % \begin{equation} \label{eq:108}
+  %   D^2 f(x,y) = %q_1 \, (q_1-1) \, x^{q_1-2} \, e_{11} < 0 \cdot I.
+  %               \begin{bmatrix} 1 & 1 \\ 0 & \varepsilon_1 \end{bmatrix}
+  %               \begin{bmatrix} x^{q_1-2} & 0 \\
+  %                               0 & (x+\varepsilon_1 y)^{q_1-2} \end{bmatrix}
+  %               \begin{bmatrix} 1 & 0 \\ 1 & \varepsilon_1 \end{bmatrix}
+  %             < 0 \cdot I,
+  %  \qquad (x,y) \in D,
+  % \end{equation}
+  % and
+  % \begin{equation} \label{eq:8}
+  %   D^2 \gsup(x,y) = \psup \, (\psup+1)
+  %               \begin{bmatrix} 1 & 1 \\ 0 & \lambda \end{bmatrix}
+  %               \begin{bmatrix} x^{-\psup-2} & 0 \\
+  %                               0 & (x+\lambda y)^{-\psup-2} \end{bmatrix}
+  %               \begin{bmatrix} 1 & 0 \\ 1 & \lambda \end{bmatrix}
+  %             > 0,
+  %  \qquad (x,y) \in D,
+  % \end{equation}
+
+  Assume for the purposes of producing a contradiction that $\sup_{z
+    \in D} \vsub(z) - \vsup(z) > 0$ and then choose $\delta > 0$ so
+  small that
+  \begin{equation*}
+    \sup_{z \in D} \; \vsub(z) - \vsup(z) - 2 \delta f(z) > 0.
+  \end{equation*}
+  As $\vsup$ is u.s.c.\ and nondecreasing in $x$, $\lim_{x \searrow
+    x_0} v(x,y) = v(x_0,y)$ for each $y \geq 0$.  As a result,
+  % we may
+  % choose $\varepsilon_3 > 0$ and then $\varepsilon_4 > 0$ such that
+  \begin{equation*}
+    \adjustlimits \liminf_{n \rightarrow \infty} \sup_{z \in D} \;
+    \vsub(z) - \vsup(z + e_1/n) - \delta f(z)
+             - \delta f(z + e_1/n)
+             - n^{-2 \psup} g(1/n) > 0.
+  \end{equation*}
+  % Consolidating epsilons and
+  Doubling the variables, we see that
+  \begin{equation} \label{eq:27}
+    \adjustlimits \liminf_{n \rightarrow \infty} \sup_{\zsub,\zsup \in D} \;
+    \vsub(\zsub) - \vsup(\zsup)
+    - \delta f(\zsub) - \delta f(\zsup)
+    - n^{-2 \psup} g(\xsup - \xsub)
+    - n h(\zsub + e_1/n - \zsup) > 0,
+  \end{equation}
+  for any $c_1 \geq 0$.  Moreover, it follows from the growth
+  conditions and semicontinuity of $\vsub$ and $\vsup$ that this
+  supremum is acheived at some point $(\zsub^*, \zsup^*) \in D \cross
+  D$.
+
+  We would like to appy Ishii's lemma, but function $(\xsub, \ysub;
+  \xsup, \ysup) \mapsto g(\xsup - \xsub)$ is not $C^2$ on $D \cross
+  D$.  To circumvent this inconvenience, we note that $\xsup^* >
+  \xsub^*$ due to effects of the barrier function $g$, so we may
+  choose a small open set $\scr O$ containing $(\zsub^*, \zsup^*)$
+  such that the restriction of the function $(\xsub, \ysub; \xsup,
+  \ysup) \mapsto g(\xsup - \xsub)$ to the set $\scr O$ is $C^2$.  If
+  we repeat the maximization given in~\eqref{eq:27} but restrict to
+  the locally compact set $\scr O \cap (D \cross D)$, then maximum is
+  achieved at the same point.
+
+  It is now clear that we may fix any $\varepsilon_5 >0$ and apply
+  Ishii's lemma to produce
+  % \subset
+  % D \cross D$ \niby restricting attention so a small open set $
+  % we may restrict attention
+  % It then follows from Ishii's lemma that we
+  % Finally, we choose $n$ so large that the following supremum
+  % \begin{equation*}
+  %   \sup_{\zsub,\zsup \in D} \vsub(\zsub) - \vsup(\zsup)
+  %     -n f(\zsub - \zsup) - \delta \gsub(\zsub) - \delta \gsup(\zsup) > 0
+  % \end{equation*}
+  % is achieved at some point $(\zsub^*,\zsup^*) \in D \cross D$.  It
+  % then follows from Ishii's lemmas that for each $\varepsilon > 0$, we
+  matrices $\Qsub$ and $\Qsup$ with $(\qsub, \Qsub) \in
+  \supjett_D \vsub(\zsub^*)$, $(\qsup, \Qsup) \in \subjett_D
+  \vsup(\zsup^*)$, and
+  \begin{equation} \label{eq:28}
+    \begin{bmatrix} \Qsub & 0 \\ 0  & -\Qsup \end{bmatrix}
+    \leq B + \varepsilon_5 B^2,
+  \end{equation}
+  where
+  \begin{align*}
+    \qsub &= \delta Df(\zsub^*)
+             - \varepsilon_4 g'(\xsup^* - \xsub^*) e_1
+             + c_1 Dh(\zsub^*  + \varepsilon_3 e_1 - \xsup^*)
+    \\
+    \qsup &= - \delta Df(\zsub^*)
+             - \varepsilon_4 g'(\xsup^* - \xsub^*) e_1
+             + c_1 Dh(\zsub^*  + \varepsilon_3 e_1 - \xsup^*)
+    \\
+    B &= \delta
+           \begin{bmatrix}
+             D^2 f(\zsub^*) & 0 \\ 0 & D^2 f(\zsub^*)
+           \end{bmatrix}
+         + \delta
+           \begin{bmatrix}
+             g''(\xsup^* - \xsub^*) e_{11} &
+             -g''(\xsup^* - \xsub^*) e_{11} \\
+             -g''(\xsup^* - \xsub^*) e_{11} &
+             g''(\xsup^* - \xsub^*) e_{11} \\
+           \end{bmatrix}
+    \\& \qquad
+         + c_1
+           \begin{bmatrix}
+             D^2h(\zsub^* + \varepsilon_3 e_1 -\zsup^*) &
+             - D^2h(\zsub^* + \varepsilon_3 e_1 -\zsup^*) \\
+             - D^2h(\zsub^* + \varepsilon_3 e_1 -\zsup^*) &
+             D^2h(\zsub^* + \varepsilon_3 e_1 -\zsup^*)
+           \end{bmatrix}
+  \end{align*}
+  Multiplying the matrices which appear in \eqref{eq:28} on both sides
+  by $(\xi, \xi) \in \bb R^2 \cross \bb R^2$ yields
+  \begin{equation} \label{eq:36}
+    \Qsub - \Qsup
+    \leq \delta (D^2 f(\zsub^*) + D^2 f(\zsup^*))
+         + \varepsilon_5 \varepsilon^2_2 \bigl[(D^2 f)^2(\zsub^*)
+                                               + (D^2 f)^2(\zsup^*)\bigr].
+  \end{equation}
+  The matrices $D^2f(\zsub^*)$, $D^2f(\zsup^*)$, $(D^2f)^2(\zsup^*)$,
+  and $(D^2f)^2(\zsup^*)$
+  % are all symmetric, rank
+  % one and negative semidefinite and they share the same null space.
+  % In particular, they
+  % we may choose As $D^2f$ is strictly negative definite on $D$,
+  are all scalar multiples of the matrix that orthogonally projects a
+  point in $\bb R^2$ into the span of $e_1 +\varepsilon_1 e_2$.  As
+  the eigenvectors of $D^2f(\zsub^*)$ and $D^2f(\zsup^*)$ that
+  correspond to the eigenspace generated by $e_1 +\varepsilon_1 e_2$
+  are strictly negative, we may fix any $c_5 \in (0,1)$ and then
+  choose $\varepsilon_5 > 0$ so small that
+  \begin{equation} \label{eq:35}
+    \Qsub - \Qsup
+    \leq c_5 \delta (D^2 f(\zsub^*) + D^2 f(\zsup^*)).
+    %< 0 \cdot I.
+  \end{equation}
+
+  If $\ysub^* = 0$, then it follows from \eqref{eq:29}, \eqref{eq:34}, and
+  the fact that $g'(\xsup^* - \xsub^*) < 0$ that $B(q_1) = \eta
+  \cdot q_1 < 0$.  As $\vsub$ is a subsolution and
+  satisfies~\eqref{eq:2}, we must have
+  \begin{equation} \label{eq:30}
+    G(\zsub, \vsub(\zsub), q_1, \Qsub) \geq 0.
+  \end{equation}
+  In particular,~\eqref{eq:30} holds regardless of the position of
+  $\zsup^*$ in $D$, and similar reasoning shows that
+  \begin{equation} \label{eq:31}
+    G(\zsup, \vsup(\zsup), \psup, \Qsup) \leq 0.
+  \end{equation}
+  % Examining the definition of $G$, we must have $\Qsup \leq 0$, so
+  % $\Qsub < 0 \cdot I$ by \eqref{eq:36}.  It then follows from
+  % \eqref{eq:30} and \eqref{eq:31} that
+  In particular, we have
+  \begin{equation} \label{eq:37}
+    \sup_{\theta \in \bb R^d}
+    \frac{-\beta \vsub + r \xsub \qsub_1 + U^*(\qsub_1)
+          + \theta^T b(\qsub) + \frac{1}{2} \theta^T \, a(\Qsub) \theta}
+         {1 + |\theta|^2} \geq 0,
+   \end{equation}
+   and
+   \begin{equation} \label{eq:38}
+     \sup_{\theta \in \bb R^d}
+     \frac{-\beta \vsup + r \xsup \qsup_1 + U^*(\qsup_1) +
+           \theta^T b(\qsup) + \frac{1}{2} \theta^T a(\Qsup) \theta}
+          {1 + |\theta|^2} \leq 0.
+    \end{equation}
+    The left-hand side of~\eqref{eq:38} is bounded, so we may
+    substract it from the both sides of~\eqref{eq:37} and use the fact
+    that $\sup_x \phi(x) - \sup_y \psi(y) \leq \sup_x \phi(x) -
+    \psi(x)$ to conclude that
+    \begin{equation} \label{eq:41}
+      \sup_{\theta \in \bb R^d}
+      \frac{\beta (\vsup - \vsub) + r (\xsub \qsub_1 - \xsup \qsup_1)
+            + U^*(\qsub_1) - U^*(\qsup_1)
+            + \theta^T b(\qsub - \qsup)
+            + \frac{1}{2} \theta^T \, a(\Qsub - \Qsup) \theta}
+           {1 + |\theta|^2} \geq 0.
+    \end{equation}
+    We have $\qsub_1 > \qsup_1$, and $U^*$ is nonincreasing, so
+    $U^*(\qsub_1) - U^*(\qsup_1) \leq 0$ and we have:
+    \begin{equation} \label{eq:39}
+      \sup_{\theta \in \bb R^d}
+      \frac{\beta (\vsup - \vsub) + r (\xsub \qsub_1 - \xsup \qsup_1)
+            + \theta^T b(\qsub - \qsup)
+            + \frac{1}{2} \theta^T \, a(\Qsub - \Qsup) \theta}
+           {1 + |\theta|^2} \geq 0.
+    \end{equation}
+
+    Next we observe that it follows from Lemma~\ref{thm:1}
+    and~\eqref{eq:35} that
+    \begin{align*}
+      a(\Qsub - \Qsup)
+      &\leq c_5 \delta a(D^2 f(\zsub^*) + D^2 f(\zsup^*))
+      \\
+      &= c_5 \delta q_1 (q_1-1)
+         \bigl((\xsub + \varepsilon \ysub)^{q_1-2}
+               + (\xsup + \varepsilon \ysup)^{q_1-2}\
+         \; a\bigl((e_1 + \varepsilon_1 e_2)^{\otimes 2}\bigr)
+      \\
+      &= c_5 \delta q_1 (q_1-1)
+         \bigl((\xsub + \varepsilon \ysub)^{q_1-2}
+                            + (\xsup + \varepsilon \ysup)^{q_1-2}\bigr)
+         \; (\sigma_1 + \varepsilon_1 \sigma_2)^{\otimes 2}
+      \\
+      &< 0 \cdot I.
+    \end{align*}
+    This implies that
+    \begin{equation*}
+      \lim_{|\theta| \rightarrow \infty}
+      \frac{\beta (\vsup - \vsub) + r (\xsub \qsub_1 - \xsup \qsup_1)
+            + \theta^T b(\qsub - \qsup)
+            + \frac{1}{2} \theta^T \, a(\Qsub - \Qsup) \theta}
+           {1 + |\theta|^2} < 0.
+    \end{equation*}
+    As a result, we may impose the additional restriction that
+    $\theta$ is uniformly bounded in~\eqref{eq:39} without changing
+    the value of the supremum.  But once we restrict $\theta$ to a
+    compact set, it clear that the inequality~\eqref{eq:39} is
+    equivalent to
+    \begin{align*}
+      \beta \bigl(\vsub(\zsub^*) - \vsup(\zsup^*)\bigr)
+      &\leq r (\xsub \qsub_1 - \xsup \qsup_1)
+            + \sup_{\theta \in \bb R^d} \;
+            \theta^T b(\qsub - \qsup)
+            + \frac{1}{2} \theta^T \, a(\Qsub - \Qsup) \theta
+      \\
+      &\leq r (\xsub \qsub_1 - \xsup \qsup_1)
+            + \sup_{\theta \in \bb R^d} \;
+            \theta^T b(\qsub - \qsup)
+            + \frac{1}{2} \theta^T \, a(\Qsub - \Qsup) \theta
+      \\
+      &= r (\xsub \qsub_1 - \xsup \qsup_1)
+         - \frac{1}{2} b(\qsub - \qsup) a^{-1}(\Qsub - \Qsup) b(\qsub - \qsup)
+      \\
+      & \leq r \delta q_1
+         [(\xsub + \varepsilon \ysub)^{q_1}
+                 + (\xsup + \varepsilon \ysup)^{q_1}]
+         + \frac{\delta q_1}{c_5 (1-q_1)}
+           \frac{[(\xsub + \varepsilon \ysub)^{q_1-1}
+                  + (\xsup + \varepsilon \ysup)^{q_1-1}]^2}
+                {(\xsub + \varepsilon \ysub)^{q_1-2}
+                 + (\xsup + \varepsilon \ysup)^{q_1-1}} C(\delta),
+    \end{align*}
+    where
+    \begin{equation*}
+      C(\delta) = (\alpha_1 + \delta \alpha_2)^T
+                         ((\sigma_1 + \varepsilon_1 \sigma_2)^{\otimes 2})^{-1}
+                         (\alpha_1 + \delta \alpha_2).
+    \end{equation*}
+    We have
+    \begin{align*}
+      b(\qsub - \qsup)
+      &= \delta q_1
+         \left(\xsub^{q_1-1} + \xsup^{q_1-1}\right) \alpha_1
+      \\&\quad
+        + \delta q_1
+          \bigl((\xsub^{q_1-1} + \varepsilon_1 \ysub)^{q_1-1}
+           + (\xsup^{q_1-1} + \varepsilon_1 \ysup)^{\psup-1}\bigr)
+          (\alpha_1 + \varepsilon_1 \alpha_2)
+    \end{align*}
+    and
+    \begin{align*}
+      a^{-1}(\Qsub - \Qsup)
+      \leq c_5 \delta a(D^2 f(\zsub^*) + D^2 f(\zsup^*))
+    \end{align*}
+
+    To move further, we need to take advantage of the specific form of
+    $\qsub$, $\qsup$, $\Qsub$, and $\Qsup$.
+    We have
+    \begin{equation*}
+      b(\qsub - \qsup)
+      =
+    \end{equation*}
+
+    supremum in
+
+    find a large compact set $K$ such
+
+    This means that we may restrict to the s
+
+  both sides of the inequality
+  As $D^2 f$
+
+
+  \begin{align*}
+    \bigl(n D f(\zsub^*-\zsup) + \delta \gsub(\zsub^*), \; \Qsub\bigr)
+    &\in \supjett_D \vsub(\zsub^*), \\
+    \bigl(n D f(\zsub^*-\zsup) - \delta \gsup(\zsup^*), \; \Qsup\bigr)
+    &\in \subjett_D \vsup(\zsup^*),
+  \end{align*}
+  and
+  \begin{equation*}
+    \begin{bmatrix} \Qsub & 0 \\ 0  & -\Qsup \end{bmatrix}
+    \leq A + \varepsilon A^2
+  \end{equation*}
+  where
+  \begin{equation*}
+    A =
+  \end{equation*}
+
+
+  \begin{align*}
+    f(z) &= (1 + \langle A z, z \rangle)^{1/2}, \\
+    g(x,y) &= 2x + \lambda y
+  \end{align*}
+  and observe that $Df$ and $D^2f$ are uniformly bounded.  Finally,
+  set $D_\varepsilon = [\varepsilon, \infty) \cross [0, \infty)$.
+  \smallskip
+
+  \textbf{Claim:} We may choose $C_1 = C_1(\varepsilon)$ so large that
+  $\vsub(\zsub) - \vsup(\zsup) - C_1 f(\zsub - \zsup) < 0$ if $(\zsub,
+  \zsup) \in D_\varepsilon \cross D_\varepsilon$ and $\xsub =
+  \varepsilon$ or $\xsup = \varepsilon$.
+  \\
+  Using the sublinear growth of $\vsub$ in $\xsub$ and the condition
+  (...), we can choose $c$ with $\vsub(x,y) \leq c (1 + x)$ and
+  $\sup_{z \in D_\varepsilon} - \vsup(z) \leq c$.  Then
+  \begin{align*}
+    \vsub(\varepsilon, \ysub) - \vsup(\xsup, \ysup)
+    &\leq c (1 + \varepsilon) + c
+    = c(2 + \varepsilon) (1 + |\zsub - \zsup|)
+  \end{align*}
+  and
+  \begin{align*}
+    \vsub(\xsub, \ysub) - \vsup(\varepsilon, \ysup)
+    \leq c (1 + \xsub) + c
+    = c (\xsub - \varepsilon) + c (2 + \varepsilon)
+    \leq c(2 + \varepsilon)(1 + |\zsub - \zsup|),
+  \end{align*}
+  so the claim follows from \eqref{eq:24} and the fact that $1 + |z|
+  \leq \sqrt 2(1 + |z|^2)^{1/2}$.
+  \smallskip
+
+  \textbf{Claim:} The function $(\zsub,\zsup) \mapsto \vsub(\zsub) -
+  \vsup(\zsup) - C_1 f(\zsub - \zsup)$ is bounded on $D_\varepsilon
+  \cross D_\varepsilon$.
+  \\
+  Suppose not and consider any $\delta < 1$ so small that
+  \begin{align*}
+    \sup_{\zsub, \zsup \in D_\varepsilon}
+       \vsub(\zsub) - \vsup(\zsup) - C_1 f(\zsub - \zsup)
+       - \delta (g(\zsub) + g(\zsup)) > 0.
+  \end{align*}
+  By the sublinear growth of $\zsub$, this supremum is achieved at
+  some $(\zsub^*, \zsup^*) \in D_\varepsilon \cross D_\varepsilon$ and
+  we have
+  \begin{gather*}
+    (\qsub, \Qsub) \defeq
+    \bigl(C_1 D_z f(\zsub^* - \zsup^*) + \delta D_z g(\zsub^*),\;
+          C_1 D_z^2 f(\zsub^* - \zsup^*)\bigr)
+     \in \supjet_{D_\varepsilon}\vsub(\zsub^*),
+     \\
+     (\qsup, \Qsup) \defeq
+     \bigl(C_1 D_z f(\zsub^* - \zsup^*) - \delta D_z g(\zsub^*),\;
+           C_1 D_z^2 f(\zsub^* - \zsup^*)\bigr)
+      \in \subjet_{D_\varepsilon}\vsub(\zsub^*),
+  \end{gather*}
+  as $f$ and $g$ are $C^2$ (in particular, this doesn't require
+  Ishii's lemma and we don't need to close the jets).  It follow from
+  the previous claim that $\xsub > \varepsilon$ and $\xsup >
+  \varepsilon$, so we actually have $(\qsub, \Qsub) \in
+  \supjet_{D}\vsub(\zsub^*)$ and $(\qsup, \Qsup) \in
+  \supjet_{D}\vsup(\zsup^*)$.
+
+  We have $\qsub = A(\zsub - \zsup) / f(\zsub - \zsup) + 2 e_1 +
+  \lambda e_2$, so $B(\qsub) = \eta^T \qsub = - \ysup/f(\zsub - \zsup)
+  - \lambda < 0$ when $\ysub = 0$.  In particular, \eqref{eq:2}
+  reduces to \eqref{eq:1} and \eqref{eq:1} holds at $(\zsub,
+  \vsub(\zsub), \qsub, \Qsub)$ regardless of the value of $\ysub$ and
+  similiar reasoning shows that \eqref{} holds at $(\zsup,
+  \vsub(\zsup), \qsup, \Qsup)$ regardless of the value of $\ysup$.
+  In particular,
+  \begin{equation*}
+    G(\zsub, \vsub(\zsub), \qsub, \Qsub) \geq 0
+    \geq G(\zsup, \vsub(\zsup), \qsup, \Qsup),
+  \end{equation*}
+  and then
+  \begin{align*}
+    0 &\geq G(\zsup, \vsub(\zsup), \qsup, \Qsup)
+            - G(\zsub, \vsub(\zsub), \qsub, \Qsub)
+    \\
+    bad...
+  \end{align*}
+
+
+
+  We will first prove the result under the additional assumptions that
+  $\overline v$ is uniformly bounded from below and there exists a
+  constant $c_1$ such that
+  \begin{equation} \label{eq:22}
+    v(x_2, y_2) \geq u(x_1, y_1), \quad \text{when $x_1 \in (0, c_1)$}.
+  \end{equation}
+  Set $D = \{ (x,y) \in \bb R^2 : x > 0, y \geq 0 \}$ and suppose for
+  the purposes of producing a contraction that
+  \begin{equation} \label{eq:6}
+    \gamma \defeq \sup_{z \in D} \vsub(z) - \vsup(z) > 0.
+  \end{equation}
+  To construct our penalty function, we will need two pieces.  First
+  define
+  \begin{equation*}
+    f(x,y) \defeq x^q + (x + \lambda y)^q,
+  \end{equation*}
+  and observe that
+  \begin{equation} \label{eq:7}
+    \eta \cdot Df(x,y) = - \lambda q x^{q-1} < 0, \qquad (x, y) \in D,
+  \end{equation}
+  and
+  \begin{equation} \label{eq:8}
+    D^2f(x,y) = q (1-q)
+                \begin{bmatrix} 1 & 1 \\ 0 & \lambda \end{bmatrix}
+                \begin{bmatrix} x^{q-2} & 0 \\
+                                0 & (x+\lambda y)^{q-2} \end{bmatrix}
+                \begin{bmatrix} 1 & 0 \\ 1 & \lambda \end{bmatrix}
+              < 0,
+   \qquad (x,y) \in D.
+  \end{equation}
+  % so $D^2f \leq 0$ and $D^2f < 0$ in the interior of the domain.
+
+
+  Next define
+  \begin{equation*}
+    \phi^n(z_1, z_2)
+    \defeq \delta \, (f(z_1) + f(z_2))
+      + \frac{n}{2} \langle A (z_1 - z_2), z_1 - z_2 \rangle.
+  \end{equation*}
+  where $\delta > 0$ has been choosen so small (see~\eqref{eq:6}) that
+  \begin{equation} \label{eq:15}
+    \sup_{z \in D} u(z) - v(z) - \phi^0(z, z) \geq \gamma/2 > 0,
+  \end{equation}
+  and set $\Phi^n(z_1, z_2) \defeq u(z_1) - v(z_2) - \phi^n(z_1,
+  z_2)$.
+
+  \textbf{Claim:}  The supremum
+
+  There exists a compact rectangle $R = [r_1, r_1]
+  \cross [0, r_1]$ with $r_1 > 0$
+
+  It follows from~\eqref{eq:15}, the first half
+  of~\eqref{eq:16}, and the fact that $v$ and $\phi^n$ are bounded
+  from below that
+  \begin{equation*}
+    0 < \gamma/2 \leq \sup_{z_1, z_2 \in D} \Phi^n(z_1, z_2) < \infty,
+    \qquad \text{for all $n \in \bb N_0$},
+  \end{equation*}
+  so
+  \begin{equation} \label{eq:18}
+    \bigl\{ (z_1, z_2) \in D : \Phi^n > 0 \bigr\}
+    \subset \Bigl\{ (z_1, z_2) \in D :
+               |z_1 - z_2|^2 \leq M / n \Bigr\}
+  \end{equation}
+  where $M \defeq \frac{2}{c_4} \sup_{z_1, z_2 \in D} \Phi^0(z_1,
+  z_2)$ is constant which does not depend upon $n$.
+
+  % immediately implies
+  % \begin{equation} \label{eq:11}
+  %   \sup_{z_1, z_2 \in D} u(z_1) - v(z_2) - \phi^n(z_1, z_2)
+  %   \geq \gamma/2 >  0,
+  %   \quad \text{for all $n \in \bb N_0$.}
+  % \end{equation}
+  As $u(x,y) \leq c_1 U(x)$, $v$ is bounded from below, and
+  estimate~\eqref{eq:5} holds, we may find a compact rectangle
+  $R_1 = [a_1, b_1] \cross [0, c_1]$ with $a_1 > 0$ such that
+  \begin{equation*}
+    \bigl\{ (z_1, z_2) \in D^2 :
+            u(z_1) - v(z_2) - \phi^n(z_1, z_2)  > 0 \bigr\}
+    \subset R' \cross D,
+    \quad \text{for all $n \in \bb N_0$.}
+  \end{equation*}
+  We also have
+
+  As $u$ is u.s.c., $v$ bounded below, and $\phi^n \geq 0$, we have
+  \begin{equation*}
+    M \defeq \sup_{(z_1, z_2) \in R_1 \cross D}
+        u(z_1) - v(z_2) - \phi^0(z_1, z_2)
+      < \infty.
+  \end{equation*}
+
+
+  \begin{equation} \label{eq:12}
+    (z_1^n, z_2^n)
+    \defeq \argmax_{z_1, z_2 \in D} u(z_1) - v(z_2) - \phi^n(z_1, z_2)
+    \quad \text{for all $n > N$}.
+  \end{equation}
+
+  % holds for $n = 0$ and observe that if~\eqref{eq:11} holds for
+  % $n=0$ then it holds for all $n \in \bb N_0$.
+
+
+  Given the bound from above on $u$, the uniform bound from below on
+  $v$, the estimate~\eqref{eq:5}, and the estimate~\eqref{eq:10}, we
+  may find a large $N \in \bb N$ and a single compact rectangle $R =
+  [r_1, r_2] \cross [0, r_3]$ with $r_1 > 0$ such that
+  \begin{equation} \label{eq:23}
+    (z_1^n, z_2^n)
+    \defeq \argmax_{z_1, z_2 \in D} \; u(z_1) - v(z_2) - \phi^n(z_1, z_2)
+    \in R^2 \quad \text{for all $n > N$}.
+  \end{equation}
+  It then follows from Lemma~\ref{thm:1} and~\eqref{eq:8} that we may
+  choose a single $\varepsilon > 0$ so small that
+  \begin{equation} \label{eq:13}
+    - \delta D^2f(z) \geq \varepsilon (\delta^2 \{ D^2f(z) \}^2 + I),
+    \qquad \text{for all $z \in R$.}
+  \end{equation}.
+
+  We next set
+  \begin{align*}
+    p_1^n &\defeq D_{z_1} \Phi^n(z^n_1, z^n_2)
+          = \delta Df(z^n_1) + n A (z^n_1 - z^n_2),
+    \\
+    p_2^n &\defeq D_{z_2} \Phi^n(z^n_1, z^n_2)
+          = - \delta Df(z^n_2) + n A (z^n_1 - z^n_2),
+  \end{align*}
+  and observe that
+  \begin{align*}
+    D^2 \Phi^n(z_1, z_2)
+    &= \delta \begin{bmatrix} D^2f(z_1) & 0 \\ 0 & D^2f(z_2) \end{bmatrix}
+       + n \begin{bmatrix} A & -A \\ -A & A \end{bmatrix}.
+  \end{align*}
+  As a result, my apply the Crandall--Ishii--Jensen Lemma
+  (e.g.\ CIL~Thm.~3.2) to produce matrices $Q^n_1, Q^n_2 \in S^2$
+  such that $(p_1^n, Q^n_1) \in \overline J^{2,+}_D(u(z_1^n))$,
+  $(p_2^n, Q^n_2) \in \overline J^{2,-}_D(u(z_2^n))$, and
+  % \begin{align*}
+  %   \bigl(\delta Df(z^n_1) + n A (z^n_1 - z^n_2), \; Q^n_1\bigr)
+  %   \in \overline J^{2,+}_D(u(z_1^n)),
+  %   \\
+  %   \bigl(-\delta Df(z^n_2) + n A (z^n_1 - z^n_2), \; Q^n_2\bigr)
+  %   \in \overline J^{2,-}_D(u(z_2^n)),
+  % \end{align*}
+  % and
+  \begin{align*}
+    \begin{bmatrix} Q^n_1 & 0 \\ 0 & -Q^n_2 \end{bmatrix}
+    \leq D^2 \Phi^n(z_1^n, z_2^n)
+         + \varepsilon \bigl(D^2 \Phi^n(z_1^n, z_2^n)\bigr)^2.
+  \end{align*}
+  Multiplying both sides of this inequality by $(\xi, \xi) \in \bb
+  R^2 \cross \bb R^2$, if follows from~\eqref{eq:12} and~\eqref{eq:13} that
+  \begin{equation*}
+    \xi^T (Q^1 - Q^2) \xi
+    \leq \xi^T
+         \bigl\{\delta D^2f(z_1) + \delta D^2f(z_2)
+                + \varepsilon \delta^2
+                  (D^2f(z_1))^2 + \varepsilon \delta^2 (D^2f(z_1))^2 \bigr\}
+         \xi
+    \leq -2 \varepsilon |\xi|^2,
+  \end{equation*}
+  when $n > N$.
+  % where the last inequality follows from the fact that we selected
+  % $\varepsilon^n$ so that~\eqref{eq:13} holds, so $Q^n_1 < Q^n_2$.
+
+  Notice that $B(p^n_1) = \eta \cdot p^n_1 = \delta \eta \cdot
+  Df(z^n_1) - n \, y^n_2 < 0$ when $y^n_1 = 0$ by~\eqref{eq:7}
+  and~\eqref{eq:9}, so the subsolution property of $u$ implies that
+  $F(z^n_1, u(z^n_1), p^n_1, Q^n_1) \geq 0$.  Similar calculations
+  show that $B(p^n_2) > 0$ so $F(z^n_2, v(z^n_2), p^n_2, Q^n_2) \leq
+  0$.  It then follows from the definition of $F$ that
+  \begin{align*}
+    \beta \bigl(u(z^n_1)-v(z^n_2)\bigr)
+    &\leq r (x^n_1 - x^n_2) (D_x f(z^n_1) + D_x f(z^n_2))
+          + U^*(p^n_1 \cdot e_1)
+          - U^*(p^n_2 \cdot e_1)
+    \\&\qquad
+          + \sup_{\theta \in K} \{ \alpha^T \theta p^n_1
+                               + \frac{1}{2} \tr\bigl(\theta^Ta\theta
+                                                      Q^n_1\bigr) \}
+          - \sup_{\theta \in K} \alpha^T \theta p^n_2
+                               + \frac{1}{2} \tr\bigl(\theta^Ta\theta Q^n_2\bigr)
+    \\[2ex]
+    &\leq r (x^n_1 - x^n_2) (D_x f(z^n_1) + D_x f(z^n_2))
+    % \\&\qquad
+          + \sup_{\theta \in K} \{ \alpha^T \theta (p^n_1 - p^n_2)
+                               - \varepsilon \tr\bigl(\theta^Ta\theta \bigr) \}
+  \end{align*}
+
+
+
+
+
+  .  As a result, we may
+  essentially ignore the boundary conditions for the remainder of the
+  proof.
+
+  \begin{align*}
+    (D_{z_1} \Phi^n(z_1^n, z_2^n), Q^1) \in \overline J^{2,+}_D(u(z_1^n)),
+    \\
+    (-D_{z_2} \Phi^n(z_1^n, z_2^n), Q^2) \in \overline J^{2,-}_D(u(z_2^n)),
+  \end{align*}
+  and
+
+
+  Also
+  notice that $f$ can be written as the composition of a linear function
+  and a strictly concave function, so $f$ is strictly concave and $D^2 f
+  < 0$.
+
+\end{proof}
+
+b1 b1 b2 e1 e1 b1 b1 e2 e2
