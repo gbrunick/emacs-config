@@ -347,8 +347,8 @@ first local region keybinding is defined in a given buffer.")
   (force-mode-line-update))
 
 
-(defun gpb-reg--save-before-wrap "(")
-(defun gpb-reg--save-after-wrap ")")
+(defvar gpb-reg--save-before-wrap "(")
+(defvar gpb-reg--save-after-wrap ")")
 
 (defun gpb-reg--wrap-region (before after)
   (interactive "sInsert before: \nsInsert after: ")

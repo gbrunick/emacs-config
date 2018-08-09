@@ -128,11 +128,11 @@ editing or preceed cursor movement like saving the file or
 setting the mark in trnasient mark mode.")
 
 (defvar gpb-modal--enter-insert-mode-after
+  `(gpb-latex-insert-item kmacro-start-macro-or-insert-counter)
   "The function `gpb-modal--post-command-hook' automatically
 switches to insert mode after one of these commands.  This may be
 convenient for commands that usually precede the entering of
-text."
-  `(gpb-latex-insert-item kmacro-start-macro-or-insert-counter))
+text.")
 
 (defvar gpb-modal--enter-insert-mode-major-modes
   `(;;imenu-tree-mode browse-kill-ring-mode
