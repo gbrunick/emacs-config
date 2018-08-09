@@ -1,11 +1,10 @@
-;; The .emacs file should simply load this file.
-
 ;; We set this so we can debug a slow init process.
 (setq debug-on-quit t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Add entire source tree rooted at this file to load-path
+;; Add the source tree rooted at this directory containing this file to the
+;; load path.
 ;;
 
 (let* ((default-directory (file-name-directory
@@ -19,12 +18,11 @@
   (normal-top-level-add-subdirs-to-load-path)
   ;; Store user themes in this source tree.
   (setq custom-theme-directory (expand-file-name "themes"))
-  ;; Find the machine-specific customization file.
-  (setq custom-file (expand-file-name (concat system-name ".el")
-                                      (expand-file-name "machine-specific")))
+
   ;; The "package" package is included with newer versions of emacs.
-  (unless (>= emacs-major-version 24)
-    (load (expand-file-name "package.el" (expand-file-name "backports")))))
+  ;; (unless (>= emacs-major-version 24)
+  ;;   (load (expand-file-name "package.el" (expand-file-name "backports"))))
+  )
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -32,34 +30,31 @@
 ;; Download and activate useful packages.
 ;;
 
-(require 'package)
 (setq package-archives
       '(("gnu" . "http://elpa.gnu.org/packages/")
         ("melpa-stable" . "http://stable.melpa.org/packages/")))
-(setq package-enable-at-startup nil)
-(package-initialize)
-(let (refreshed)
-  (dolist (p '(auto-complete auctex bm browse-kill-ring
-               company dired-single jedi xml-rpc helm elpy))
-    (unless (package-installed-p p)
-      (unless refreshed
-        (package-refresh-contents)
-        (setq refreshed t))
-      (package-install p))))
 
-;; Add any installed themes to the theme load path
-(dolist (dir (directory-files package-user-dir t))
-  (when (and (file-directory-p dir)
-             (directory-files dir nil ".*-theme.el"))
-    (add-to-list 'custom-theme-load-path dir)))
+(when nil
+  (require 'package)
+  (setq package-enable-at-startup nil)
+  (package-initialize)
+  (let (refreshed)
+    (dolist (p '(auto-complete auctex bm browse-kill-ring
+                               company dired-single jedi xml-rpc helm elpy))
+      (unless (package-installed-p p)
+        (unless refreshed
+          (package-refresh-contents)
+          (setq refreshed t))
+        (package-install p))))
 
-;; We now load the machine-specific customization file.  We do this after
-;; installing packages so that we can access any themes that may have been
-;; downloaded.
-(when (file-exists-p custom-file) (load custom-file))
+  ;; Add any installed themes to the theme load path
+  (dolist (dir (directory-files package-user-dir t))
+    (when (and (file-directory-p dir)
+               (directory-files dir nil ".*-theme.el"))
+      (add-to-list 'custom-theme-load-path dir))))
 
-;; Can we please stop pymacs?
-(eval-after-load "pymacs" '(message "********** Loaded pymacs *************"))
+;; ;; Can we please stop pymacs?
+;; (eval-after-load "pymacs" '(message "********** Loaded pymacs *************"))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -184,6 +179,15 @@
   (cons "New Buffer" 'gpb-new-document) 'open-dir)
 
 
+;; Convenience function ---------------------------------------------------
+
+(defun load-safe (filename)
+  "Issue warnings rather than failing when things fail to load."
+  (condition-case-unless-debug err
+      (load filename)
+    (error (message "Error loading %s: %S" filename err))))
+
+
 ;; Misc. customizations ---------------------------------------------------
 
 (show-paren-mode 1)
@@ -272,7 +276,6 @@
               ediff-highlight-all-diffs t
               ediff-auto-refine 'on
               ediff-ignore-similar-regions t)
-(eval-after-load 'ediff '(require 'ediff-trees))
 
 ;; Add time stamps to files that want them
 (when (require 'time-stamp nil t)
@@ -422,14 +425,14 @@
 (autoload 'octave-mode "octave-mode" nil t)
 (autoload 'run-bash "gpb-readline" "Run bash" t)
 
-(eval-after-load 'dired  '(load "gpb-dired"))
-(eval-after-load 'help-mode '(load "gpb-help"))
-(eval-after-load 'ispell '(load "gpb-ispell"))
-(eval-after-load 'company  '(load "gpb-company"))
-(eval-after-load 'auto-complete '(load "gpb-auto-complete"))
+(eval-after-load 'dired  '(load-safe "gpb-dired"))
+(eval-after-load 'help-mode '(load-safe "gpb-help"))
+(eval-after-load 'ispell '(load-safe "gpb-ispell"))
+(eval-after-load 'company  '(load-safe "gpb-company"))
+(eval-after-load 'auto-complete '(load-safe "gpb-auto-complete"))
 (eval-after-load 'compile '(define-key compilation-mode-map "\C-o" nil))
-(eval-after-load 'latex '(load "gpb-latex"))
-(eval-after-load 'python '(load "gpb-python2"))
+(eval-after-load 'latex '(load-safe "gpb-latex"))
+(eval-after-load 'python '(load-safe "gpb-python2"))
 
 
 ;; Minibuffer customization -----------------------------------------------
@@ -646,8 +649,8 @@
 (require 'gpb-filtered-list)
 
 ;; These should probably be an auto load ...
-(load "gpb-lisp")
-(load "gpb-xml")
+(ignore-errors (load-safe "gpb-lisp"))
+(ignore-errors (load-safe "gpb-xml"))
 
 (require 'gpb-comint)
 (add-hook 'comint-mode-hook 'gpb-comint:enable-bold-prompt-mode t)
