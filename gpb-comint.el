@@ -154,6 +154,7 @@ out of control just to prevent a lock up.
     (when (> (current-column) 500)
       (insert-before-markers "\n    [line break inserted]\n"))))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;  Minor mode for bold comint prompt
@@ -205,5 +206,38 @@ out of control just to prevent a lock up.
   "Convenience function for adding to hooks."
   (gpb-comint:bold-prompt-mode 1))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;  Minor mode for logging process output
+;;
+;;  To enable logging in the shell buffer:
+;;    M-x: gpb-comint:trace-output-mode
+;;
+;;  To view the log buffer:
+;;    (trace-comint--log-open-log)
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(when (require 'log4e nil t)
+  (log4e:deflogger "trace-comint" "%t [%l] %m" "%H:%M:%S"))
+
+(defun gpb-comint:trace-process-output-filter (output)
+  (trace-comint--log-trace "Output: %S\n" output)
+  output)
+
+(define-minor-mode gpb-comint:trace-output-mode ()
+  "Minor mode to make the comint prompt bold" nil nil nil
+  (cond
+   (gpb-comint:trace-output-mode
+    (trace-comint--log-set-level 'trace)
+    (trace-comint--log-enable-logging)
+    ;(trace-comint--log-open-log)
+    (add-hook 'comint-preoutput-filter-functions
+              'gpb-comint:trace-process-output-filter nil t))
+   (t
+    (trace-comint--log-disable-logging)
+    (remove-hook 'comint-preoutput-filter-functions
+                 'gpb-comint:trace-process-output-filter t))))
 
 (provide 'gpb-comint)
