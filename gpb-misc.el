@@ -598,6 +598,17 @@ This code is taken from fx-misc.el by Dave Love"
                                (kill-buffer gpb-new-document--buffer)))
       (insert "    create a new buffer in text-mode\n\n")
       (insert indent)
+
+      (when (boundp 'ess-version)
+        (insert-button "R buffer"
+                       'action (lambda (button)
+                                 (switch-to-buffer
+                                  (generate-new-buffer "*new R buffer*"))
+                                 (R-mode)
+                                 (kill-buffer gpb-new-document--buffer)))
+        (insert "  create a new buffer in Python-mode\n\n")
+        (insert indent))
+
       (insert-button "LaTeX buffer"
                      'action (lambda (button)
                                (switch-to-buffer
@@ -605,14 +616,6 @@ This code is taken from fx-misc.el by Dave Love"
                                (LaTeX-mode)
                                (kill-buffer gpb-new-document--buffer)))
       (insert "   create a new buffer in LaTeX-mode\n\n")
-      (insert indent)
-      (insert-button "Python buffer"
-                     'action (lambda (button)
-                               (switch-to-buffer
-                                (generate-new-buffer "*new python buffer*"))
-                               (python-mode)
-                               (kill-buffer gpb-new-document--buffer)))
-      (insert "  create a new buffer in Python-mode\n\n")
       (insert indent)
       (insert-button "Emacs Lisp buffer"
                      'action (lambda (button)
