@@ -306,6 +306,7 @@ This variable should never accessed directly.  Instead use
 ;;(gpb-modal--define-command-key "f" 'goto-next-text-object)
 (gpb-modal--define-command-key "=" 'indent-text-object)
 (gpb-modal--define-command-key ";" 'comment/uncomment-text-object)
+(gpb-modal--define-command-key ":" 'gpb-exec-command/eval-expression)
 
 (gpb-modal--define-command-key "w" 'gpb-modal--next-word)
 (gpb-modal--define-command-key "W" 'gpb-modal--beginning-of-word)
