@@ -363,57 +363,20 @@ This code is taken from fx-misc.el by Dave Love"
   (let ((inhibit-read-only t))
     (erase-buffer)))
 
-(defun gpb-exec-command/eval-expression (arg)
-  "Calls `execute-extended-command' on first invocation.  If
-called again during `execute-extended-command', it saves the
-current input, leaves `execute-extended-command', enters
-`eval-expression' and then inserts the previous input."
-  (interactive "P")
-  (let ((minibuf-win (active-minibuffer-window)) minibuffer-text)
-    (cond
-     ;; If called again during `execute-extended-command'
-     ((and minibuf-win (gpb-util-ends-with (minibuffer-prompt) "Eval: "))
-      (setq enter-ielm t)
-      (throw 'exit t))
-     ;; If called again during `execute-extended-command'
-     ((and minibuf-win (gpb-util-ends-with (minibuffer-prompt) "M-x "))
-      (with-current-buffer (window-buffer minibuf-win)
-        (beginning-of-line)
-        (setq save-input (buffer-substring-no-properties (point) (point-max))
-              enter-eval-expression t))
-      (when nil (message "save-input: %S" save-input))
-      (throw 'exit t))
-     (t (let (save-input enter-eval-expression enter-ielm func)
-          (condition-case exception
-              (execute-extended-command arg)
-            ('quit
-             (cond
-              (enter-eval-expression
-               (setq enter-eval-expression nil
-                     func `(lambda () (with-current-buffer
-                                          (window-buffer
-                                           (active-minibuffer-window))
-                                        (insert ,save-input))))
-               ;;(redisplay t)
-               ;;(message "Caught quit 1...: %S" func)
-               (run-at-time 0.01 nil func)
-               (condition-case exc
-                   (call-interactively 'eval-expression)
-                 ('quit
-                  (cond
-                   (enter-ielm
-                    (split-window (selected-window) (- (window-height) 13))
-                    (let ((this-buf (current-buffer))
-                          (ielm-buf (get-buffer-create
-                                     (format "*ielm* (%s)" (buffer-name)))))
-                      (with-current-buffer ielm-buf
-                        (inferior-emacs-lisp-mode)
-                        (ielm-change-working-buffer this-buf))
-                      (switch-to-buffer-other-window ielm-buf)
-                      (set-window-dedicated-p (selected-window) t)))
-                   (t (keyboard-quit))))))
-              (t
-               (keyboard-quit))))))))))
+(defun gpb-exec-command/eval-expression ()
+  (interactive)
+  (or (catch 'switch-to-eval-expression
+        (let ((temp-map (make-sparse-keymap)))
+          ; If we repeat the key sequence used to run this command, we
+          ; throw to `eval-expression.
+          (define-key temp-map (this-command-keys)
+            (lambda ()
+              (interactive)
+              (throw 'switch-to-eval-expression nil)))
+          (set-transient-map temp-map)
+          (call-interactively 'execute-extended-command)
+          t))
+      (call-interactively 'eval-expression)))
 
 (defun gpb-execute-shell-script ()
   (interactive)
