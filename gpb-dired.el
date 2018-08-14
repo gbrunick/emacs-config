@@ -16,7 +16,7 @@
 
 (setq dired-listing-switches "-aghG"
       ;; original value "^\\.?#\\|^\\.$\\|^\\.\\.$")
-      dired-omit-files "^\\.?#\\|^\\.$\\|^\\.[^.]")
+      dired-omit-files "^\\.?#")
 
 (add-hook 'dired-mode-hook 'gpb-dired-mode-hook)
 
