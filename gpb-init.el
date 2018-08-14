@@ -25,38 +25,6 @@
   )
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Download and activate useful packages.
-;;
-
-(setq package-archives
-      '(("gnu" . "http://elpa.gnu.org/packages/")
-        ("melpa-stable" . "http://stable.melpa.org/packages/")))
-
-(when nil
-  (require 'package)
-  (setq package-enable-at-startup nil)
-  (package-initialize)
-  (let (refreshed)
-    (dolist (p '(auto-complete auctex bm browse-kill-ring
-                               company dired-single jedi xml-rpc helm elpy))
-      (unless (package-installed-p p)
-        (unless refreshed
-          (package-refresh-contents)
-          (setq refreshed t))
-        (package-install p))))
-
-  ;; Add any installed themes to the theme load path
-  (dolist (dir (directory-files package-user-dir t))
-    (when (and (file-directory-p dir)
-               (directory-files dir nil ".*-theme.el"))
-      (add-to-list 'custom-theme-load-path dir))))
-
-;; ;; Can we please stop pymacs?
-;; (eval-after-load "pymacs" '(message "********** Loaded pymacs *************"))
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;  Global bindings
