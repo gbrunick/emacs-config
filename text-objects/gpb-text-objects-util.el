@@ -1,5 +1,3 @@
-;; -*- gpb-eval-buffer-function: gpb-tobj--reload; -*-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;  Utility functions for dealing with text objects.

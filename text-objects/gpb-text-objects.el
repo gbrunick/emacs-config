@@ -1,5 +1,3 @@
-;; -*- gpb-eval-buffer-function: gpb-tobj--reload; -*-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;  Define the commands and text objects.
@@ -282,8 +280,12 @@
    (if (null execute-text-object-function)
        (error "execute-text-object-function is not defined in this buffer")
      (gpb-tobj--flash-region beg end)
-     (funcall execute-text-object-function beg end)
-     (setq deactivate-mark t)))
+     (condition-case exc
+         (funcall execute-text-object-function obj beg end)
+       ('wrong-number-of-arguments
+        (warn "Deprecated call signature: %s" execute-text-object-function)
+        (funcall execute-text-object-function beg end)))
+    (setq deactivate-mark t)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

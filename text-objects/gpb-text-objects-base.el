@@ -1,5 +1,3 @@
-;; -*- gpb-eval-buffer-function: gpb-tobj--reload; -*-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;  VIM-like text objects
