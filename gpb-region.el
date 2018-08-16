@@ -86,34 +86,6 @@ first local region keybinding is defined in a given buffer.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;;  Some context menu entries
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(eval-after-load "gpb-context-menu"
-  '(gpb-cm:add-context-menu-items 'gpb-reg--generate-region-context-menu-items))
-
-(defun gpb-reg--generate-region-context-menu-items ()
-  "Add menu items if there is a symbol at the mouse click."
-  (append
-   (when (use-region-p)
-       `(separator
-         "Region"
-         ;; ("Cut selection" gpb-reg--kill-region)
-         ;; ("Copy selection" gpb-reg--copy-region)
-         ,(when comment-start
-            (if (gpb-reg--region-is-commented-p)
-                '("Uncomment selection" comment-dwim :key-binding comment-dwim)
-              '("Comment selection" comment-dwim :key-binding comment-dwim)))
-         ("Narrow to selection" gpb-reg--narrow-to-region)
-         separator))
-   (when (gpb-reg--buffer-is-narrowed-p)
-     `(("Remove narrowing" widen)))))
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
 ;;  Various region-related functions
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

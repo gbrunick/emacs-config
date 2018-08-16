@@ -37,7 +37,3 @@
   :supertype 'help-xref
   'help-function 'gpb-help-variable-def
   'help-echo (purecopy "mouse-2, RET: find variable's definition"))
-
-(defun gpb-help-add-context-menu ()
-  (gpb-cm:add-context-menu-items 'gpb-generate-lisp-symbol-items t))
-(add-hook 'help-mode-hook 'gpb-help-add-context-menu)

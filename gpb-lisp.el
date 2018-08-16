@@ -176,11 +176,6 @@
   (when (member 'company features)
     (set (make-variable-buffer-local 'company-backends) '(company-elisp))
     (company-mode))
-  ;; (make-local-variable 'ac-sources)
-  ;; (setq ac-sources '(ac-source-symbols))
-  ;; (auto-complete-mode 1)
-  (when (member 'gpb-context-menu features)
-    (gpb-cm:add-context-menu-items 'gpb-lisp:generate-context-menu-items t))
   (when (member 'gpb-modal features)
     (gpb-modal--define-command-key
      "\t" 'gpb-back-to-indentation-or-indent-according-to-mode t))

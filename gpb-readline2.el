@@ -823,10 +823,7 @@ With a prefix, try to open the shell in a different window (using
     ;; (gpb-comint-disable-prompt-highlighting)
     ;; (gpb-set-local-compilation-errors '(gpb-log gpb-python gpb-pdb-stack
     ;;                                             bash))
-    (compilation-shell-minor-mode 1)
-    ;; (gpb-comint-reset-compilation-errors-on-send)
-    ;; (gpb-cm:add-context-menu-items make-bash-context-menu t)
-    )))
+    (compilation-shell-minor-mode 1))))
 
 (defalias 'terminal 'run-bash)
 

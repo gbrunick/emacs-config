@@ -641,10 +641,6 @@
 (require 'gpb-region)
 (gpb-region-keymap-mode 1)
 
-(require 'gpb-context-menu)
-(gpb-context-menu-mode 1)
-(gpb-cm:add-context-menu-items 'gpb-cm:generate-ffap-menu-items)
-
 ;; Rectangle mark mode
 (autoload 'gpb-rect--begin-rect-command "gpb-rect-commands")
 
@@ -662,6 +658,7 @@
  `((gpb-pdb-location
     "^>? *\\([^(\n]+\\.py\\)[(:]\\([0-9]+\\)[): ]" 1 2)))
 
-(setq debug-on-quit nil)
-
+(setenv "PAGER" "cat")
 (setenv "PYTHONUNBUFFERED" "1")
+
+(setq debug-on-quit nil)

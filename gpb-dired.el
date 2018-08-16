@@ -25,8 +25,6 @@
   (if gpb-dired-default-omit-mode
       (dired-omit-mode 1)
     (dired-omit-mode -1))
-  (when (require 'gpb-context-menu nil t)
-    (gpb-cm:add-context-menu-items 'gpd-dired-generate-context-menu t))
   (hl-line-mode 1))
 
 

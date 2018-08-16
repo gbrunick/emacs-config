@@ -694,9 +694,6 @@ If an environment appears in both lists, it is excluded.
   ;; Handle embedded python code blocks
   ;;(run-at-time 0.5 nil 'gpb-latex-add-python-support)
   ;;(gpb-latex-add-python-support)
-  (gpb-cm:add-context-menu-items 'gpb-latex-generate-delimiter-items t)
-  (gpb-cm:add-context-menu-items 'gpb-latex-generate-environment-items t)
-  (gpb-cm:add-context-menu-items 'gpb-latex-generate-region-items t)
   (message "gpb-init-LaTeX-buffer...done"))
 
 
