@@ -7,12 +7,9 @@
 (require 'edebug)
 
 (define-key lisp-mode-shared-map "\t" 'gpb-lisp-tab-command)
-(define-key lisp-mode-shared-map [(meta tab)] 'company-manual-begin)
-(define-key lisp-mode-shared-map [(control meta tab)] 'lisp-complete-symbol)
 (define-key emacs-lisp-mode-map "\C-c\C-c" 'eval-buffer)
 (define-key emacs-lisp-mode-map "\C-c\C-u" 'gpb-lisp-run-unit-tests)
 (define-key edebug-mode-map [(control c)(w)] 'gpb-watch-variable-at-point)
-
 
 (defun gpb-lisp-eval-line ()
   (interactive)
@@ -51,11 +48,7 @@
          )
     (unless (looking-at "[[:space:]]\\|)\\|$")
       (save-excursion (insert " ")))
-    (completion-at-point)
-    ;; (gpb-company-try-to-complete-common)
-    ;; (company-manual-begin)
-    ;; (company-complete-common)
-    )))
+    (completion-at-point))))
 
 (defun gpb-lisp-end-of-sexp-p ()
   (let ((current-point (point)))
@@ -112,7 +105,9 @@
   (when (require 'gpb-modal nil t)
     (gpb-modal--define-command-key
      "\t" 'gpb-back-to-indentation-or-indent-according-to-mode t)
-    (setq execute-text-object-function 'eval-text-object)))
+    (gpb-modal--define-command-key "g" 'gpb-lisp-goto-definition t)
+    (setq-local execute-text-object-function 'eval-text-object)))
+
 
 (defun gpb-lisp-eval-something (arg)
   (interactive "P")
@@ -135,7 +130,6 @@
 (defun gpb-emacs-lisp-mode-init ()
   (interactive)
   (gpb-common-lisp-init)
-  ;;(imenu-add-to-menubar "Index")
   (local-set-key [(control return)] 'gpb-lisp-eval-something))
 
 (add-hook 'emacs-lisp-mode-hook 'gpb-emacs-lisp-mode-init)
@@ -176,31 +170,6 @@
       (message "var %S" symbol)
       (push symbol edebug-eval-list)
       (save-window-excursion (edebug-eval-redisplay)))))
-
-(defun gpb-lisp-make-edebug-context-menu ()
-  (append
-     (list
-      ;; If there is a symbol at the point
-      (let ((symbol (gpb-symbol-at-point)))
-        (when symbol
-          `[,(format "Watch %s" symbol)
-            gpb-watch-variable-at-point t]))
-
-      ["Watch sexp" gpb-watch-previous-sexp t]
-      ["Run to here" edebug-goto-here t]
-      ["Set breakpoint" edebug-set-breakpoint t]
-      ["edebug-items-separator-2" nil :label "--"])
-
-     ;; edebug submenu
-     (list (lookup-key (current-local-map) [(menu-bar)(Edebug)]))
-
-     (gpb-add-file-items)
-     (gpb-make-index-menu)
-     (gpb-add-window-items)
-     (gpb-add-main-menu-item)))
-
- ;; (gpb-context-menu-install-menu 'gpb-lisp-make-edebug-context-menu
- ;;                                edebug-mode-map)
 
 
 ;; Don't save window configurations when debugging.
@@ -249,7 +218,6 @@ Switches to the buffer `*ielm*', or creates it if it does not exist."
   (local-set-key [(control tab)] nil)
   (local-set-key "\C-m" 'gpb-ielm-copy-or-eval))
 
-
 (add-hook 'inferior-emacs-lisp-mode-hook 'gpb-inferior-emacs-lisp-mode-init)
 
 
@@ -280,4 +248,3 @@ definition in other window."
       (find-variable symbol)))
    (t
     (error "Undefined symbol %s" symbol))))
-

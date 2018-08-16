@@ -13,6 +13,7 @@
 (require 'gpb-text-objects-util)
 
 (defun gpb-tobj--reload ()
+  "Reload the source files."
   (gpb-tobj--reset-all-keymaps)
   (let ((gpb-tobj--enable-warnings nil))
     (dolist (filename '("gpb-text-objects-base.el"
@@ -48,7 +49,11 @@
 (gpb-tobj--global-set-key "i" 'gpb-tobj--set-inner-flag)
 (gpb-tobj--global-set-key "o" 'gpb-tobj--set-outer-flag)
 
-(defvar execute-text-object-function nil)
+(defvar execute-text-object-function nil
+  "The function that is used to execute code in a buffer.
+When this buffer local variable should be bound to a function
+that accepts two arguments and execute the reion defined by thow
+points.  Used by `execute-text-object'.")
 (make-variable-buffer-local 'execute-text-object-function)
 
 (defun gpb-tobj--set-inner-flag ()
