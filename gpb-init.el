@@ -15,37 +15,14 @@
   ;; machine-specific and backports are excluded because they contain
   ;; empty .nosearch files (see
   ;; `normal-top-level-add-subdirs-to-load-path').
-  (normal-top-level-add-subdirs-to-load-path)
-  ;; Store user themes in this source tree.
-  (setq custom-theme-directory (expand-file-name "themes"))
-
-  ;; The "package" package is included with newer versions of emacs.
-  ;; (unless (>= emacs-major-version 24)
-  ;;   (load (expand-file-name "package.el" (expand-file-name "backports"))))
-  )
+  (normal-top-level-add-subdirs-to-load-path))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;;  Global bindings
-;;
-;;  I put all my global key bindings in keymap with the "real" global map
-;;  as a parent so that I can easily disable my bindings if I want to see
-;;  the original key bindings.
+;;  Global key bindings
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defvar gpb-global-map (make-sparse-keymap) "My global keymap")
-(set-keymap-parent gpb-global-map global-map)
-
-(define-minor-mode gpb-global-bindings-mode
-  "Global mode for global key maps."
-  :global t
-  (if gpb-global-bindings-mode
-      (use-global-map gpb-global-map)
-    (use-global-map global-map)))
-
-(gpb-global-bindings-mode 1)
 
 ;; CUA-like bindings
 (global-set-key "\C-v" 'yank)
@@ -72,7 +49,6 @@
 (global-set-key [remap apropos-command] 'apropos)
 
 ;; Control-c bindings
-(global-set-key "\C-ci" 'gpb-toggle-outline-minor-mode)
 (global-set-key "\C-cf" 'gpb-filtered-imenu)
 (global-set-key "\C-c$" 'gpb-ispell)
 (global-set-key "\C-cg" 'gpb-grep)
@@ -84,10 +60,8 @@
 
 ;; Some CUA standard bindings for common operations
 (global-set-key "\C-o" 'gpb-find-file-filtered)
-(global-set-key "\C-co" 'gpb-find-file-filtered)
 (global-set-key "\M-o" 'gpb-ffap)
 (global-set-key "\C-n" 'gpb-new-document)
-(global-set-key "\C-cn" 'gpb-new-document)
 (global-set-key "\C-f" 'isearch-forward)
 (global-set-key "\C-s" 'save-buffer)
 (global-set-key [(control shift s)] 'write-file)
@@ -103,7 +77,6 @@
 ;; Use C-h and friends for backspace like in the terminal
 (global-set-key "\C-h" 'backward-delete-char)
 (global-set-key [(meta h)] 'backward-kill-word)
-(global-set-key "\C-\M-h" 'gpb-kill-line-backward)
 (global-set-key [remap backward-delete-char]
                 'backward-delete-char-untabify)
 (setq backward-delete-char-untabify-method nil)
@@ -115,8 +88,7 @@
 
 ;;  Some more movement commands
 (global-set-key [(control tab)] 'gpb-next-window)
-(global-set-key [(control shift iso-lefttab)]
-                'gpb-previous-window)
+(global-set-key [(control shift iso-lefttab)] 'gpb-previous-window)
 (global-set-key [(control shift tab)] 'gpb-previous-window)
 
 ;; "Goto" bindings
@@ -224,7 +196,7 @@
 
 ;; Don't disable these commands
 (dolist (cmd '(narrow-to-region upcase-region downcase-region
-                                erase-buffer set-goal-column))
+               erase-buffer set-goal-column))
   (put cmd 'disabled nil))
 
 ;; Whitespace handling
@@ -245,11 +217,6 @@
               ediff-auto-refine 'on
               ediff-ignore-similar-regions t)
 
-;; Add time stamps to files that want them
-(when (require 'time-stamp nil t)
-  (setq time-stamp-active nil)
-  (add-hook 'write-file-hooks 'time-stamp))
-
 ;; Always set the mark in a buffer.  I find this useful for
 ;; `pop-global-mark` navigation.
 (defun gpb-ensure-mark-exists ()
@@ -269,10 +236,8 @@
         browse-url-browser-function 'browse-url-generic))
 
 ;; Remove percentage from mode line
-(when (and (member emacs-major-version '(23 24))
-           (not (boundp 'gpb-customize-mode-line)))
-  (setq mode-line-position (cdr mode-line-position)
-        gpb-customize-mode-line t))
+(when (ignore-errors (string= (cadar mode-line-position) "%p"))
+  (setq mode-line-position (cdr mode-line-position)))
 
 
 ;; Frame related customization --------------------------------------------
@@ -329,20 +294,6 @@
 
 ;; Improve vertical scrolling -------------------------------------------
 
-;; (defadvice vertical-motion (around recenter-workaround
-;;                                    (arg &optional window))
-;;   "Emacs seems to recenter display if you scroll up and the point
-;; is not at the beginning of the line."
-;;   (if (and (listp arg)
-;;            ;; moving back one line
-;;            (= (cdr arg) -1)
-;;            ;; on first line of window
-;;            (< (point)
-;;               (save-excursion (move-to-window-line 1) (point))))
-;;       (progn ad-do-it (recenter 0))
-;;     ad-do-it))
-;; (ad-activate 'vertical-motion)
-
 (defadvice save-buffer (around preserve-column activate)
   "Prevent saving the buffer from moving the point."
   (let ((col (current-column)))
@@ -382,14 +333,9 @@
 
 (add-to-list 'auto-mode-alist '("\\.xrc\\'" . xml-mode))
 (add-to-list 'auto-mode-alist '("\\.m\\'" . octave-mode))
-(add-to-list 'auto-mode-alist '("\\.proto\\'" . protobuf-mode))
 
-(autoload 'cython-mode "cython-mode" "" 'interactive)
-(autoload 'protobuf-mode "protobuf-mode" "" 'interactive)
 (autoload 'gpb-ispell "gpb-ispell" "" 'interactive)
 (autoload 'gpb-open-ielm-here "gpb-lisp-init" "" t)
-(autoload 'sage "gpb-sage" "Run sage" t)
-(autoload 'gpb-comint-kill-all-processes "gpb-comint")
 (autoload 'octave-mode "octave-mode" nil t)
 (autoload 'run-bash "gpb-readline" "Run bash" t)
 
@@ -397,7 +343,6 @@
 (eval-after-load 'help-mode '(load-safe "gpb-help"))
 (eval-after-load 'ispell '(load-safe "gpb-ispell"))
 (eval-after-load 'company  '(load-safe "gpb-company"))
-(eval-after-load 'auto-complete '(load-safe "gpb-auto-complete"))
 (eval-after-load 'compile '(define-key compilation-mode-map "\C-o" nil))
 (eval-after-load 'latex '(load-safe "gpb-latex"))
 (eval-after-load 'python '(load-safe "gpb-python2"))
