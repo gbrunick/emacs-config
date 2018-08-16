@@ -342,7 +342,6 @@
 (eval-after-load 'dired  '(load-safe "gpb-dired"))
 (eval-after-load 'help-mode '(load-safe "gpb-help"))
 (eval-after-load 'ispell '(load-safe "gpb-ispell"))
-(eval-after-load 'company  '(load-safe "gpb-company"))
 (eval-after-load 'compile '(define-key compilation-mode-map "\C-o" nil))
 (eval-after-load 'latex '(load-safe "gpb-latex"))
 (eval-after-load 'python '(load-safe "gpb-python2"))

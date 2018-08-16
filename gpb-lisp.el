@@ -7,7 +7,6 @@
 ;;(require 'imenu)
 (require 'easymenu)
 (require 'edebug)
-(require 'company)
 
 
 ;; (require 'completion-ui)
@@ -173,9 +172,6 @@
 
 (defun gpb-common-lisp-init ()
   (interactive)
-  (when (member 'company features)
-    (set (make-variable-buffer-local 'company-backends) '(company-elisp))
-    (company-mode))
   (when (member 'gpb-modal features)
     (gpb-modal--define-command-key
      "\t" 'gpb-back-to-indentation-or-indent-according-to-mode t))
