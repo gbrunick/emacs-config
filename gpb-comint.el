@@ -84,11 +84,6 @@ Returns a list of the form (BEG END)."
 
 (defun gpb-comint:goto-error-or-send ()
   (interactive)
-  ;; (when (or (not (boundp 'gpb-comint:output-queue-buffer))
-  ;;           (null gpb-comint:output-queue-buffer)
-  ;;           (not (buffer-live-p gpb-comint:output-queue-buffer)))
-  ;;   (set (make-local-variable 'gpb-comint:output-queue-buffer)
-  ;;        (generate-new-buffer (buffer-name))))
   (cond
    ((get-text-property (point) 'compilation-message)
     (compile-goto-error))
@@ -100,15 +95,6 @@ Returns a list of the form (BEG END)."
       (when (and (boundp 'compilation-shell-minor-mode)
                  compilation-shell-minor-mode)
         (compilation-forget-errors))
-      ;; (comint-redirect-setup
-      ;;  gpb-comint:output-queue-buffer
-      ;;  (current-buffer)                   ; Comint Buffer
-      ;;  "test" ; Finished Regexp
-      ;;  nil)                               ; Echo input
-      ;; ;; Set the filter
-      ;; (setq comint-redirect-original-filter-function ; Save the old filter
-      ;;   (process-filter proc))
-      ;; (set-process-filter proc 'comint-redirect-filter)
       (comint-send-input)))
    (t
     (let ((old-input (funcall comint-get-old-input)))
