@@ -282,15 +282,19 @@ points.  Used by `execute-text-object'.")
 
 (gpb-tobj--define-command execute-text-object (obj beg end)
    "Execute the text object as python code."
-   (if (null execute-text-object-function)
-       (error "execute-text-object-function is not defined in this buffer")
+   (when (null execute-text-object-function)
+     (error "execute-text-object-function is not defined in this buffer"))
+   (let* ((number-of-args (length (cadr (symbol-function execute-text-object-function))))
+          (args (cond
+                 ((= number-of-args 3) (list obj beg end))
+                 ((= number-of-args 2)
+                  (warn "Deprecated call signature: %s" execute-text-object-function)
+                  (list beg end))
+                 (t
+                  (error "Function %S should accept 3 arguments." execute-text-object-function)))))
      (gpb-tobj--flash-region beg end)
-     (condition-case exc
-         (funcall execute-text-object-function obj beg end)
-       ('wrong-number-of-arguments
-        (warn "Deprecated call signature: %s" execute-text-object-function)
-        (funcall execute-text-object-function beg end)))
-    (setq deactivate-mark t)))
+     (apply execute-text-object-function args)
+     (setq deactivate-mark t)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
