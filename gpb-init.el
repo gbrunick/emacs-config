@@ -49,7 +49,7 @@
 (global-set-key [remap apropos-command] 'apropos)
 
 ;; Control-c bindings
-(global-set-key "\C-cf" 'gpb-filtered-imenu)
+(global-set-key "\C-ci" 'gpb-filtered-imenu)
 (global-set-key "\C-c$" 'gpb-ispell)
 (global-set-key "\C-cg" 'gpb-grep)
 (global-set-key "\C-cr" 'gpb-rect--begin-rect-command)

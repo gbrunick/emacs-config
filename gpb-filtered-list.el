@@ -7,6 +7,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; (require 'gpb-recent-files)
+(require 'imenu)
 
 (defcustom gpb-fl--recent-file-list-symbol nil ;;'gpb-rf-recent-file-list
   "Symbol whose value is a list of recently accessed files.\n
@@ -140,6 +141,9 @@ of (display-string . result) cons cells."
 
     (set-window-buffer (selected-window) gpb-fl--buffer)
     (with-current-buffer gpb-fl--buffer
+      ;; ESS installs hooks on mode changes that search `default-directory'
+      ;; for packages and we don't want to trigger these.
+      (setq default-directory nil)
       (gpb-filtered-list-mode)
       (add-hook 'kill-buffer-hook 'abort-recursive-edit nil t))
     (gpb-fl--update-filtered-list)
@@ -192,22 +196,23 @@ of (display-string . result) cons cells."
 (defun gpb-switch-buffer-filtered (arg)
   "Switch buffers using a filter list.
 
-We open the buffer in another window when a single universal
-argument (see `universal-argument') is given.  When more than one
-universal argument is given, we show hidden the buffers whose
-names begin with space."
-  (interactive "p")
+When called with an argument (see `universal-argument'), we show
+hidden the buffers whose names begin with space."
+  (interactive "P")
   (let (buf bufs hidden-bufs buf-name buf-file-name)
     (dolist (x (reverse (buffer-list)))
       ;; We copy these strings so that the we may add properties
       ;; without affecting the string.
       (setq buf-name (substring (buffer-name x) 0)
-            buf-file-name (ignore-errors (substring (buffer-file-name x) 0)))
+            buf-file-name (or (ignore-errors (substring (buffer-file-name x) 0))
+                              (with-current-buffer x
+                                (and (derived-mode-p 'dired-mode)
+                                     default-directory))))
       (cond
-       ;; ignore
+       ;; Ignore unless arg is given.
        ((or (string-match "^ " buf-name)
             (string-match "\\*epc con [0-9]+\\*" buf-name))
-        (when (= arg 16)
+        (when arg
           (let ((buf-name (substring-no-properties buf-name)))
             (add-text-properties 0 (length buf-name)
                                  '(face ((foreground-color . "gray61")))
@@ -226,7 +231,7 @@ names begin with space."
     ;;(setq bufs (sort bufs (lambda (x y) (eq (elt y 0) ?*))))
     (setq buf (gpb-fl--read-choice "Buffer: " (nconc bufs hidden-bufs)
                                    "*Buffers*" "Buffers"))
-    (if (= arg 4) (switch-to-buffer-other-window buf) (switch-to-buffer buf))))
+    (switch-to-buffer buf)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -328,17 +333,10 @@ names begin with space."
                                   f)))))))
 
 (defun gpb-fl--make-filename-pretty2 (file-name)
-  (let ((dir (file-name-directory file-name)))
-  (add-text-properties 0 (length dir) '(face ((foreground-color . "gray67")))
-                       dir)
-  (setq file-name (replace-regexp-in-string
-                   (concat "^" (expand-file-name "~"))  "~"
-                   file-name)
-        file-name (concat dir
-                          (let ((f (file-name-nondirectory file-name)))
-                            (if (file-directory-p file-name)
-                                (file-name-as-directory f)
-                              f))))))
+  (let ((dir-prefix (file-name-directory (directory-file-name file-name))))
+    (add-text-properties 0 (length dir-prefix) '(face ((foreground-color . "gray67")))
+                         dir-prefix)
+    (concat dir-prefix (substring file-name (length dir-prefix) nil))))
 
 (defvar gpb-find-file-filtered-map
   (let ((map (make-keymap)))
