@@ -338,12 +338,15 @@ This code is taken from fx-misc.el by Dave Love"
   (let ((current (buffer-name))
         (file (or (buffer-file-name)
                   (error "Current buffer isn't visiting a file")))
-        (mode major-mode))
+        (mode major-mode)
+        ;; ESS workaround.
+        (ess-alist (ignore-errors (symbol-value ess-local-customize-alist))))
     (set-buffer (get-buffer-create (generate-new-buffer-name
                                     (concat current "-on-disc"))))
     (buffer-disable-undo)
     (insert-file-contents file)
     (set-buffer-modified-p nil)
+    (when ess-alist (setq-local ess-local-customize-alist ess-alist))
     (funcall mode)
     (ediff-buffers (buffer-name) current)))
 
