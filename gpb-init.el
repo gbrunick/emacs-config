@@ -8,7 +8,7 @@
 ;;
 
 (let* ((default-directory (file-name-directory
-                          (or load-file-name (buffer-file-name)))))
+                           (or load-file-name (buffer-file-name)))))
   ;; Add current directory to load path without
   (add-to-list 'load-path (expand-file-name "."))
   ;; Add most subdirectories to `load-path'.  The directories
@@ -16,6 +16,13 @@
   ;; empty .nosearch files (see
   ;; `normal-top-level-add-subdirs-to-load-path').
   (normal-top-level-add-subdirs-to-load-path))
+
+;; Load YAS snippets when the package is available.
+(when (require 'yasnippet nil t)
+  (setq yas-snippet-dirs (list (concat (file-name-directory
+                                        (or load-file-name (buffer-file-name)))
+                                       "snippets")))
+  (yas-reload-all))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
