@@ -8,6 +8,21 @@
 
 (require 'compile)
 
+
+(defun gpb-comint:previous-input (arg)
+  "Select a previous input line.
+
+Runs `comint-previous-input', `comint-history-isearch-backward',
+or `comint-history-isearch-backward-regexp' depending on the
+number of prefix arguments."
+  (interactive "p")
+  (message "Ags: %s %S" arg arg)
+  (cond
+   ((>= arg 16) (call-interactively 'comint-history-isearch-backward-regexp))
+   ((>= arg 4) (call-interactively 'comint-history-isearch-backward))
+   (t (call-interactively 'comint-previous-input))))
+
+
 (defun gpb-comint:current-input ()
   "Returns the current line of input."
   (let* ((proc (get-buffer-process (current-buffer)))
@@ -195,13 +210,11 @@ out of control just to prevent a lock up.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;;  Minor mode for logging process output
+;;  Minor mode for logging process output in a comint buffer
 ;;
-;;  To enable logging in the shell buffer:
-;;    M-x: gpb-comint:trace-output-mode
-;;
-;;  To view the log buffer:
-;;    (trace-comint--log-open-log)
+;;  Requires the log4e package.
+;;  To start logging: M-x: gpb-comint:trace-output-mode
+;;  To view the log buffer: (trace-comint--log-open-log)
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

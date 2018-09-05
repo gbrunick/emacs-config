@@ -572,6 +572,8 @@
   (define-key map "\C-cd" 'gpb-comint:delete-output)
   (define-key map "\C-ck" 'comint-kill-subjob)
   (define-key map "\C-ce" 'comint-send-eof)
+  (define-key map "\C-n" 'comint-next-input)
+  (define-key map "\C-p" 'gpb-comint:previous-input)
   (define-key map "\C-d" nil))
 
 (require 'gpb-yank-rigidly)
