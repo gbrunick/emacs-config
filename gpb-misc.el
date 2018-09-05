@@ -456,28 +456,29 @@ This code is taken from fx-misc.el by Dave Love"
 (defun gpb-grep ()
   (interactive)
   (unless (boundp 'gpb-grep-history) (setq gpb-grep-history nil))
-  (grep (read-from-minibuffer
-         "Grep command: "
-         (let ((s (case (window-system)
-                    (w32
-                     (concat "grep -RinHI "
-                             "--exclude=*~ "
-                             "--exclude=.#* "
-                             "--exclude=*\\.ipynb "
-                             "--line-buffered -E \"\" ."))
-                    (otherwise
-                     (concat "grep -RinH "
-                             "--exclude=\"#*#\" "
-                             "--exclude=\"\\.#*\" "
-                             "--exclude=\"*~\" "
-                             "-E \"\" .")))))
-           (cons s (- (length s) 2)))
-         (let ((map (make-keymap)))
-           (set-keymap-parent map minibuffer-local-map)
-           (define-key map [(control w)] 'gpb-grep-add-next-word)
-           (define-key map [(control s)] 'gpb-grep-add-next-symbol)
-           map)
-         nil 'gpb-grep-history)))
+  (let ((compilation-ask-about-save nil))
+    (grep (read-from-minibuffer
+           "Grep command: "
+           (let ((s (case (window-system)
+                      (w32
+                       (concat "grep -RinHI "
+                               "--exclude=*~ "
+                               "--exclude=.#* "
+                               "--exclude=*\\.ipynb "
+                               "--line-buffered -E \"\" ."))
+                      (otherwise
+                       (concat "grep -RinH "
+                               "--exclude=\"#*#\" "
+                               "--exclude=\"\\.#*\" "
+                               "--exclude=\"*~\" "
+                               "-E \"\" .")))))
+             (cons s (- (length s) 2)))
+           (let ((map (make-keymap)))
+             (set-keymap-parent map minibuffer-local-map)
+             (define-key map [(control w)] 'gpb-grep-add-next-word)
+             (define-key map [(control s)] 'gpb-grep-add-next-symbol)
+             map)
+           nil 'gpb-grep-history))))
 
 (defun gpb-remap-esc-in-terminal (map)
   "See `gpb-setup-frame-input-maps'"
