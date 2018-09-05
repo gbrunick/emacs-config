@@ -14,7 +14,7 @@
 
 ;;(message "Loading gpb-dired...")
 
-(setq dired-listing-switches "-aghG"
+(setq dired-listing-switches "-ahGl"
       ;; original value "^\\.?#\\|^\\.$\\|^\\.\\.$")
       dired-omit-files "^\\.?#")
 
