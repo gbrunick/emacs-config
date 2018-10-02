@@ -5,27 +5,68 @@
 ;;
 
 (require 'cl-lib)
-
+(require 'ffap)
 
 (add-hook 'ess-mode-hook 'gpb:ess-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 
+(defun gpb:ess-goto-line ()
+  (interactive)
+  (let ((text (substring-no-properties
+               (buffer-substring (save-excursion
+                                   (re-search-backward "[ \t]\\|^")
+                                   (skip-chars-forward " \t")
+                                   ;; Unit test failures are wrapped in
+                                   ;; Failure(@ ... ):
+                                   (when (looking-at "Failure(@")
+                                     (goto-char (match-end 0)))
+                                   (point))
+                                 (save-excursion
+                                   (re-search-forward "[ \t]\\|$")
+                                   (skip-chars-backward " \t):")
+                                   (point))))))
+    (when (string-match "\\([^#:]+\\)[#:]\\([0-9]+\\):?" text)
+      (let* ((tramp-prefix (file-remote-p default-directory))
+             (filename (match-string 1 text))
+             (line-number (string-to-number (match-string 2 text)))
+             (buf (or (and (file-exists-p (concat tramp-prefix filename))
+                           (find-file-other-window (concat tramp-prefix
+                                                           filename)))
+                      (and (get-buffer filename)
+                           (pop-to-buffer (get-buffer filename)))
+                      (error "Can't find file %S" filename))))
+        (with-current-buffer buf
+            (goto-line line-number))))))
+
+
 (defun gpb:ess-mode-hook ()
+  ;; Get rid of the annoying "smart underscore" behaviour.
+  (local-set-key "_" 'self-insert-command)
+  (setq-local ess-indent-with-fancy-comments nil)
+  (when (require 'yasnippet nil t)
+    (yas-minor-mode 1))
   (when (require 'gpb-text-objects nil t)
+    (gpb-modal--define-command-key "q" 'fill-paragraph t)
     (setq-local execute-text-object-function 'gpb:ess-eval-text-object)))
 
 
 (defun gpb:inferior-ess-mode-hook ()
   (local-set-key [?\t] 'ess-complete-object-name)
   (local-set-key "\r" 'gpb:inferior-ess-send-or-copy-input)
+  (local-set-key "\C-n" 'comint-next-input)
+  (local-set-key "\C-p" 'gpb-comint:previous-input)
+
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
-  (add-hook 'comint-redirect-hook 'gpb:pop-to-buffer nil t))
+
+  ;; Implementation detail of "?" help.
+  (add-hook 'comint-redirect-hook 'gpb:show-definition-buffer nil t)
+
+  (when (require 'gpb-text-objects nil t)
+    (gpb-modal--define-command-key "g" 'gpb:ess-goto-line t)))
 
 
-(defun gpb:pop-to-buffer ()
-  (message "current buffer: %S" (current-buffer))
-  (message "gpb:output-buffer: %S" ())
+(defun gpb:show-definition-buffer ()
   (let ((buffer gpb:output-buffer))
     (pop-to-buffer buffer)
     (with-current-buffer buffer

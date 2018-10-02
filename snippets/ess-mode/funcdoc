@@ -1,0 +1,36 @@
+# -*- mode: snippet -*-
+# name: funcdoc
+# key: funcdoc
+# type: command
+# --
+(let ((yas-good-grace nil))
+  (yas-expand-snippet
+   (let* ((plist (save-excursion
+                   (save-match-data
+                     (search-forward-regexp "\\([a-zA-Z0-9_.]*\\) *<- *function(")
+                     (list :name (substring-no-properties (match-string 1))
+                           :args (mapcar 'substring-no-properties
+                                         (split-string (buffer-substring
+                                                        (point)
+                                                        (progn
+                                                          (backward-char)
+                                                          (forward-sexp)
+                                                          (backward-char)
+                                                          (point)))
+                                                       ", +"))))))
+          (name (plist-get plist :name))
+          (args ;; Split off the default definition, if any, for each parameter.
+           (mapcar (lambda (x) (first (split-string x "=")))
+                   (plist-get plist :args))))
+
+     (mapconcat
+      'identity
+      `(,(format "#' ${1:description}")
+        "#'"
+        ,@(mapcar (lambda (i) (format "#' @param %s $%d"
+                                      (string-trim (nth i args)) (+ 2 i)))
+                  (number-sequence 0 (1- (length args))))
+        "#' @return $0"
+        "#'")
+      "\n"))))
+
