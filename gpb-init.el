@@ -18,11 +18,12 @@
   (normal-top-level-add-subdirs-to-load-path))
 
 ;; Load YAS snippets when the package is available.
-(when (require 'yasnippet nil t)
-  (setq yas-snippet-dirs (list (concat (file-name-directory
-                                        (or load-file-name (buffer-file-name)))
-                                       "snippets")))
-  (yas-reload-all))
+(eval-after-load 'yasnippet
+  `(progn
+     (setq yas-snippet-dirs (list (concat (file-name-directory
+                                           (or load-file-name (buffer-file-name)))
+                                          "snippets")))
+     (yas-reload-all)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -454,8 +455,8 @@
 (setq c-default-style "linux")
 
 (defun gpb-cc-mode-setup ()
-  (require 'yasnippet)
-  (require 'auto-complete-clang)
+  (require 'yasnippet nil t)
+  (require 'auto-complete-clang nil 1)
   ;; (require 'auto-complete-clang-async)
   (setq ;; ac-clang-complete-executable
         ;; "~/lib/common/emacs-lisp/emacs-clang-complete-async/clang-complete"
@@ -466,7 +467,7 @@
         )
   (c-set-offset 'inline-open 0)
   ;; (ac-clang-launch-completion-process)
-  (auto-complete-mode t)
+  ;; (auto-complete-mode t)
   (gpb-modal--define-insert-key "\C-i" 'gpb-cc-tab-command t)
   (gpb-modal--define-command-key "\C-i" 'indent-according-to-mode t)
   (local-set-key "\C-c\C-c" '(lambda () (interactive)
@@ -614,5 +615,20 @@
 
 (setenv "PAGER" "cat")
 (setenv "PYTHONUNBUFFERED" "1")
+
+(defun gpb:kill-path-segment-backwards ()
+  (interactive)
+  (kill-region (point)
+               (save-excursion
+                 (save-match-data
+                   (when (looking-back "[/\\]") (backward-char))
+                   (if (re-search-backward "[/\\]" nil t)
+                       (forward-char)
+                     (move-beginning-of-line nil))
+                   (point)))))
+
+(define-key minibuffer-local-filename-completion-map "\M-h"
+  'gpb:kill-path-segment-backwards)
+
 
 (setq debug-on-quit nil)
