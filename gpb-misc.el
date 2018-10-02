@@ -376,7 +376,7 @@ This code is taken from fx-misc.el by Dave Love"
             (lambda ()
               (interactive)
               (throw 'switch-to-eval-expression nil)))
-          (set-transient-map temp-map)
+          (ignore-errors (set-transient-map temp-map))
           (call-interactively 'execute-extended-command)
           t))
       (call-interactively 'eval-expression)))
