@@ -327,7 +327,8 @@ hidden the buffers whose names begin with space."
                            dir)
       (setq file-name (concat dir
                               (let ((f (file-name-nondirectory file-name)))
-                                (if (and (not (file-remote-p file-name))
+                                (if (and (not (and file-name
+                                                   (file-remote-p file-name)))
                                          (file-directory-p file-name))
                                     (file-name-as-directory f)
                                   f)))))))
@@ -393,7 +394,8 @@ With prefix argument, open file in other window"
                              (symbol-value gpb-fl--recent-file-list-symbol))
                            ;; copy the previous list
                            nil)))
-        (when (and (or (file-remote-p file-name) (file-exists-p file-name))
+        (when (and (or (and file-name (file-remote-p file-name))
+                       (file-exists-p file-name))
                    (not (equal "." (file-name-nondirectory file-name)))
                    (not (string-match omit-regex file-name))
                    (or (not dired-omit-mode)
