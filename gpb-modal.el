@@ -342,8 +342,8 @@ This variable should never accessed directly.  Instead use
 
 (gpb-modal--define-command-key [remap describe-mode] 'gpb-modal--describe-mode)
 
-
-;; (gpb-modal--define-command-key "qp" 'fill-paragraph)
+;; This binding would conflict with the common quit command.
+;; (gpb-modal--define-command-key "q" 'fill-paragraph)
 ;; (gpb-modal--define-command-key "i" 'gpb-modal--enter-insert-mode)
 ;; (gpb-modal--define-command-key "I" 'gpb-modal--enter-overwrite-mode)
 

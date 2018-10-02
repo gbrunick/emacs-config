@@ -102,11 +102,9 @@ not active the rectangle."
     (remove-hook 'kill-buffer-query-functions 'secdb-kill-buffer-query-function t)
 
     (setq buffer-read-only t buffer-auto-save-file-name nil)
-    ;; (set (make-local-variable 'overriding-local-map) gpb-rectangle-map)
     (let ((alists emulation-mode-map-alists))
       (set (make-local-variable 'emulation-mode-map-alists)
            (append `(((t . ,gpb-rectangle-map))) alists)))
-           ;; gpb-rectangle-map)
 
     (set (make-local-variable 'gpb-rect--orig-buffer) orig-buf)
     (set (make-local-variable 'gpb-rect--save-rectangle-overlays) nil)
