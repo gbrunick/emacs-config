@@ -318,3 +318,24 @@ that is produced."
     (ess-send-string (ess-get-process) cmd t)))
 
 
+(defun gpb:ess-save-package ()
+  "Save all files in the current package that have been edited."
+  (interactive)
+  (let* ((local-pkg-dir (cdr (ess-r-package-project)))
+         (code-dir (concat (file-remote-p default-directory)
+                           (file-name-as-directory local-pkg-dir)))
+         (bufs-visiting-pkg-code (cl-remove-if-not
+                                  (lambda (buf) (string-prefix-p
+                                                 code-dir (buffer-file-name buf)))
+                                  (buffer-list))))
+    (dolist (buf bufs-visiting-pkg-code)
+      (when (buffer-modified-p buf)
+        (with-current-buffer buf (save-buffer))))))
+
+
+(when (fboundp 'advice-add)
+  ;; Automatically save all the package files when you reloading the package.
+  (advice-add 'ess-r-devtools-load-package :before 'gpb:ess-save-package)
+  ;; Automatically reload the package files when you run the tests.
+  (advice-add 'ess-r-devtools-test-package
+              :before 'ess-r-devtools-load-package))
