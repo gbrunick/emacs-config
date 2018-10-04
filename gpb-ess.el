@@ -10,6 +10,15 @@
 ;; For `string-trim'.
 (require 'subr-x)
 
+(defvar gpb:ess-region-file-cache nil
+  "An alist mapping from TRAMP remotes to region files.
+
+Each entry has a key corresponding to the TRAMP prefix string as
+returned by `file-remote-p' and value that is list containing two
+filenames for temporary files that are used by
+`gpb:ess-eval-region' to allow for evaluation of regions of
+code.")
+
 (add-hook 'ess-mode-hook 'gpb:ess-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 
@@ -196,10 +205,7 @@ an ESS inferior buffer."
              (lambda (&rest) (error (concat "No interpreter process is "
                                             "associated with this buffer.")))))
     (ess-force-buffer-current "Process: " nil t nil))
-  (let ((ess-eval-deactivate-mark nil)
-        (ess-eval-visibly t))
-    (ess-eval-region start end nil)))
-
+  (gpb:ess-eval-region start end))
 
 
 (defun gpb:ess-insert-browser ()
@@ -237,3 +243,78 @@ an ESS inferior buffer."
 (defun gpb:ess-send-quit-command ()
   (interactive)
   (ess-send-string (ess-get-process) "Q" t))
+
+
+(defun gpb:ess-get-region-file-names ()
+  "Get the names of the file used for execution of the region."
+  (let ((remote (file-remote-p default-directory)))
+    (cdr (or (assoc remote gpb:ess-region-file-cache)
+             (car (setq gpb:ess-region-file-cache
+                        (cons (list remote
+                                    ;; The code itself.
+                                    (make-nearby-temp-file
+                                     "emacs-region-" nil ".R")
+                                    ;; A wrapper script that loads the code.
+                                    (make-nearby-temp-file
+                                     "emacs-region-wrapper-" nil ".R")
+                                    )
+                              gpb:ess-region-file-cache)))))))
+
+(defun gpb:ess-get-local-filename (filename)
+  "Remote any TRAMP prefix from `FILENAME'"
+  (if (tramp-tramp-file-p filename)
+      (tramp-file-name-localname (tramp-dissect-file-name filename))
+    filename))
+
+
+(defun gpb:ess-make-region-file (beg end)
+  "Create an R source file containing a region of code.
+
+We jump through hopes to ensure that the R source code references
+refer to the current buffer, rather than to the temporary file
+that is produced."
+  (interactive "r")
+  (let* ((line-number (line-number-at-pos beg))
+         (text (buffer-substring-no-properties
+                (save-excursion
+                  (goto-char beg)
+                  (beginning-of-line)
+                  (point))
+                (save-excursion
+                  (goto-char end)
+                  (end-of-line)
+                  (point))))
+         (region-wrapper-filenames (gpb:ess-get-region-file-names))
+         (region-filename (first region-wrapper-filenames))
+         (wrapper-filename (second region-wrapper-filenames))
+         (source-filename (or (and (buffer-file-name)
+                                   (gpb:ess-get-local-filename
+                                    (buffer-file-name)))
+                              (buffer-name))))
+    (with-temp-file region-filename
+      (insert (make-string (1- line-number) ?\n))
+      (insert text)
+      (insert "\n"))
+    (with-temp-file wrapper-filename
+      (insert (format "srcFile <- %s\n" (prin1-to-string source-filename)))
+      (insert (format "regionFile <- %s\n"
+                      (prin1-to-string
+                       (gpb:ess-get-local-filename region-filename))))
+      (insert "src <- srcfilecopy(srcFile, readLines(regionFile),\n")
+      (insert "                   timestamp = Sys.time(), isFile = TRUE)\n")
+      (insert "expr <- parse(text = readLines(regionFile), srcfile = src)\n")
+      (insert "eval(expr)\n"))
+    wrapper-filename))
+
+
+(defun gpb:ess-eval-region (beg end)
+  (interactive "r")
+  (let* ((filename (gpb:ess-make-region-file beg end))
+         (local-filename (if (tramp-tramp-file-p filename)
+                             (tramp-file-name-localname
+                              (tramp-dissect-file-name filename))
+                           filename))
+         (cmd (format "source(%s)" (prin1-to-string local-filename))))
+    (ess-send-string (ess-get-process) cmd t)))
+
+
