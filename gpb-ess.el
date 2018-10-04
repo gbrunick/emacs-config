@@ -7,6 +7,9 @@
 (require 'cl-lib)
 (require 'ffap)
 
+;; For `string-trim'.
+(require 'subr-x)
+
 (add-hook 'ess-mode-hook 'gpb:ess-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 
@@ -35,6 +38,8 @@
 
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
+
+  (setq-local comint-input-filter 'gpb:ess-comint-input-filter)
 
   ;; Implementation detail of "?" help.
   (add-hook 'comint-redirect-hook 'gpb:show-definition-buffer nil t)
@@ -217,6 +222,11 @@ an ESS inferior buffer."
                (looking-at-p "Browse\\[[0-9]+\\]>")))
     (gpb:ess-goto-line t))
   output)
+
+
+(defun gpb:ess-comint-input-filter (input)
+  "Return non-nil if input should be recorded in the history ring."
+  (> (length (string-trim input)) 4))
 
 
 (defun gpb:ess-send-traceback-command ()
