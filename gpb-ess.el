@@ -12,35 +12,6 @@
 
 (setq ess-use-auto-complete nil)
 
-(defun gpb:ess-goto-line ()
-  (interactive)
-  (let ((text (substring-no-properties
-               (buffer-substring (save-excursion
-                                   (re-search-backward "[ \t]\\|^")
-                                   (skip-chars-forward " \t")
-                                   ;; Unit test failures are wrapped in
-                                   ;; Failure(@ ... ):
-                                   (when (looking-at "Failure(@")
-                                     (goto-char (match-end 0)))
-                                   (point))
-                                 (save-excursion
-                                   (re-search-forward "[ \t]\\|$")
-                                   (skip-chars-backward " \t):")
-                                   (point))))))
-    (when (string-match "\\([^#:]+\\)[#:]\\([0-9]+\\):?" text)
-      (let* ((tramp-prefix (file-remote-p default-directory))
-             (filename (match-string 1 text))
-             (line-number (string-to-number (match-string 2 text)))
-             (buf (or (and (file-exists-p (concat tramp-prefix filename))
-                           (find-file-other-window (concat tramp-prefix
-                                                           filename)))
-                      (and (get-buffer filename)
-                           (pop-to-buffer (get-buffer filename)))
-                      (error "Can't find file %S" filename))))
-        (with-current-buffer buf
-            (goto-line line-number))))))
-
-
 (defun gpb:ess-mode-hook ()
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
@@ -68,8 +39,78 @@
   ;; Implementation detail of "?" help.
   (add-hook 'comint-redirect-hook 'gpb:show-definition-buffer nil t)
 
+  ;; Track the current line when debugging like pdbtrack in Python.
+  (add-hook 'comint-output-filter-functions
+            'gpb:ess-debug-track-comint-output-filter-function nil t)
+
   (when (require 'gpb-text-objects nil t)
     (gpb-modal--define-command-key "g" 'gpb:ess-goto-line t)))
+
+
+(defun gpb:ess-goto-line (arg)
+  "Attempt to jump to an R source line.
+
+With a prefix argument, show the line but don't jump."
+  (interactive "P")
+  (if (and (eq major-mode 'inferior-ess-mode)
+           (comint-after-pmark-p)
+           comint-last-output-start)
+
+      ;; Move the point before the line that tells us the current statement.
+      (save-excursion
+        (goto-char comint-last-output-start)
+        (and (re-search-forward "^debug at " nil t)
+             (gpb:ess-goto-line arg)))
+
+    ;; Otherwise, look for a line number at the point.
+    (let ((text (substring-no-properties
+                 (buffer-substring (save-excursion
+                                     (re-search-backward "[ \t]\\|^")
+                                     (skip-chars-forward " \t")
+                                     ;; Unit test failures are wrapped in
+                                     ;; Failure(@ ... ):
+                                     (when (looking-at "Failure(@")
+                                       (goto-char (match-end 0)))
+                                     (point))
+                                   (save-excursion
+                                     (re-search-forward "[ \t]\\|$")
+                                     (skip-chars-backward " \t):")
+                                     (point))))))
+      (when (string-match "\\([^#:]+\\)[#:]\\([0-9]+\\):?" text)
+        (let* ((tramp-prefix (file-remote-p default-directory))
+               (filename (match-string 1 text))
+               (line-number (string-to-number (match-string 2 text)))
+               (buf (or (and (file-exists-p (concat tramp-prefix filename))
+                             (find-file-noselect (concat tramp-prefix filename)))
+                        (get-buffer (file-name-nondirectory filename))
+                        (error "Can't find file %S" filename)))
+               (window (display-buffer buf 'other-window))
+               (vertical-margin (and window (/ (window-height window) 4))))
+          (with-current-buffer buf
+            ;; Force the window to scroll a bit.
+            (goto-line (- line-number vertical-margin))
+            (set-window-point window (point))
+            (redisplay)
+            (goto-line (+ line-number vertical-margin))
+            (set-window-point window (point))
+            (redisplay)
+
+            (goto-line line-number)
+            (skip-chars-forward " \t")
+            (set-window-point window (point))
+            (let ((ov (make-overlay (save-excursion
+                                      (beginning-of-line)
+                                      (point))
+                                    (save-excursion
+                                      (end-of-line)
+                                      (when (looking-at-p "\n")
+                                        (forward-char 1))
+                                      (point)))))
+              (overlay-put ov 'face 'region)
+              (overlay-put ov 'window window)
+              (run-at-time 0.5 nil `(lambda () (delete-overlay ,ov)))))
+          (unless arg
+            (select-window window)))))))
 
 
 (defun gpb:show-definition-buffer ()
@@ -167,6 +208,15 @@ an ESS inferior buffer."
         (insert "browser()\n")
         (goto-char pt))
       (indent-according-to-mode))))
+
+
+(defun gpb:ess-debug-track-comint-output-filter-function (output)
+  (when (and (> (length output) 0)
+             (save-excursion
+               (beginning-of-line)
+               (looking-at-p "Browse\\[[0-9]+\\]>")))
+    (gpb:ess-goto-line t))
+  output)
 
 
 (defun gpb:ess-send-traceback-command ()
