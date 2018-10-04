@@ -10,6 +10,8 @@
 (add-hook 'ess-mode-hook 'gpb:ess-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 
+(setq ess-use-auto-complete nil)
+
 (defun gpb:ess-goto-line ()
   (interactive)
   (let ((text (substring-no-properties
@@ -42,6 +44,8 @@
 (defun gpb:ess-mode-hook ()
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
+  (local-set-key "\C-cb" 'gpb:ess-insert-browser)
+  (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
   (setq-local ess-indent-with-fancy-comments nil)
   (when (require 'yasnippet nil t)
     (yas-minor-mode 1))
@@ -55,6 +59,8 @@
   (local-set-key "\r" 'gpb:inferior-ess-send-or-copy-input)
   (local-set-key "\C-n" 'comint-next-input)
   (local-set-key "\C-p" 'gpb-comint:previous-input)
+  (local-set-key "\C-ct" 'gpb:ess-send-traceback-command)
+  (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
 
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
@@ -134,7 +140,7 @@ an ESS inferior buffer."
 
 ;; Additional support for text objects
 (defun gpb:ess-eval-text-object (obj start end)
-  "Evalute text object in the ESS process assocaited with the buffer."
+  "Evalute text object in the ESS process associated with the buffer."
 
   ;; It is unlikely that ESS is going to start the process correctly.
   ;; Better to just error out if it is going to try.  We do want to allow
@@ -147,3 +153,27 @@ an ESS inferior buffer."
   (let ((ess-eval-deactivate-mark nil)
         (ess-eval-visibly t))
     (ess-eval-region start end nil)))
+
+
+
+(defun gpb:ess-insert-browser ()
+  "Insert \"browser()\" at the point as save the buffer."
+  (interactive)
+  (save-match-data
+    (let ((pt (point)))
+      (beginning-of-line)
+      ;; I don't understand why save-excursion doesn't do what I want here.
+      (let ((pt (point)))
+        (insert "browser()\n")
+        (goto-char pt))
+      (indent-according-to-mode))))
+
+
+(defun gpb:ess-send-traceback-command ()
+  (interactive)
+  (ess-send-string (get-buffer-process (current-buffer)) "traceback()" t))
+
+
+(defun gpb:ess-send-quit-command ()
+  (interactive)
+  (ess-send-string (ess-get-process) "Q" t))
