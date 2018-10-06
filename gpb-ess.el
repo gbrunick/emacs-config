@@ -94,8 +94,10 @@ With a prefix argument, show the line but don't jump."
         (let* ((tramp-prefix (file-remote-p default-directory))
                (filename (match-string 1 text))
                (line-number (string-to-number (match-string 2 text)))
-               (buf (or (and (file-exists-p (concat tramp-prefix filename))
-                             (find-file-noselect (concat tramp-prefix filename)))
+               (buf (or (let ((path (concat default-directory filename)))
+                          (and (file-exists-p path) (find-file-noselect path)))
+                        (let ((path (concat tramp-prefix filename)))
+                          (and (file-exists-p path) (find-file-noselect path)))
                         (get-buffer (file-name-nondirectory filename))
                         (error "Can't find file %S" filename)))
                (window (display-buffer buf 'other-window))
@@ -294,7 +296,7 @@ that is produced."
     (with-temp-file region-filename
       (insert (make-string (1- line-number) ?\n))
       (insert text)
-      (insert "\n"))
+      (insert "\n\n"))
     (with-temp-file wrapper-filename
       (insert (format "srcFile <- %s\n" (prin1-to-string source-filename)))
       (insert (format "regionFile <- %s\n"
@@ -309,13 +311,22 @@ that is produced."
 
 (defun gpb:ess-eval-region (beg end)
   (interactive "r")
-  (let* ((filename (gpb:ess-make-region-file beg end))
-         (local-filename (if (tramp-tramp-file-p filename)
-                             (tramp-file-name-localname
-                              (tramp-dissect-file-name filename))
-                           filename))
-         (cmd (format "source(%s)" (prin1-to-string local-filename))))
-    (ess-send-string (ess-get-process) cmd t)))
+  (let* ((end (save-excursion
+                (goto-char end) (skip-chars-backward " \n\t") (point)))
+         (line1 (line-number-at-pos beg))
+         (line2 (line-number-at-pos end)))
+    (if (= line1 line2)
+        (ess-send-string
+         (ess-get-process) (buffer-substring-no-properties beg end) t)
+      (let* ((filename (gpb:ess-make-region-file beg end))
+             (local-filename (if (tramp-tramp-file-p filename)
+                                 (tramp-file-name-localname
+                                  (tramp-dissect-file-name filename))
+                               filename))
+             (cmd (format "source(%s)" (prin1-to-string local-filename))))
+        (ess-send-string (ess-get-process) cmd
+                         (format "Evaluate lines %s-%s in %s ..."
+                                 line1 line2 (buffer-name)))))))
 
 
 (defun gpb:ess-save-package ()
@@ -324,10 +335,10 @@ that is produced."
   (let* ((local-pkg-dir (cdr (ess-r-package-project)))
          (code-dir (concat (file-remote-p default-directory)
                            (file-name-as-directory local-pkg-dir)))
+         (is-pkg-buf-p (lambda (buf)
+                         (string-prefix-p code-dir (buffer-file-name buf))))
          (bufs-visiting-pkg-code (cl-remove-if-not
-                                  (lambda (buf) (string-prefix-p
-                                                 code-dir (buffer-file-name buf)))
-                                  (buffer-list))))
+                                  is-pkg-buf-p (buffer-list))))
     (dolist (buf bufs-visiting-pkg-code)
       (when (buffer-modified-p buf)
         (with-current-buffer buf (save-buffer))))))
