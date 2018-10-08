@@ -228,7 +228,19 @@ an ESS inferior buffer."
              (save-excursion
                (beginning-of-line)
                (looking-at-p "Browse\\[[0-9]+\\]>")))
-    (gpb:ess-goto-line t))
+    (save-excursion
+      (goto-char comint-last-output-start)
+      (when (re-search-forward "^debug at \\([^#:]+\\)[#:]\\([0-9]+\\):" nil t)
+        (let* ((tramp-prefix (file-remote-p default-directory))
+               (filename (match-string 1))
+               (line-number (string-to-number (match-string 2)))
+               (buf (or (let ((path (concat default-directory filename)))
+                          (and (file-exists-p path) (find-file-noselect path)))
+                        (let ((path (concat tramp-prefix filename)))
+                          (and (file-exists-p path) (find-file-noselect path)))
+                        (get-buffer (file-name-nondirectory filename))
+                        (error "Can't find %S" filename))))
+          (gpb::ess-show-line buf line-number)))))
   output)
 
 
@@ -249,18 +261,19 @@ an ESS inferior buffer."
 
 (defun gpb:ess-get-region-file-names ()
   "Get the names of the file used for execution of the region."
-  (let ((remote (file-remote-p default-directory)))
-    (cdr (or (assoc remote gpb:ess-region-file-cache)
-             (car (setq gpb:ess-region-file-cache
-                        (cons (list remote
-                                    ;; The code itself.
-                                    (make-nearby-temp-file
-                                     "emacs-region-" nil ".R")
-                                    ;; A wrapper script that loads the code.
-                                    (make-nearby-temp-file
-                                     "emacs-region-wrapper-" nil ".R")
-                                    )
-                              gpb:ess-region-file-cache)))))))
+  (let* ((remote (file-remote-p default-directory))
+         (cache-val (cdr (assoc remote gpb:ess-region-file-cache))))
+    (if cache-val
+        cache-val
+      (let* ((make-file (or (and (fboundp 'make-nearby-temp-file)
+                                 'make-nearby-temp-file)
+                            'make-temp-file))
+             (region-file (funcall make-file "emacs-region-" nil ".R"))
+             (wrapper-file (funcall make-file "emacs-region-wrapper-" nil ".R"))
+             (new-val (list remote region-file wrapper-file)))
+        (push new-val gpb:ess-region-file-cache)
+        new-val))))
+
 
 (defun gpb:ess-get-local-filename (filename)
   "Remote any TRAMP prefix from `FILENAME'"
@@ -297,6 +310,7 @@ that is produced."
       (insert (make-string (1- line-number) ?\n))
       (insert text)
       (insert "\n\n"))
+    (message "Wrote %s" region-filename)
     (with-temp-file wrapper-filename
       (insert (format "srcFile <- %s\n" (prin1-to-string source-filename)))
       (insert (format "regionFile <- %s\n"
@@ -306,6 +320,7 @@ that is produced."
       (insert "                   timestamp = Sys.time(), isFile = TRUE)\n")
       (insert "expr <- parse(text = readLines(regionFile), srcfile = src)\n")
       (insert "eval(expr)\n"))
+    (message "Wrote %s" wrapper-filename)
     wrapper-filename))
 
 
@@ -325,7 +340,7 @@ that is produced."
                                filename))
              (cmd (format "source(%s)" (prin1-to-string local-filename))))
         (ess-send-string (ess-get-process) cmd
-                         (format "Evaluate lines %s-%s in %s ..."
+                         (format "[Evaluate lines %s-%s in %s]"
                                  line1 line2 (buffer-name)))))))
 
 
@@ -350,3 +365,163 @@ that is produced."
   ;; Automatically reload the package files when you run the tests.
   (advice-add 'ess-r-devtools-test-package
               :before 'ess-r-devtools-load-package))
+
+
+(defun gpb::ess-show-line (buf line-number &optional pop-to)
+  "Show line `line' in `buf' in some other window.
+
+If `pop-to' is non-nil, switch to the buffer in which the line is
+displayed."
+  (let* ((window (display-buffer buf 'other-window))
+         (vertical-margin (and window (/ (window-height window) 4))))
+    (with-current-buffer buf
+      ;; Force the window to scroll a bit.
+      (goto-line (- line-number vertical-margin))
+      (set-window-point window (point))
+      (redisplay)
+      (goto-line (+ line-number vertical-margin))
+      (set-window-point window (point))
+      (redisplay)
+
+      ;; Move to the
+      (goto-line line-number)
+      (skip-chars-forward " \t")
+      (set-window-point window (point))
+      (let ((ov (make-overlay (save-excursion
+                                (beginning-of-line)
+                                (point))
+                              (save-excursion
+                                (end-of-line)
+                                (when (looking-at-p "\n")
+                                  (forward-char 1))
+                                (point)))))
+        (overlay-put ov 'face 'region)
+        (overlay-put ov 'window window)
+        (run-at-time 0.5 nil `(lambda () (delete-overlay ,ov)))))
+    (when pop-to (select-window window))))
+
+
+(defvar gpb:ess-helper-funcs "
+   getDebugEnv <- function (reset = FALSE) {
+       name <- "* breakpointInfo4 *"
+       if (!exists(name, globalenv(), inherit = FALSE)) {
+           env <- new.env()
+           env$nextFrame <- NULL
+           env$stepping <- FALSE
+           env$breakpoints <- NULL
+           assign(name, env, globalenv(), inherit = FALSE)
+       } else {
+           env <- get(name, globalenv(), inherit = FALSE)
+       }
+       env
+   }
+
+   getBreakpointString <- function(filename = NULL, line = NULL,
+                                   funcName = NULL)
+   {
+       if (!is.null(filename)) sprintf("%s#%s", filename, line)
+       else if (!is.null(funcName)) sprintf("func:%s", funcName)
+   }
+
+   addBreakpoint <- function(filename = NULL, line = NULL, funcName = NULL) {
+       env <- getDebugEnv()
+       string <- getBreakpointString(filename = filename,
+                                     line = line,
+                                     funcName = funcName)
+       env$breakpoints <- c(env$breakpoints, string)
+   }
+
+   removeBreakpoint <- function(filename = NULL, line = NULL, funcName = NULL) {
+       env <- getDebugEnv()
+       string <- getBreakpointString(filename = filename,
+                                     line = line,
+                                     funcName = funcName)
+       env$breakpoints <- Filter(function(bp) bp != string, env$breakpoints)
+   }
+
+   listBreakpoints <- function(filename, line) {
+       env <- getDebugEnv()
+       if (length(env$breakpoints) == 0) {
+           cat("No breakpoints set\n")
+       } else {
+           cat("Breakpoints:\n")
+           for (i in seq_along(env$breakpoints)) {
+               cat(sprintf("%4i %s\n", i, env$breakpoints[[i]]))
+           }
+       }
+   }
+
+   instrument <- function(x) {
+       name <- deparse(substitute(x))
+       if (is.function(x)) {
+           body(x) <- instrument(body(x))
+           # Append the function name to the first srcline call.
+           firstSrclineCall <- c(as.list(body(x)[[2]]), name)
+           body(x)[[2]] <- as.call(firstSrclineCall)
+       } else if(is.call(x) && x[[1]] == as.name("{")) {
+           # An compound expression wrapped in curly braces.
+           srcrefs <- attr(x, "srcref")
+           subexprs <- vector("list", 2 * length(x) - 1)
+           subexprs[[1]] <- as.name("{")
+           for (i in 2:length(x)) {
+               srcref <- srcrefs[[i]]
+               line <- srcref[[1]]
+               filename <- attr(srcref, "srcfile")$filename
+               expr <- x[[i]]
+
+               subexprs[[(i - 1) * 2]] <- call("srcline", filename, line,
+                                               deparse(expr))
+               if (is.call(expr) && expr[[1]] == as.name('for')) {
+                   expr[[4]] <- instrument(expr[[4]])
+               }
+               subexprs[[1 + (i - 1) * 2]] <- expr
+           }
+           stopifnot(length(subexprs) == 2 * length(x) - 1)
+           x <- as.call(subexprs)
+       }
+       x
+   }
+
+
+   srcline <- function(filename, line, text, funcName = NULL) {
+       env <- getDebugEnv()
+
+       enterDebugger <- (
+           # Break if we hit a breakpoint
+           (sprintf("%s#%s", filename, line) %in% env$breakpoints)
+           # Break if we hit the next line in giveen function frame
+           || identical(env$nextFrame, frame)
+           # Break if stepping
+           || env$stepping
+           # Break on the first line of a function
+           || (!is.null(funcName)
+               && sprintf("func:%s", funcName) %in% env$breakpoints))
+
+       # Reset the variables used for "n" and "s"
+       env$nextFrame <- NULL
+       env$stepping <- FALSE
+
+       if (enterDebugger) {
+           cat(sprintf("debug at %s#%s: %s\n", filename, line, text))
+           repeat {
+               cat("rdb> ")
+               cmd <- readLines(n = 1)
+               if (cmd == "s") {
+                   env$stepping <- TRUE
+                   break
+               }
+               else if(cmd == "n") {
+                   env$nextFrame <- frame
+                   break
+               }
+               else if(cmd == "c") {
+                   break
+               } else if(cmd == "Q") {
+                   stop("Quit")
+               }
+               else cat("Bad command\n")
+           }
+       }
+   }
+  "
+  "Various helper functions.  Mainly for debugging.")
