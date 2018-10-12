@@ -12,8 +12,10 @@
 
 (require 'repeat)
 (require 'thingatpt)
+(require 'cl-lib)
 
 (defvar gpb-tobj--enable-warnings t "Enable warning messages.")
+(defvar gpb-tobj--enable-logging nil "Enable extra logging.")
 
 ;; Add syntax highlighting for macros
 (font-lock-add-keywords 'emacs-lisp-mode
@@ -133,13 +135,15 @@ instrumented by `edebug-eval-defun' for testing."
 
 
 (defun gpb-tobj--define-key (keymap-symbol key tobj &rest modifiers)
+  (when gpb-tobj--enable-logging (message "gpb-tobj--define-key: %s %s %s %s"
+                                          keymap-symbol key tobj modifiers))
   (let* ((local (plist-get modifiers :local))
          (keymap (gpb-tobj--get-keymap keymap-symbol local)))
     ;; The following lambda expression is never evaluated.  See
     ;; `gpb-tobj--read-text-object' for the details.
     (define-key keymap key `(lambda ()
                               (interactive)
-                              (text-object ,symbol ,@modifiers)))))
+                              (text-object ,tobj ,@modifiers)))))
 
 
 (defmacro gpb-tobj--define-command (symbol args doc &rest body)
@@ -171,8 +175,7 @@ Initial text object modifiers.  See the documentation of
 A hook named post-SYMBOL-hook is also defined and this hook is
 called after the command is invoked while the ARGS above are
 still let bound."
-  (declare (doc-string 2)
-           (indent 1))
+  (declare (doc-string 2) (indent 1))
   (let ((command-symbol symbol)
         (pre-command-hook-symbol (intern (format "pre-%s-hook" symbol)))
         (post-command-hook-symbol (intern (format "post-%s-hook" symbol)))
@@ -251,181 +254,68 @@ still let bound."
 
        (eval-after-load 'eldoc '(eldoc-add-command ',command-symbol)))))
 
-;; (defmacro gpb-tobj--define-command-2 (symbol args doc &rest body)
-;;   "Define a command that acts on a text object.
-
-;; ARGS should be a list of four symbols that are bound when BODY is
-;; called (just like in regular `defun').  The usual choice of
-;; variable names is (OBJ COUNT BEG END).  These four values define
-;; the text object that the code in BODY should act upon.
-
-;; Keyword arguments are specified before BODY.  You never need to
-;; be quote symbols in the option list because the options form is
-;; never evaluated.  Possible arguments are:
-
-;; :keymap         The text object map that should be used to read
-;;                 the object for this command.  The possible values
-;;                 are root, next, and previous.  This is required.
-
-;; :ignore-region  The command acts on the region when `use-region-p'
-;;                 returns t unless this argument is set to non-nil.
-
-;; :work-backwards   If this argument is non-nil, the count is negated
-;;                 before it is passed to the text object.  This is
-;;                 useful for commands which work backwards.
-
-;; A hook named post-SYMBOL-hook is also defined and this hook is
-;; called after the command is invoked and the variables above are
-;; still let bound."
-;;   (declare (doc-string 2)
-;;            (indent 1))
-;;   (let ((command-symbol symbol)
-;;         (post-command-hook-symbol (intern (format "post-%s-hook" symbol)))
-;;         (keymap (gpb-tobj--remove-keyword-arg body :keymap t))
-;;         (ignore-region (gpb-tobj--remove-keyword-arg body :ignore-region t)))
-;;         (work-backwards (gpb-tobj--remove-keyword-arg body :work-backwards t)))
-;;     (when (keywordp (car-safe body)) (error "Unknown option: %S" key))
-;;     `(progn
-;;        (makunbound post-command-hook-symbol)
-
-;;        (defvar ,post-command-hook-symbol nil
-;;          ,(format "Hook called after `%s'" command-symbol))
-
-;;        (defun ,command-symbol (&optional obj pos count)
-;;          ,doc
-;;          (interactive)
-;;          (let ((body-function (lambda ,args ,@body)) beg end)
-;;            ;; First we determine the kind of object to act upon
-;;            (cond
-;;             ;; If the region is active, we use the region as the text
-;;             ;; object without prompting the user.
-;;             ,@(unless ignore-region
-;;                 `(((use-region-p)
-;;                    (setq gpb-tobj--current-text-object 'region
-;;                          gpb-tobj--current-text-object-count 1))))
-
-;;             ;; If we are repeating the command (see `repeat') then we
-;;             ;; use the same text object again without prompting the
-;;             ;; user.  Otherwise, prompt the user for a text object
-;;             ((not (repeat-is-really-this-command))
-;;              (gpb-tobj--read-text-object ',keymap)))
-;;            (assert (and gpb-tobj--current-text-object
-;;                         gpb-tobj--current-text-object-count))
-
-;;            ;; Determine the bounds of the object
-;;            (cond
-;;             ((eq gpb-tobj--current-text-object 'region)
-;;              (setq beg (region-beginning)
-;;                    end (region-end)))
-;;             (t
-;;              (multiple-value-setq (beg end)
-;;                (gpb-tobj--find-text-object-2
-;;                 gpb-tobj--current-text-object
-;;                 (point)
-;;                 ,@(if work-backwards
-;;                       '((- gpb-tobj--current-text-object-count))
-;;                     '(gpb-tobj--current-text-object-count))))))
-
-;;            ;; Act on the region
-;;            (funcall body-function obj beg end)
-;;            (run-hooks ',post-command-hook-symbol)))))
-
-
-;; (defmacro gpb-tobj--define-text-object (symbol args doc &rest body)
-;;   "Define a text object and bind it to a key sequence.
-
-;; ARGS should just be (POS COUNT).  BODY can be preceeded by
-;; keyward argument pairs.  Possible keyward arguments are as
-;; follows:
-
-;; :keymap            keymap where object is defined. Required.
-;; :local             use buffer local keymap? Defaults to nil.
-;; :forward-key       when the object is envoked using this command,
-;;                    the count argument is not negated.
-;; :backward-key      when the object is envoked using this command,
-;;                    the count argument is negated.
-;; "
-;;   (declare (indent 1) (doc-string 2))
-;;   (let (keymap plist local global-map keymap forward-key backward-key
-;;         function function-args)
-
-;;     ;; Handle keyword options
-;;     (while (keywordp (car-safe body))
-;;       (let ((key (pop body))
-;;             (value (pop body)))
-;;         (case key
-;;           (:local (setq local value))
-;;           (:keymap (setq keymap value))
-;;           (:forward-key (setq forward-key value))
-;;           (:backward-key (setq backward-key value))
-;;           (t (error "Unknown option: %S" key)))))
-
-;;     (assert (and keymap (or forward-key backward-key)))
-
-;;     (setq keymap (gpb-tobj--get-keymap keymap local))
-;;     (when (and gpb-tobj--enable-warnings
-;;                (aget gpb-tobj--text-object-alist symbol))
-;;       (message "Warning: text object %S is already defined." symbol))
-;;     (aput 'gpb-tobj--text-object-alist symbol
-;;           `(:function (lambda ,args ,@body) :doc ,doc))
-
-;;     (when forward-key
-;;       (define-key keymap forward-key
-;;         `(lambda ()
-;;           (interactive)
-;;           (text-object ,symbol)
-;;           ,@(when (and forward-key backward-key)
-;;               `(keybinding ,(format "%s or %s" forward-key backward-key))))))
-
-;;     (when backward-key
-;;       (define-key keymap backward-key
-;;         `(lambda ()
-;;           (interactive)
-;;           (text-object ,symbol)
-;;           (negate-count t)
-;;           ,@(when (and forward-key backward-key)
-;;               '(:keybinding nil)))))
-
-;;     `(quote ,symbol)))
-
 
 (defmacro gpb-tobj--define-text-object (symbol args doc &rest body)
   "Define a text object and bind it to a key sequence.
 
 ARGS should just be (pos &rest modifiers) and BODY should contain
-code that returns a list of the form (list beg end), where beg
-and end are buffer positions that delimit the current text object.
+code that returns a list of the form `(beg end)`, where `beg` and
+`end` are buffer positions that delimit the current text object.
 
 BODY may be preceded by keyword argument pairs.  The only keyword
 argument that is processed by this macro is :key-binding which
-may appear one or more times and should be followed by a list
-that will be passed as arguments to `gpb-tobj--define-key'.  The
-remaining keyword arguments are associated with the text object.
-See `gpb-tobj--text-object-alist' for the details."
-  (declare (indent 1) (doc-string 2))
+may appear one or more times and should be followed by a list of
+the form `(keymap-symbol key &rest modifiers)` that will be
+passed as arguments to `gpb-tobj--define-key'.  The remaining
+keyword arguments are associated with the text object itself and
+are include in the list of values that are added
+to`gpb-tobj--text-object-alist'.
+
+"
+  (declare (indent defun) (doc-string 2) (debug 0))
+  (when gpb-tobj--enable-logging
+    (message "gpb-tobj--define-text-object: body=%s" body))
   (assert (stringp doc))
-  (when (and gpb-tobj--enable-warnings
-             (aget gpb-tobj--text-object-alist symbol))
-    (message "Warning: text object %S is already defined." symbol))
-  (let (bindings kwargs)
+  (and gpb-tobj--enable-warnings
+       (aget gpb-tobj--text-object-alist symbol)
+       (message "Warning: text object %S is already defined." symbol))
+  (let ((func-symbol (make-symbol (format "gpb-tobj:%s:find-func"
+                                          (symbol-name symbol))))
+        key-binding-cmds kwargs text-obj-def)
     ;; Handle keyword options
     (while (keywordp (car-safe body))
       (let ((key (pop body))
             (value (pop body)))
         (case key
-          (:key-binding (add-to-list 'bindings value))
+          (:key-binding
+           (add-to-list 'key-binding-cmds
+                        `(gpb-tobj--define-key ',(nth 0 value)
+                                               ,(nth 1 value)
+                                               ',symbol
+                                               ,@(cddr value))))
           (t (setq kwargs (append (list key value) kwargs))))))
-    ;; Add text object info to main alist
-    (aput 'gpb-tobj--text-object-alist symbol
-          `(:doc ,doc
-            ,@kwargs
-            :find-func (lambda ,args ,@body)))
-    ;; Define any key bindings
-    (dolist (b bindings)
-      (let ((map-symbol (car b)) (key (cadr b)) (modifiers (cddr b)))
-        (apply 'gpb-tobj--define-key map-symbol key symbol modifiers)))
-    ;; Done.  We may as well return the symbol.
-    `(quote ,symbol)))
+
+    (when gpb-tobj--enable-logging
+      (message "gpb-tobj--define-text-object: kwargs=%s" kwargs)
+      (message "gpb-tobj--define-text-object: key-binding-cmds=%s"
+               key-binding-cmds))
+
+    (setq text-obj-def `(:doc ,doc ,@kwargs :find-func ,func-symbol))
+
+    ;; This is the form that is returned for further evaluation.
+    `(progn
+
+       ;; Define the forward function using body
+       (defun ,func-symbol ,args ,@body)
+
+       ;; Add text object info to main alist
+       (aput 'gpb-tobj--text-object-alist ',symbol ',text-obj-def)
+
+       ;; Define any key bindings
+       ,@key-binding-cmds
+
+       ;; Return the item that was added to `gpb-tobj--text-object-alist'.
+       ',text-obj-def)))
 
 
 (defun gpb-tobj--describe-key-binding (key binding &optional prefix)
@@ -640,7 +530,8 @@ during `gpb-tobj--read-text-object'.  See
 `gpb-tobj--get-text-object-modifier' for more information."
   (setq gpb-tobj--current-text-object-modifiers
         (plist-put gpb-tobj--current-text-object-modifiers keyword value))
-  (gpb-log-form 'gpb-tobj--set-text-object-modifier 'gpb-tobj--current-text-object-modifiers))
+  (gpb-log-form 'gpb-tobj--set-text-object-modifier
+                'gpb-tobj--current-text-object-modifiers))
 
 
 (defun gpb-tobj--set-text-object-property (obj prop value)
