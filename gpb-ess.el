@@ -409,7 +409,7 @@ displayed."
 
 (defvar gpb:ess-helper-funcs "
    getDebugEnv <- function (reset = FALSE) {
-       name <- "* breakpointInfo4 *"
+       name <- '* breakpointInfo4 *'
        if (!exists(name, globalenv(), inherit = FALSE)) {
            env <- new.env()
            env$nextFrame <- NULL
@@ -425,8 +425,8 @@ displayed."
    getBreakpointString <- function(filename = NULL, line = NULL,
                                    funcName = NULL)
    {
-       if (!is.null(filename)) sprintf("%s#%s", filename, line)
-       else if (!is.null(funcName)) sprintf("func:%s", funcName)
+       if (!is.null(filename)) sprintf('%s#%s', filename, line)
+       else if (!is.null(funcName)) sprintf('func:%s', funcName)
    }
 
    addBreakpoint <- function(filename = NULL, line = NULL, funcName = NULL) {
@@ -448,11 +448,11 @@ displayed."
    listBreakpoints <- function(filename, line) {
        env <- getDebugEnv()
        if (length(env$breakpoints) == 0) {
-           cat("No breakpoints set\n")
+           cat('No breakpoints set\n')
        } else {
-           cat("Breakpoints:\n")
+           cat('Breakpoints:\n')
            for (i in seq_along(env$breakpoints)) {
-               cat(sprintf("%4i %s\n", i, env$breakpoints[[i]]))
+               cat(sprintf('%4i %s\n', i, env$breakpoints[[i]]))
            }
        }
    }
@@ -464,18 +464,18 @@ displayed."
            # Append the function name to the first srcline call.
            firstSrclineCall <- c(as.list(body(x)[[2]]), name)
            body(x)[[2]] <- as.call(firstSrclineCall)
-       } else if(is.call(x) && x[[1]] == as.name("{")) {
+       } else if(is.call(x) && x[[1]] == as.name('{')) {
            # An compound expression wrapped in curly braces.
-           srcrefs <- attr(x, "srcref")
-           subexprs <- vector("list", 2 * length(x) - 1)
-           subexprs[[1]] <- as.name("{")
+           srcrefs <- attr(x, 'srcref')
+           subexprs <- vector('list', 2 * length(x) - 1)
+           subexprs[[1]] <- as.name('{')
            for (i in 2:length(x)) {
                srcref <- srcrefs[[i]]
                line <- srcref[[1]]
-               filename <- attr(srcref, "srcfile")$filename
+               filename <- attr(srcref, 'srcfile')$filename
                expr <- x[[i]]
 
-               subexprs[[(i - 1) * 2]] <- call("srcline", filename, line,
+               subexprs[[(i - 1) * 2]] <- call('srcline', filename, line,
                                                deparse(expr))
                if (is.call(expr) && expr[[1]] == as.name('for')) {
                    expr[[4]] <- instrument(expr[[4]])
@@ -494,38 +494,38 @@ displayed."
 
        enterDebugger <- (
            # Break if we hit a breakpoint
-           (sprintf("%s#%s", filename, line) %in% env$breakpoints)
+           (sprintf('%s#%s', filename, line) %in% env$breakpoints)
            # Break if we hit the next line in giveen function frame
            || identical(env$nextFrame, frame)
            # Break if stepping
            || env$stepping
            # Break on the first line of a function
            || (!is.null(funcName)
-               && sprintf("func:%s", funcName) %in% env$breakpoints))
+               && sprintf('func:%s', funcName) %in% env$breakpoints))
 
-       # Reset the variables used for "n" and "s"
+       # Reset the variables used for 'n' and 's'
        env$nextFrame <- NULL
        env$stepping <- FALSE
 
        if (enterDebugger) {
-           cat(sprintf("debug at %s#%s: %s\n", filename, line, text))
+           cat(sprintf('debug at %s#%s: %s\n', filename, line, text))
            repeat {
-               cat("rdb> ")
+               cat('rdb> ')
                cmd <- readLines(n = 1)
-               if (cmd == "s") {
+               if (cmd == 's') {
                    env$stepping <- TRUE
                    break
                }
-               else if(cmd == "n") {
+               else if(cmd == 'n') {
                    env$nextFrame <- frame
                    break
                }
-               else if(cmd == "c") {
+               else if(cmd == 'c') {
                    break
-               } else if(cmd == "Q") {
-                   stop("Quit")
+               } else if(cmd == 'Q') {
+                   stop('Quit')
                }
-               else cat("Bad command\n")
+               else cat('Bad command\n')
            }
        }
    }
