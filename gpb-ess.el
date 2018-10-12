@@ -365,6 +365,7 @@ that is produced."
                                   (tramp-dissect-file-name filename))
                                filename))
              (cmd (format "source(%s)" (prin1-to-string local-filename))))
+        (gpb:exit-all-browsers)
         (ess-send-string (ess-get-process) cmd
                          (format "[Evaluate lines %s-%s in %s]"
                                  line1 line2 (buffer-name)))))))
@@ -373,21 +374,37 @@ that is produced."
 (defun gpb:ess-save-package ()
   "Save all files in the current package that have been edited."
   (interactive)
-  (let* ((local-pkg-dir (cdr (ess-r-package-project)))
-         (code-dir (concat (file-remote-p default-directory)
-                           (file-name-as-directory local-pkg-dir)))
-         (is-pkg-buf-p (lambda (buf)
-                         (string-prefix-p code-dir (buffer-file-name buf))))
-         (bufs-visiting-pkg-code (cl-remove-if-not
-                                  is-pkg-buf-p (buffer-list))))
-    (dolist (buf bufs-visiting-pkg-code)
-      (when (buffer-modified-p buf)
-        (with-current-buffer buf (save-buffer))))))
+  (when (car (ess-r-package-project))
+    (let* ((local-pkg-dir (cdr (ess-r-package-project)))
+           (code-dir (concat (file-remote-p default-directory)
+                             (file-name-as-directory local-pkg-dir)))
+           (is-pkg-buf-p (lambda (buf)
+                           (string-prefix-p code-dir (buffer-file-name buf))))
+           (bufs-visiting-pkg-code (cl-remove-if-not
+                                    is-pkg-buf-p (buffer-list))))
+      (dolist (buf bufs-visiting-pkg-code)
+        (when (buffer-modified-p buf)
+          (with-current-buffer buf (save-buffer)))))))
+
+
+(defun gpb:exit-all-browsers ()
+  (interactive)
+  (dolist (procname-props ess-process-name-list)
+    (let* ((procname (car procname-props))
+           (proc (get-process procname))
+           (buf (process-buffer proc)))
+      (with-current-buffer buf
+        (save-excursion
+          (goto-char (marker-position (process-mark proc)))
+          (beginning-of-line)
+          (when (looking-at-p "^Browse\\[[0-9]+\\]> *")
+            (ess-send-string (ess-get-process) "Q" t)))))))
 
 
 (when (fboundp 'advice-add)
   ;; Automatically save all the package files when you reloading the package.
   (advice-add 'ess-r-devtools-load-package :before 'gpb:ess-save-package)
+  (advice-add 'ess-r-devtools-load-package :before 'gpb:exit-all-browsers)
   ;; Automatically reload the package files when you run the tests.
   (advice-add 'ess-r-devtools-test-package
               :before 'ess-r-devtools-load-package))
