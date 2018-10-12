@@ -394,14 +394,14 @@ still let bound."
 
 ARGS should just be (pos &rest modifiers) and BODY should contain
 code that returns a list of the form (list beg end), where beg
-and end are buffer positions that deimit the current text object.
+and end are buffer positions that delimit the current text object.
 
 BODY may be preceded by keyword argument pairs.  The only keyword
 argument that is processed by this macro is :key-binding which
-should be followed by a list which is passed as arguments to
-`gpb-tobj--define-key'.  The remaining keyword arguments are
-associated with the text object.  See
-`gpb-tobj--text-object-alist' for the details."
+may appear one or more times and should be followed by a list
+that will be passed as arguments to `gpb-tobj--define-key'.  The
+remaining keyword arguments are associated with the text object.
+See `gpb-tobj--text-object-alist' for the details."
   (declare (indent 1) (doc-string 2))
   (assert (stringp doc))
   (when (and gpb-tobj--enable-warnings

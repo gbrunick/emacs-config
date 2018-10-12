@@ -34,7 +34,13 @@ code.")
     (yas-minor-mode 1))
   (when (require 'gpb-text-objects nil t)
     (gpb-modal--define-command-key "q" 'fill-paragraph t)
-    (setq-local execute-text-object-function 'gpb:ess-eval-text-object)))
+    (setq-local execute-text-object-function 'gpb:ess-eval-text-object)
+
+    (gpb-tobj--define-flat-text-object ess-test-func
+      "A `test_that` test definition."
+      :forward-func gpb:ess-forward-test
+      :key-binding (root "t" :local t)
+      :key-binding (root "T" :backwards t :local t))))
 
 
 (defun gpb:inferior-ess-mode-hook ()
@@ -525,3 +531,30 @@ displayed."
    }
   "
   "Various helper functions.  Mainly for debugging.")
+
+
+(defun gpb:ess-forward-test (arg)
+  "Move to the beginning or end of the current test."
+  (interactive "p")
+  (let ((pt (point)))
+    (case arg
+      (1 (or
+          ;; First handle the case where the point is inside a test function
+          ;; definition.
+          (and (re-search-backward "test_that(" nil t)
+               ;; Move forward to the opening parenthesis after "that_that"
+               (goto-char (1- (match-end 0)))
+               ;; Move forward to mathcing closing parenthesis
+               (progn (forward-sexp) t)
+               ;; If we are not in front of where we started, we are done.
+               (> (point) pt))
+          ;; Otherwise, we need to move forward to the next test function.
+          (progn
+            ;; We should signal an error if this fails.
+            (goto-char pt)
+            (re-search-forward "test_that(")
+            (goto-char (1- (point)))
+            (progn (forward-sexp) t)
+            (point))))
+      (-1 (re-search-backward "test_that("))
+      (t (error "Runtime error")))))
