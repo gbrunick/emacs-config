@@ -22,6 +22,11 @@ code.")
 (add-hook 'ess-mode-hook 'gpb:ess-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 
+
+(defvar gpb:ess-last-eval-region nil
+  "The last region that was sent to the interpreter.
+Contains a cons of two markers.")
+
 (setq ess-use-auto-complete nil)
 
 (defun gpb:ess-mode-hook ()
@@ -35,12 +40,9 @@ code.")
   (when (require 'gpb-text-objects nil t)
     (gpb-modal--define-command-key "q" 'fill-paragraph t)
     (setq-local execute-text-object-function 'gpb:ess-eval-text-object)
-
-    (gpb-tobj--define-flat-text-object ess-test-func
-      "A `test_that` test definition."
-      :forward-func gpb:ess-forward-test
-      :key-binding (root "t" :local t)
-      :key-binding (root "T" :backwards t :local t))))
+    (gpb-tobj--define-key 'root "a" 'ess-last-eval-region :local t)
+    (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
+    (gpb-tobj--define-key 'root "T" 'ess-test-func :local t :backwards t)))
 
 
 (defun gpb:inferior-ess-mode-hook ()
@@ -209,11 +211,23 @@ an ESS inferior buffer."
   ;; Better to just error out if it is going to try.  We do want to allow
   ;; it to search for existing interpreters as that logic seems pretty
   ;; involved.  See `ess-request-a-process'."
+
+  ;; edebug doesn't like this.  Are we using it correctly?
   (cl-letf (((symbol-function 'ess-start-process-specific)
              (lambda (&rest) (error (concat "No interpreter process is "
                                             "associated with this buffer.")))))
     (ess-force-buffer-current "Process: " nil t nil))
-  (gpb:ess-eval-region start end))
+
+  (cond
+   ((eq obj 'ess-last-eval-region)
+    (when (null gpb:ess-last-eval-region)
+      (error "No region has been evaluated yet."))
+    (let* ((beg (car gpb:ess-last-eval-region))
+           (buf (marker-buffer beg))
+           (end (cdr gpb:ess-last-eval-region)))
+      (with-current-buffer buf (gpb:ess-eval-region beg end))))
+   (t
+    (gpb:ess-eval-region start end))))
 
 
 (defun gpb:ess-insert-browser ()
@@ -336,6 +350,12 @@ that is produced."
                 (goto-char end) (skip-chars-backward " \n\t") (point)))
          (line1 (line-number-at-pos beg))
          (line2 (line-number-at-pos end)))
+
+    (setq gpb:ess-last-eval-region (or gpb:ess-last-eval-region
+                                       `(,(make-marker) . ,(make-marker))))
+    (set-marker (car gpb:ess-last-eval-region) beg)
+    (set-marker (cdr gpb:ess-last-eval-region) end)
+
     (if (= line1 line2)
         (ess-send-string
          (ess-get-process) (buffer-substring-no-properties beg end) t)
@@ -558,3 +578,16 @@ displayed."
             (point))))
       (-1 (re-search-backward "test_that("))
       (t (error "Runtime error")))))
+
+
+
+;; This guard may not matter due to eager macro expansion.
+(when (require 'gpb-text-objects nil t)
+  (gpb-tobj--define-text-object ess-last-eval-region (pos &rest modifiers)
+    "the last evaluated region"
+    ;; This is a just a placeholder object, so the position doesn't matter.
+    (list 1 1))
+
+  (gpb-tobj--define-flat-text-object ess-test-func
+    "A `test_that` test definition."
+    :forward-func gpb:ess-forward-test))
