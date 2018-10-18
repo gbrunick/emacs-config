@@ -573,9 +573,9 @@ displayed."
        calls <- sapply(sys.calls(), deparse)
 
        # These don't seem that useful.
-       srcRefs <- sapply(sys.calls(), function (x) attr(x, "srcref"))
+       srcRefs <- sapply(sys.calls(), function (x) attr(x, 'srcref'))
        srcLines <- sapply(srcRefs, function (srcref) srcref[[1]])
-       srcFiles <- sapply(srcRefs, function (srcref) attr(srcref, "srcfile")$filename)
+       srcFiles <- sapply(srcRefs, function (srcref) attr(srcref, 'srcfile')$filename)
 
        frames <- sys.frames()
        stopifnot(length(calls) == length(frames))
@@ -584,37 +584,37 @@ displayed."
 
        repeat {
            if (where > 0) {
-               prompt <- paste0(calls[[where]], "> ")
+               prompt <- paste0(calls[[where]], '> ')
                evalEnv <- frames[[where]]
            }
            else {
-               prompt <- "globalenv> "
+               prompt <- 'globalenv> '
                evalEnv <- globalenv()
            }
            # readline doesn't work in Rscript
-           cat("rdb> ")
-           cmd <- readLines("stdin", n=1)
-           if (cmd  == "c") break
-           else if (cmd  == "Q") stop("quit")
-           else if (cmd %in% c("u", "d", "w", "where")) {
-               if (cmd  == "u") {
-                   if(where == 0) cat("Already at the top of the stack.\n")
+           cat('rdb> ')
+           cmd <- readLines('stdin', n=1)
+           if (cmd  == 'c') break
+           else if (cmd  == 'Q') stop('quit')
+           else if (cmd %in% c('u', 'd', 'w', 'where')) {
+               if (cmd  == 'u') {
+                   if(where == 0) cat('Already at the top of the stack.\n')
                    else where <- where - 1
                }
-               else if (cmd == "d") {
-                   if(where == length(calls)) cat("Already at the bottom of the stack.\n")
+               else if (cmd == 'd') {
+                   if(where == length(calls)) cat('Already at the bottom of the stack.\n')
                    else where <- where + 1
                }
 
                # Print the call stack with an indication of the current level.
-               if (where == 0) marker <- "->"
-               else marker <- "  "
-               cat(sprintf("%s 0: globalenv()\n", marker))
+               if (where == 0) marker <- '->'
+               else marker <- '  '
+               cat(sprintf('%s 0: globalenv()\n', marker))
 
                for (i in seq_along(calls)) {
-                   if (i == where) marker <- "->"
-                   else marker <- "  "
-                   cat(sprintf("%s %i: %s\n", marker, i, calls[[i]]))
+                   if (i == where) marker <- '->'
+                   else marker <- '  '
+                   cat(sprintf('%s %i: %s\n', marker, i, calls[[i]]))
                }
            } else {
                try({
