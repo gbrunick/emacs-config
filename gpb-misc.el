@@ -584,62 +584,55 @@ This code is taken from fx-misc.el by Dave Love"
 
 (defun gpb-new-document ()
   (interactive)
-  (setq gpb-new-document--buffer "*new document*")
   (let ((keymap (make-sparse-keymap))
-        (indent "    "))
-    (define-key keymap "\t" 'forward-button)
-    (define-key keymap [(backtab)] 'backward-button)
-    (define-key keymap "q" 'gpb-kill-buffer)
-    (with-current-buffer (get-buffer-create gpb-new-document--buffer)
-      (erase-buffer)
-      (insert "Create new buffer:\n\n")
-      (insert indent)
-      (insert-button "Text buffer"
-                     'action (lambda (button)
-                               (switch-to-buffer
-                                (generate-new-buffer "*new text buffer*"))
-                               (text-mode)
-                               (kill-buffer gpb-new-document--buffer)))
-      (insert "    create a new buffer in text-mode\n\n")
-      (insert indent)
+        (indent "    ")
+        (dir default-directory)
+        (menu-buffer-name "*new document*"))
+    (cl-flet ((make-button
+               (lambda (desc name mode)
+                 (insert-button
+                  desc 'action `(lambda (button)
+                                 (let ((new-buf (generate-new-buffer ,name)))
+                                   (with-current-buffer new-buf
+                                     (,mode)
+                                     (setq-local default-directory ,dir))
+                                   (switch-to-buffer new-buf)
+                                   (kill-buffer ,menu-buffer-name)))))))
 
-      (when (boundp 'ess-version)
-        (insert-button "R buffer"
-                       'action (lambda (button)
-                                 (switch-to-buffer
-                                  (generate-new-buffer "*new R buffer*"))
-                                 (R-mode)
-                                 (kill-buffer gpb-new-document--buffer)))
-        (insert "  create a new buffer in Python-mode\n\n")
-        (insert indent))
+      (define-key keymap "\t" 'forward-button)
+      (define-key keymap [(backtab)] 'backward-button)
+      (define-key keymap "q" 'gpb-kill-buffer)
 
-      (insert-button "LaTeX buffer"
-                     'action (lambda (button)
-                               (switch-to-buffer
-                                (generate-new-buffer "*new lateX buffer*"))
-                               (LaTeX-mode)
-                               (kill-buffer gpb-new-document--buffer)))
-      (insert "   create a new buffer in LaTeX-mode\n\n")
-      (insert indent)
-      (insert-button "Emacs Lisp buffer"
-                     'action (lambda (button)
-                               (switch-to-buffer
-                                (generate-new-buffer "*new emacs lisp buffer*"))
-                               (emacs-lisp-mode)
-                               (kill-buffer gpb-new-document--buffer)))
-      (insert "   create a new buffer in emacs-lisp-mode\n\n")
-      (insert indent)
-      (insert-button "Slang buffer"
-                     'action (lambda (button)
-                               (switch-to-buffer
-                                (generate-new-buffer "*new Slang buffer*"))
-                               (slang-mode)
-                               (kill-buffer gpb-new-document--buffer)))
-      (insert "   create a new buffer in slang-mode\n\n")
-      (use-local-map keymap)
-      (beginning-of-buffer)
-      (forward-button 1))
-    (switch-to-buffer gpb-new-document--buffer)))
+      (with-current-buffer (get-buffer-create menu-buffer-name)
+        (erase-buffer)
+        (insert "Create new buffer:\n\n")
+
+        (insert indent)
+        (make-button "Text buffer" "*new text buffer*" 'text-mode)
+        (insert "    create a new buffer in text-mode\n\n")
+
+
+        (when (boundp 'ess-version)
+          (insert indent)
+          (make-button "R buffer" "*new R buffer*" 'R-mode)
+          (insert "       create a new buffer in R-mode\n\n"))
+
+        (insert indent)
+        (make-button "Python buffer" "*new Python buffer*" 'python-mode)
+        (insert "  create a new buffer in python-mode\n\n")
+
+        (insert indent)
+        (make-button "LaTeX buffer" "*new lateX buffer*" 'LaTeX-mode)
+        (insert "   create a new buffer in LaTeX-mode\n\n")
+
+        (insert indent)
+        (make-button "Emacs Lisp buffer" "*new emacs lisp buffer*" 'emacs-lisp-mode)
+        (insert "   create a new buffer in emacs-lisp-mode\n\n")
+
+        (use-local-map keymap)
+        (beginning-of-buffer)
+        (forward-button 1))
+      (switch-to-buffer gpb-new-document--buffer))))
 
 (defun gpb-next-window (arg)
   "Select next window using `other-window'
