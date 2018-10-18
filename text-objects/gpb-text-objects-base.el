@@ -28,11 +28,13 @@
 
 
 (defvar gpb-tobj--text-object-alist nil
-  "This alist holds entries of the form (SYMBOL . PLIST) where
-  SYMBOL is a symbol that is associated with a type of text
-  object and the properties in PLIST hold the relevant
-  information about the given text object.  Use
-  `gpb-tobj--define-text-object' to add entries to this list.")
+  "The global text object registry.
+
+This alist holds entries of the form (SYMBOL . PLIST) where
+SYMBOL is a symbol that is associated with a type of text
+object and the properties in PLIST hold the relevant
+information about the given text object.  Use
+`gpb-tobj--define-text-object' to add entries to this list.")
 
 (defvar gpb-tobj--current-text-object nil)
 (defvar gpb-tobj--current-text-object-modifiers nil)
