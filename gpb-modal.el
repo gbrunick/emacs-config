@@ -342,6 +342,11 @@ This variable should never accessed directly.  Instead use
 
 (gpb-modal--define-command-key [remap describe-mode] 'gpb-modal--describe-mode)
 
+(gpb-modal--define-command-key [(control tab)] 'gpb-next-window)
+(gpb-modal--define-command-key [(control shift iso-lefttab)] 'gpb-previous-window)
+(gpb-modal--define-command-key [(control shift tab)] 'gpb-previous-window)
+(gpb-modal--define-command-key "\C-w" 'gpb-kill-buffer)
+
 ;; This binding would conflict with the common quit command.
 ;; (gpb-modal--define-command-key "q" 'fill-paragraph)
 ;; (gpb-modal--define-command-key "i" 'gpb-modal--enter-insert-mode)
