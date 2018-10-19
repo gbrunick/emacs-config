@@ -336,6 +336,7 @@ This variable should never accessed directly.  Instead use
 (gpb-modal--define-command-key [(control shift tab)] 'gpb-previous-window)
 (gpb-modal--define-command-key "\C-w" 'gpb-kill-buffer)
 
+(gpb-modal--define-command-key "q" 'fill-paragraph)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -741,6 +742,17 @@ into the buffer (e.g. comint-mode)."
 (gpb-tobj--global-set-key "\C-j" 'gpb-tobj--cancel-command)
 
 
+(defun gpb-modal--use-major-mode-binding ()
+  (interactive)
+  (let* ((keys (this-command-keys))
+         (binding (local-key-binding keys)))
+    (message "keys: %s" keys)
+    (message "binding: %s" binding)
+    (if binding
+        (call-interactively binding)
+      (error "%s is undefined", keys))))
+
+
 ;; When a file is opened using emacsclient, the `find-file' is called
 ;; after the post command loop has already run.
 
@@ -853,18 +865,21 @@ loop."
 
 (add-hook 'help-mode-hook 'gpb-modal--init-help-buffer)
 (defun gpb-modal--init-help-buffer ()
-  ;; (gpb-modal--define-command-key "b" nil t)
-  ;; (gpb-modal--define-command-key "f" nil t)
-  (gpb-modal--define-command-key "q" nil t))
+  (gpb-modal--define-command-key "b" 'gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "f" 'gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "q" 'gpb-modal--use-major-mode-binding t))
+
+
+;; vc-mode integration --------------------------------------------------
 
 (add-hook 'vc-dir-mode-hook 'gpb-modal--vc-dir-mode-hook)
 (defun gpb-modal--vc-dir-mode-hook ()
-  (gpb-modal--define-command-key "u" nil t)
-  (gpb-modal--define-command-key "m" nil t)
-  (gpb-modal--define-command-key "n" nil t)
-  (gpb-modal--define-command-key "p" nil t)
-  (gpb-modal--define-command-key "g" nil t)
-  (gpb-modal--define-command-key "q" nil t))
+  (gpb-modal--define-command-key "u" gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "m" gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "n" gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "p" gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "g" gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "q" gpb-modal--use-major-mode-binding t))
 
 (add-hook 'property-list-mode-hook 'gpb-modal--property-list-mode-hook)
 (defun gpb-modal--property-list-mode-hook ()
@@ -876,10 +891,16 @@ loop."
 
 (add-hook 'Buffer-menu-mode-hook 'gpb-modal--Buffer-menu-mode-hook)
 (defun gpb-modal--Buffer-menu-mode-hook ()
-  (gpb-modal--define-command-key "d" nil t)
-  (gpb-modal--define-command-key "q" nil t)
-  (gpb-modal--define-command-key "x" nil t))
+  (gpb-modal--define-command-key "d" 'gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "q" 'gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key "x" 'gpb-modal--use-major-mode-binding t))
 
+
+(defun gpb-modal--give-back-q ()
+  (gpb-modal--define-command-key "q" 'gpb-modal--use-major-mode-binding t))
+
+(add-hook 'grep-mode-hook 'gpb-modal--give-back-q)
+(add-hook 'help-mode-hook 'gpb-modal--give-back-q)
 
 (eval-after-load 'eldoc
   '(eldoc-add-command-completions "gpb-modal--next-"
