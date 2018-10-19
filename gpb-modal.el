@@ -54,7 +54,7 @@ mode.  See `gpb-modal-command-cursor-face' and
 What would really want is the top-level value of the point in a
 window ignoring any current `save-excursions', but the
 documentation of `window-point' suggests that we can't get our
-ands on this information.  Instead, we set this marker to the
+hands on this information.  Instead, we set this marker to the
 current value of the point in a `post-command-hook' and then hope
 that is stays in sync with the point if the buffer is modified
 between commands.")
@@ -75,30 +75,19 @@ between commands.")
       (progn
         (add-hook 'pre-command-hook 'gpb-modal--pre-command-hook)
         (add-hook 'post-command-hook 'gpb-modal--post-command-hook)
-        ;; (add-hook 'after-change-functions 'gpb-modal--show-fake-cursor)
-        (message "after-change-functions: %S" after-change-functions)
         (unless (member 'gpb-modal--keymap-alist
                         (default-value 'emulation-mode-map-alists))
           (setq-default emulation-mode-map-alists
                         (cons 'gpb-modal--keymap-alist
                               (default-value 'emulation-mode-map-alists))))
         (gpb-modal--enter-command-mode))
-    ;; (setq cursor-type cursor-type
-    ;;       cursor-in-non-selected-windows gpb-modal--save-cursor-type
-    ;;       gpb-modal--cursor-type 'bar)
     (when (member 'gpb-modal--keymap-alist
                   (default-value 'emulation-mode-map-alists))
       (setq-default emulation-mode-map-alists
                     (delq 'gpb-modal--keymap-alist
                           (default-value 'emulation-mode-map-alists))))
     (remove-hook 'pre-command-hook 'gpb-modal--pre-command-hook)
-    (remove-hook 'post-command-hook 'gpb-modal--post-command-hook)
-    ;; (remove-hook 'after-change-functions 'gpb-modal--show-fake-cursor)
-    )
-  (message "after-change-functions: %S" after-change-functions))
-
-;; ;; Insert before cua mode
-;; (add-to-ordered-list 'emulation-mode-map-alists 'gpb-modal--keymap-alist 300)
+    (remove-hook 'post-command-hook 'gpb-modal--post-command-hook)))
 
 (defvar gpb-modal--keymap-alist nil)
 (make-variable-buffer-local 'gpb-modal--keymap-alist)
@@ -347,22 +336,6 @@ This variable should never accessed directly.  Instead use
 (gpb-modal--define-command-key [(control shift tab)] 'gpb-previous-window)
 (gpb-modal--define-command-key "\C-w" 'gpb-kill-buffer)
 
-;; This binding would conflict with the common quit command.
-;; (gpb-modal--define-command-key "q" 'fill-paragraph)
-;; (gpb-modal--define-command-key "i" 'gpb-modal--enter-insert-mode)
-;; (gpb-modal--define-command-key "I" 'gpb-modal--enter-overwrite-mode)
-
-
-;; (defun gpb-modal--ensure-local-keymaps-are-defined ()
-;;   "Ensure that the local keymaps have been initialized."
-;;   (unless gpb-modal--command-mode-local-map
-;;     (setq gpb-modal--command-mode-local-map (make-sparse-keymap))
-;;     (set-keymap-parent gpb-modal--command-mode-local-map
-;;                        gpb-modal--command-mode-global-map))
-;;   (unless gpb-modal--insert-mode-local-map
-;;     (setq gpb-modal--insert-mode-local-map (make-sparse-keymap))
-;;     (set-keymap-parent gpb-modal--insert-mode-local-map
-;;                        'gpb-modal--insert-mode-global-map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
