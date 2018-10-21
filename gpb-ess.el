@@ -669,3 +669,18 @@ displayed."
   (gpb-tobj--define-flat-text-object ess-test-func
     "A `test_that` test definition."
     :forward-func gpb:ess-forward-test))
+
+
+
+;; BUGFIX: workaround the fact that devtools::help always prints the help,
+;; unlike utils::help which returns an object with a print method.
+(defun ess-r-build-help-command--get-package-dir (object dont-ask)
+  ;; Ugly hack to avoid tcl/tk dialogues
+  (let ((pkgs (ess-get-words-from-vector
+               (format (concat "c(as.character(utils::help('%s')),"
+                               "  as.character(devtools::find_topic('%s')))\n")
+                       object object))))
+    (when (> (length pkgs) 1)
+      (if dont-ask
+          (car pkgs)
+        (ess-completing-read "Choose location" pkgs nil t)))))
