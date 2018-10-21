@@ -751,7 +751,7 @@ into the buffer (e.g. comint-mode)."
     (message "binding: %s" binding)
     (if binding
         (call-interactively binding)
-      (error "%s is undefined", keys))))
+      (error "%s is undefined" keys))))
 
 
 ;; When a file is opened using emacsclient, the `find-file' is called
