@@ -626,13 +626,14 @@ This code is taken from fx-misc.el by Dave Love"
         (insert "   create a new buffer in LaTeX-mode\n\n")
 
         (insert indent)
-        (make-button "Emacs Lisp buffer" "*new emacs lisp buffer*" 'emacs-lisp-mode)
+        (make-button "Emacs Lisp buffer" "*new emacs lisp buffer*"
+                     'emacs-lisp-mode)
         (insert "   create a new buffer in emacs-lisp-mode\n\n")
 
         (use-local-map keymap)
         (beginning-of-buffer)
         (forward-button 1))
-      (switch-to-buffer gpb-new-document--buffer))))
+      (switch-to-buffer menu-buffer-name))))
 
 (defun gpb-next-window (arg)
   "Select next window using `other-window'
