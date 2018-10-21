@@ -634,39 +634,40 @@ character that follows `gpb-modal-cursor-marker'.  This function
 is temporarily added to `after-change-functions' between commands
 to keep the cursor updates when there are asynchronous insertions
 into the buffer (e.g. comint-mode)."
-  (let ((inhibit-modification-hooks t))
-    (save-excursion
-      (gpb-log-forms 'gpb-modal--show-fake-cursor
-                     '(point) 'gpb-modal-cursor-marker
-                     '(window-point))
-      (goto-char gpb-modal-cursor-marker)
-      (let* ((inhibit-modification-hooks t)
-             (beg (point))
-             (end (min (1+ beg) (save-restriction (widen) (point-max))))
-             (ov (or (and gpb-modal-cursor-overlay
-                          (move-overlay gpb-modal-cursor-overlay
-                                        beg end (current-buffer)))
-                     (make-overlay beg end (current-buffer))))
-             (face-symbol (case gpb-modal--current-mode
-                            (command 'gpb-modal-command-cursor-face)
-                            (insert 'gpb-modal-insert-cursor-face)
-                            (t (error "Runtime error"))))
-             (eob-placeholder (propertize " " 'cursor t
-                                          'face face-symbol))
-             (eol-placeholder (concat (propertize " " 'cursor t
-                                                  'face face-symbol)
-                                      "\n")))
-        (overlay-put ov 'face nil)
-        (overlay-put ov 'display nil)
-        (overlay-put ov 'after-string nil)
-        (overlay-put ov 'window (selected-window))
-        (overlay-put ov 'priority (1+ show-paren-priority))
-        (overlay-put ov 'front-sticky t)
-        (cond
-         ((eobp) (overlay-put ov 'after-string eob-placeholder))
-         ((eolp) (overlay-put ov 'display eol-placeholder))
-         (t (overlay-put ov 'face face-symbol)))
-        (setq gpb-modal-cursor-overlay ov)))))
+  (when (marker-buffer gpb-modal-cursor-marker)
+    (let ((inhibit-modification-hooks t))
+      (save-excursion
+        (gpb-log-forms 'gpb-modal--show-fake-cursor
+                       '(point) 'gpb-modal-cursor-marker
+                       '(window-point))
+        (goto-char gpb-modal-cursor-marker)
+        (let* ((inhibit-modification-hooks t)
+               (beg (point))
+               (end (min (1+ beg) (save-restriction (widen) (point-max))))
+               (ov (or (and gpb-modal-cursor-overlay
+                            (move-overlay gpb-modal-cursor-overlay
+                                          beg end (current-buffer)))
+                       (make-overlay beg end (current-buffer))))
+               (face-symbol (case gpb-modal--current-mode
+                              (command 'gpb-modal-command-cursor-face)
+                              (insert 'gpb-modal-insert-cursor-face)
+                              (t (error "Runtime error"))))
+               (eob-placeholder (propertize " " 'cursor t
+                                            'face face-symbol))
+               (eol-placeholder (concat (propertize " " 'cursor t
+                                                    'face face-symbol)
+                                        "\n")))
+          (overlay-put ov 'face nil)
+          (overlay-put ov 'display nil)
+          (overlay-put ov 'after-string nil)
+          (overlay-put ov 'window (selected-window))
+          (overlay-put ov 'priority (1+ show-paren-priority))
+          (overlay-put ov 'front-sticky t)
+          (cond
+           ((eobp) (overlay-put ov 'after-string eob-placeholder))
+           ((eolp) (overlay-put ov 'display eol-placeholder))
+           (t (overlay-put ov 'face face-symbol)))
+          (setq gpb-modal-cursor-overlay ov))))))
 
 
 ;; (defun gpb-modal--update-display ()
