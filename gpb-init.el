@@ -20,9 +20,10 @@
 ;; Load YAS snippets when the package is available.
 (eval-after-load 'yasnippet
   `(progn
-     (setq yas-snippet-dirs (list (concat (file-name-directory
-                                           (or load-file-name (buffer-file-name)))
-                                          "snippets")))
+     (setq yas-snippet-dirs (list
+                             (concat (file-name-directory
+                                      (or load-file-name (buffer-file-name)))
+                                     "snippets")))
      (yas-reload-all)))
 
 
@@ -61,6 +62,7 @@
 (global-set-key "\C-c$" 'gpb-ispell)
 (global-set-key "\C-cg" 'gpb-grep)
 (global-set-key "\C-cr" 'gpb-rect--begin-rect-command)
+(global-set-key "\C-cv" 'magit-status)
 
 ;; The next binding does nothing because escape is now remapped to C-g
 ;; at the input-decode level
@@ -630,5 +632,15 @@
 (define-key minibuffer-local-filename-completion-map "\M-h"
   'gpb:kill-path-segment-backwards)
 
+(eval-after-load 'magit-mode
+  '(progn
+     (setq magit-display-buffer-function
+           'magit-display-buffer-same-window-except-diff-v1
+
+           magit-display-file-buffer-function
+           (lambda (buf)
+             (pop-to-buffer buf 'other-window)
+             (message "selected window: %s" (selected-window))
+             (run-at-time 0.1 nil 'recenter)))))
 
 (setq debug-on-quit nil)

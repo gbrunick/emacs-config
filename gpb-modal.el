@@ -910,4 +910,20 @@ loop."
                                   "gpb-modal--beginning-of-"
                                   "gpb-model--end-of-"))
 
+;; Magit integration --------------------------------------------------
+
+(defun gpb-magit-status-mode-setup ()
+  (gpb-modal--define-command-key  [tab] 'magit-section-cycle t)
+  (gpb-modal--define-command-key  [(backtab)] 'magit-section-cycle-diffs t)
+  (gpb-modal--define-command-key  "s" 'gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key  "c" 'gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key  "u" 'gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key  "l" 'gpb-modal--use-major-mode-binding t)
+  (gpb-modal--define-command-key  "J" 'magit-section-forward t)
+  (gpb-modal--define-command-key  "K" 'magit-section-backward t))
+
+(add-hook 'magit-status-mode-hook 'gpb-magit-status-mode-setup)
+(add-hook 'magit-popup-mode-hook 'gpb-modal--enter-insert-mode)
+
+
 (provide 'gpb-modal)
