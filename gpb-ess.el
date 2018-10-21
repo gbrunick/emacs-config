@@ -279,9 +279,10 @@ an ESS inferior buffer."
   (ess-send-string (ess-get-process) "Q" t))
 
 
-(defun gpb:ess-get-region-file-names ()
+(defun gpb:ess-get-region-file-names (&optional where)
   "Get the names of the file used for execution of the region."
-  (let* ((remote (file-remote-p default-directory))
+  (let* ((default-directory (or where default-directory))
+         (remote (file-remote-p default-directory))
          (cache-val (cdr (assoc remote gpb:ess-region-file-cache))))
     (if cache-val
         cache-val
@@ -302,7 +303,7 @@ an ESS inferior buffer."
     filename))
 
 
-(defun gpb:ess-make-region-file (beg end)
+(defun gpb:ess-make-region-file (beg end &optional where)
   "Create an R source file containing a region of code.
 
 We jump through hopes to ensure that the R source code references
@@ -319,7 +320,7 @@ that is produced."
                   (goto-char end)
                   (end-of-line)
                   (point))))
-         (region-wrapper-filenames (gpb:ess-get-region-file-names))
+         (region-wrapper-filenames (gpb:ess-get-region-file-names where))
          (region-filename (first region-wrapper-filenames))
          (wrapper-filename (second region-wrapper-filenames))
          (source-filename (or (and (buffer-file-name)
@@ -349,7 +350,10 @@ that is produced."
   (let* ((end (save-excursion
                 (goto-char end) (skip-chars-backward " \n\t") (point)))
          (line1 (line-number-at-pos beg))
-         (line2 (line-number-at-pos end)))
+         (line2 (line-number-at-pos end))
+         (ess-proc (ess-get-process))
+         (proc-default-directory (with-current-buffer (process-buffer ess-proc)
+                                   default-directory)))
 
     (setq gpb:ess-last-eval-region (or gpb:ess-last-eval-region
                                        `(,(make-marker) . ,(make-marker))))
@@ -357,18 +361,16 @@ that is produced."
     (set-marker (cdr gpb:ess-last-eval-region) end)
 
     (if (= line1 line2)
-        (ess-send-string
-         (ess-get-process) (buffer-substring-no-properties beg end) t)
-      (let* ((filename (gpb:ess-make-region-file beg end))
+        (ess-send-string ess-proc (buffer-substring-no-properties beg end) t)
+      (let* ((filename (gpb:ess-make-region-file beg end proc-default-directory))
              (local-filename (if (tramp-tramp-file-p filename)
                                  (tramp-file-name-localname
                                   (tramp-dissect-file-name filename))
                                filename))
              (cmd (format "source(%s)" (prin1-to-string local-filename))))
         (gpb:exit-all-browsers)
-        (ess-send-string (ess-get-process) cmd
-                         (format "[Evaluate lines %s-%s in %s]"
-                                 line1 line2 (buffer-name)))))))
+        (ess-send-string ess-proc cmd (format "[Evaluate lines %s-%s in %s]"
+                                              line1 line2 (buffer-name)))))))
 
 
 (defun gpb:ess-save-package ()
