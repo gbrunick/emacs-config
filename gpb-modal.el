@@ -902,6 +902,8 @@ loop."
 
 (add-hook 'grep-mode-hook 'gpb-modal--give-back-q)
 (add-hook 'help-mode-hook 'gpb-modal--give-back-q)
+(add-hook 'debugger-mode-hook 'gpb-modal--give-back-q)
+(add-hook 'completion-list-mode-hook 'gpb-modal--give-back-q)
 
 (eval-after-load 'eldoc
   '(eldoc-add-command-completions "gpb-modal--next-"
