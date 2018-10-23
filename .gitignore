@@ -3,3 +3,4 @@ external-libs/
 .emacs-backups
 \#*#
 *.bak
+\.#*
