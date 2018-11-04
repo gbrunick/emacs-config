@@ -4,18 +4,12 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(require 'cl-lib)
 (require 'gpb-logging)
 (require 'gpb-text-objects)
 
-(when nil
-  (progn
-    (gpb-log--enable-logging 'gpb-modal--pre-command-hook)
-    (gpb-log--enable-logging 'gpb-modal--post-command-hook)
-    (gpb-log--enable-logging 'gpb-modal--show-fake-cursor))
-  (progn
-    (gpb-log--disable-logging 'gpb-modal--pre-command-hook)
-    (gpb-log--disable-logging 'gpb-modal--post-command-hook)
-    (gpb-log--disable-logging 'gpb-modal--show-fake-cursor)))
+(defvar gpb-modal--enable-logging t
+  "If non-nil, log information to *Modal Log* buffer.")
 
 (defcustom gpb-modal-command-cursor-type 'box
   ;; If `cursor-type' is nil, then emacs does not show a cursor in
@@ -26,82 +20,32 @@
 (defcustom gpb-modal-insert-cursor-type 'bar
   "Value for `cursor-type' when in insert mode.")
 
-(defcustom gpb-modal-nonselected-cursor-type '(bar . 1)
-  "Value for `cursor-in-non-selected-windows' which determines
-how the cursor appears in nonselected window.")
-
-(defface gpb-modal-command-cursor-face
-  '((((type tty)) (:inverse-video t :inherit default)))
-  "Face that is added to the character following the current
-point to indicate that the the modal editing state is command
-mode.  If there are no characters following the current point, a
-space is displayed with this face using overlays.  This was added
-to that we can simulate a box cursor in a terminal where Emacs
-does not have control over the appearance of the cursor.  In a
-graphical display, it is better to use `gpb-modal-command-cursor-type'
-to control the appear of the cursor in command mode.")
-
-(defface gpb-modal-insert-cursor-face nil
-  "Face that is added to the character following the current
-point to indicate that the the modal editing state is insert
-mode.  See `gpb-modal-command-cursor-face' and
-`gpb-modal-insert-cursor-type' for more information.")
-
-(defvar gpb-modal-cursor-overlay nil)
-
-(defvar gpb-modal-cursor-marker nil
-  "Used to store the current value of the point between commands.\n
-What would really want is the top-level value of the point in a
-window ignoring any current `save-excursions', but the
-documentation of `window-point' suggests that we can't get our
-hands on this information.  Instead, we set this marker to the
-current value of the point in a `post-command-hook' and then hope
-that is stays in sync with the point if the buffer is modified
-between commands.")
-
-(defvar gpb-modal--last-direction 1)
-
 (define-minor-mode gpb-modal-mode
   "A global modal editting mode for cursor movement loosely based on vim.
 
-  Keymap in \"insert\" mode:
-
-\\{gpb-modal--insert-mode-local-map}
-  Keymap in \"command\" mode:
-
-\\{gpb-modal--command-mode-local-map}"
+Use the command \\[gpb-model-describe-bindings] to see the
+current active keybindings."
   :global t
   (if gpb-modal-mode
       (progn
-        (add-hook 'pre-command-hook 'gpb-modal--pre-command-hook)
         (add-hook 'post-command-hook 'gpb-modal--post-command-hook)
-        (unless (member 'gpb-modal--keymap-alist
-                        (default-value 'emulation-mode-map-alists))
-          (setq-default emulation-mode-map-alists
-                        (cons 'gpb-modal--keymap-alist
-                              (default-value 'emulation-mode-map-alists))))
+        (setq cursor-in-non-selected-windows '(bar . 1))
         (gpb-modal--enter-command-mode))
-    (when (member 'gpb-modal--keymap-alist
-                  (default-value 'emulation-mode-map-alists))
-      (setq-default emulation-mode-map-alists
-                    (delq 'gpb-modal--keymap-alist
-                          (default-value 'emulation-mode-map-alists))))
-    (remove-hook 'pre-command-hook 'gpb-modal--pre-command-hook)
-    (remove-hook 'post-command-hook 'gpb-modal--post-command-hook)))
-
-(defvar gpb-modal--keymap-alist nil)
-(make-variable-buffer-local 'gpb-modal--keymap-alist)
-(put 'gpb-modal--keymap-alist 'permanent-local t)
+    (dolist (buf (buffer-list))
+      (with-current-buffer buf
+        (when gpb-modal--keymap-overlay
+          (delete-overlay gpb-modal--keymap-overlay)
+          (setq gpb-modal--keymap-overlay nil))))
+    (remove-hook 'post-command-hook 'gpb-modal--post-command-hook)
+    (setq cursor-in-non-selected-windows t)))
 
 (defvar gpb-modal--current-mode nil
-  "The current editing mode.\n Warning: this use of the word
-\"mode\" is similiar to VIM and local the the gpb-modal package.
-In particular, this use of the word \"mode\" does not agree with
-the usual meaning of the word \"mode\" in Emacs such as `major-mode'
-and `minor-mode-alist'.")
+  "The current global editing mode.
 
-(defvar gpb-modal--overriding-maps-alist nil
-  "Keymaps that should override the modal keymaps.")
+Warning: this use of the word \"mode\" is similiar to VIM and
+local to the gpb-modal package.  In particular, this use of the
+word \"mode\" does not agree with the usual meaning of the word
+\"mode\" in Emacs such as `major-mode' and `minor-mode-alist'.")
 
 (defvar gpb-modal--enter-insert-mode-hook nil
   "Functions run after entering insert mode")
@@ -113,8 +57,8 @@ and `minor-mode-alist'.")
   "The function `gpb-modal--post-command-hook' automatically
 switches to command mode after one of these commands.  This may
 be convenient for commands that usually follow the completion of
-editing or preceed cursor movement like saving the file or
-setting the mark in trnasient mark mode.")
+editing or precede cursor movement like saving the file or
+setting the mark in transient mark mode.")
 
 (defvar gpb-modal--enter-insert-mode-after
   `(gpb-latex-insert-item kmacro-start-macro-or-insert-counter)
@@ -146,16 +90,6 @@ switch to command mode when we enter a buffer.  See
 
 ;; (add-hook 'Man-mode-hook 'gpb-modal--enter-insert-mode)
 
-;; (defvar gpb-modal--pending-post-command-hook-command nil
-;;   "Use this variable to send a message to `gpb-modal--post-command-hook'.
-
-;; The functions `gpb-modal--enter-command-mode' and
-;; `gpb-modal--enter-insert-mode' both set this flag to
-;; 'dont-change-mode to prevent the post command hook from changing
-;; the mode a second time and overriding the intentions of the
-;; function that called `gpb-modal--enter-command-mode' or
-;; `gpb-modal--enter-insert-mode'.")
-
 (defvar gpb-modal--previous-buffer nil
   "The function `gpb-modal--post-command-hook' uses this variable
   to determine if the current buffer has changed.")
@@ -164,185 +98,415 @@ switch to command mode when we enter a buffer.  See
   "The function `gpb-modal--post-command-hook' uses this variable
   to determine if the current window has changed.")
 
-(defvar gpb-modal--previous-frame nil
-  "The function `gpb-modal--post-command-hook' uses this variable
-  to determine if the current frame has changed.")
-
 (defvar gpb-modal--mode-changed nil
   "Has the mode just changed?\n
 The functions `gpb-modal--enter-command-mode' and
 `gpb-modal--enter-insert-mode' set this flag so that
 `gpb-modal--post-command-hook' does not undo these changes.")
 
+(defvar-local gpb-modal--keymap-overlay nil
+  "The the buffer local overlay that enables the modal keymap.")
+
+(defconst gpb-modal--keymap-priority 10)
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;;  Setup insert mode keymaps
+;;  Keymaps and keymap management functions
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar gpb-modal--insert-mode-global-map (make-sparse-keymap)
+(defvar gpb-modal--insert-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [(control ?j)] 'gpb-modal--enter-command-mode)
+    map)
   "The global keymap for insert mode.")
 
-(defvar gpb-modal--insert-mode-local-map (make-sparse-keymap)
-  "The the buffer local keymap for insert mode.
+(defvar gpb-modal--global-command-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [remap self-insert-command] 'gpb-modal--not-defined)
+    (define-key map "0" 'digit-argument)
+    (define-key map "1" 'digit-argument)
+    (define-key map "2" 'digit-argument)
+    (define-key map "3" 'digit-argument)
+    (define-key map "4" 'digit-argument)
+    (define-key map "5" 'digit-argument)
+    (define-key map "6" 'digit-argument)
+    (define-key map "7" 'digit-argument)
+    (define-key map "8" 'digit-argument)
+    (define-key map "9" 'digit-argument)
 
-This variable should never accessed directly.  Instead use
-`gpb-modal--define-insert-key'")
+    (define-key map "i" 'gpb-modal--enter-insert-mode)
+    (define-key map "\M-i" 'gpb-modal--execute-one-command)
+    ;; (define-key map "I" 'gpb-modal--enter-overwrite-mode)
+    ;; (define-key map [(control ?\;)] 'gpb-modal--enter-insert-mode)
 
-(set-keymap-parent gpb-modal--insert-mode-local-map
-                   gpb-modal--insert-mode-global-map)
+    (define-key map "j" 'next-line)
+    (define-key map "k" 'previous-line)
+    (define-key map "h" 'backward-char)
+    (define-key map "l" 'forward-char)
 
-(defun gpb-modal--define-insert-key (key function &optional local)
-  "Define a key binding in the insert keymap"
-  (if local
-      (progn
-        (unless (local-variable-p 'gpb-modal--insert-mode-local-map)
-          (set (make-variable-buffer-local 'gpb-modal--insert-mode-local-map)
-               (copy-keymap gpb-modal--insert-mode-local-map)))
-        (define-key gpb-modal--insert-mode-local-map key function))
-    (define-key gpb-modal--insert-mode-global-map key function)))
+    (define-key map "t" 'isearch-forward)
+    (define-key map "T" 'isearch-backward)
 
-(gpb-modal--define-insert-key [(control ?j)] 'gpb-modal--enter-command-mode)
-;; This just makes exiting the minibuffer annoying
-;; (gpb-modal--define-insert-key [(control ?g)] 'gpb-modal--enter-command-mode)
+    (define-key map "a" 'repeat)
+    (define-key map "^" 'back-to-indentation)
+    (define-key map "%" 'gpb-modal--to-matching-delimiter)
+    (define-key map "J" 'scroll-up-command)
+    (define-key map "K" 'scroll-down-command)
+    (define-key map "$" 'end-of-line)
 
+    (define-key map "m" 'mark-text-object)
+    ;; (define-key map "M" 'gpb-reg-reselect-region)
+    (define-key map "c" 'copy-text-object)
+    (define-key map "C" 'copy-append-text-object)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;  Setup command mode keymaps
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (define-key map "b" 'goto-beginning-of-text-object)
+    (define-key map "e" 'goto-end-of-text-object)
+    (define-key map "n" 'goto-next-text-object)
+    (define-key map "f" 'isearch-for-text-object)
+    (define-key map "F" 'isearch-backward)
+    ;;(define-key map "f" 'goto-next-text-object)
+    (define-key map "=" 'indent-text-object)
+    (define-key map ";" 'comment/uncomment-text-object)
+    (define-key map ":" 'gpb-exec-command/eval-expression)
 
-(defvar gpb-modal--command-mode-global-map (make-sparse-keymap)
+    (define-key map "w" 'gpb-modal--next-word)
+    (define-key map "W" 'gpb-modal--beginning-of-word)
+    (define-key map "s" 'gpb-modal--next-symbol)
+    (define-key map "S" 'gpb-modal--beginning-of-symbol)
+    (define-key map " " 'gpb-modal--next-VIM-WORD)
+    (define-key map [(shift ?\ )] 'gpb-modal--beginning-of-VIM-WORD)
+    (define-key map "p" 'gpb-modal--next-paragraph)
+    (define-key map "P" 'gpb-modal--beginning-of-paragraph)
+    (define-key map "." 'gpb-modal--next-sentence)
+    (define-key map "," 'gpb-modal--beginning-of-sentence)
+
+    (define-key map "(" 'gpb-modal--beginning-of-parenthesis)
+    (define-key map ")" 'gpb-model--end-of-parenthesis)
+    (define-key map "[" 'gpb-modal--beginning-of-square-braces)
+    (define-key map "]" 'gpb-model--end-of-square-braces)
+    (define-key map "{" 'gpb-modal--beginning-of-curly-braces)
+    (define-key map "}" 'gpb-model--end-of-curly-braces)
+    (define-key map "<" 'gpb-modal--beginning-of-indented-block)
+    (define-key map ">" 'gpb-model--end-of-indented-block)
+
+    (define-key map "d" 'delete-text-object)
+    (define-key map "x" 'kill-text-object)
+    (define-key map "X" 'kill-and-append-text-object)
+    (define-key map "r" 'replace-text-object-with-clipboard)
+    (define-key map "E" 'execute-text-object)
+
+    (define-key map "z" 'undo)
+    (define-key map "u" 'undo)
+    (define-key map "v" 'yank)
+    (define-key map "V" 'gpb-modal--yank-after)
+    ;; (define-key map "\t" 'indent-for-tab-command)
+
+    (define-key map [remap describe-mode] 'gpb-modal--describe-mode)
+
+    (define-key map [(control tab)] 'gpb-next-window)
+    (define-key map [(control shift iso-lefttab)] 'gpb-previous-window)
+    (define-key map [(control shift tab)] 'gpb-previous-window)
+    (define-key map "\C-w" 'gpb-kill-buffer)
+
+    (define-key map "q" 'fill-paragraph)
+    map)
   "The global keymap for command mode.")
 
-(defvar gpb-modal--command-mode-local-map
-  (let ((map (make-sparse-keymap)))
-    ;; The following key binding provides access to the global command map
-    ;; from the local command map.  This allows us access bindings in the
-    ;; parent map that we intentionally hide in the local command map by
-    ;; calling (gpb-modal--define-command-key key nil t).  We may choose to
-    ;; hide these bindings in a given buffer so that they don't conflict
-    ;; with important major mode bindings.  By placing this binding in the
-    ;; local map, rather than the global command map, we avoid a recursive
-    ;; loop in keymap (which probably doesn't matter but seems unpleasant.
-    (define-key map "\C-j" gpb-modal--command-mode-global-map)
-    map)
-  "The the buffer local keymap for insert mode.
+;; This allows us to use the symbol `gpb-modal--global-command-mode-map' in
+;; keymaps.
+(fset 'gpb-modal--global-command-mode-map gpb-modal--global-command-mode-map)
 
-This variable should never accessed directly.  Instead use
-`gpb-modal--define-command-key'.")
 
-(set-keymap-parent gpb-modal--command-mode-local-map
-                   gpb-modal--command-mode-global-map)
+(defvar gpb-modal--command-mode-keymap-alist nil
+  "An alist of conditional command mode keymaps.
+
+Each car is a symbol that is evaluated to determine if the keymap
+in the cdr should be included in the current command mode
+map (see `gpb-modal--get-active-map').  The primary use case for
+this variable is enabling additional keybindings when a given
+minor mode is enabled.")
+
+
+(defvar-local gpb-modal--local-command-mode-map nil
+  "The buffer local keymap for insert mode.
+
+Don't modify this variable directly; use `gpb-modal:define-key'")
+
+
+(defun gpb-modal--get-active-map (&optional mode)
+  "Get the current active map.
+
+MODE should be the symbol insert or command.  The map returned is
+the top-lvel keymap that is added to the overlay keymap in each
+buffer."
+  (case (or mode gpb-modal--current-mode)
+    (insert gpb-modal--insert-mode-map)
+
+    (command
+     (gpb-modal--with-disabled-overlay-keymap
+      (let* ((local-map gpb-modal--local-command-mode-map)
+             (cond-maps (mapcar (lambda (x) (when (and (boundp x)
+                                                       (symbol-value x))
+                                              (cdr x)))
+                                gpb-modal--command-mode-keymap-alist))
+             ;; The overlay keymap will override any other overlay or text
+             ;; properties, so we find the keymap we are covering and put it
+             ;; last in the list below.
+             (keymap (get-char-property (point) 'keymap))
+             (global-map gpb-modal--global-command-mode-map)
+             (map-list (delq nil `(,local-map ,@cond-maps ,global-map ,keymap)))
+             (map (make-composed-keymap map-list)))
+        (gpb-modal--log-message "Entering let form.")
+        ;; The following key binding provides access to the global command
+        ;; map, skipping over any local or alist bindings.
+        (define-key map "\C-j" 'gpb-modal--global-command-mode-map)
+        ;; `gpb-modal--command-mode-map' is only for help/documentation
+        ;; purposes.
+        (setq-local gpb-modal--command-mode-map map)
+        (gpb-modal--log-forms 'local-map 'cond-maps 'keymap 'global-map 'map)
+        map)))
+
+    (t (error "Invalid mode %s" mode))))
+
 
 (defun gpb-modal--define-command-key (key function &optional local)
   "Define a key binding in the command keymap"
-  (if local
-      (progn
-        (unless (local-variable-p 'gpb-modal--command-mode-local-map)
-          (let ((map (copy-keymap gpb-modal--command-mode-local-map)))
-            (set (make-variable-buffer-local 'gpb-modal--command-mode-local-map)
-                 map)))
-        (define-key gpb-modal--command-mode-local-map key function))
-    (define-key gpb-modal--command-mode-global-map key function)))
+  (declare (obsolete gpb-modal:define-key "2018-11-03"))
+  (gpb-modal:define-key (if local :local :command) key function))
 
 
-(gpb-modal--define-command-key [remap self-insert-command]
-                               'gpb-modal--not-defined)
+(defun gpb-modal:define-key (where key def)
+  "Bind KEY to DEF.
 
-(gpb-modal--define-command-key "0" 'digit-argument)
-(gpb-modal--define-command-key "1" 'digit-argument)
-(gpb-modal--define-command-key "2" 'digit-argument)
-(gpb-modal--define-command-key "3" 'digit-argument)
-(gpb-modal--define-command-key "4" 'digit-argument)
-(gpb-modal--define-command-key "5" 'digit-argument)
-(gpb-modal--define-command-key "6" 'digit-argument)
-(gpb-modal--define-command-key "7" 'digit-argument)
-(gpb-modal--define-command-key "8" 'digit-argument)
-(gpb-modal--define-command-key "9" 'digit-argument)
+The argument WHERE is a symbol: :insert writes to the global
+insert mode map: :command writes to the global command mode map,
+:local writes to the buffer local command mode map.  Any other
+symbol writes to the conditional command mode map and creates a
+binding that is active when the symbol is true.  This allows for
+command mode bindings that become active when a minor mode is
+activated."
+  (let ((map (cond ((eq where :insert) gpb-modal--insert-mode-map)
+                   ((eq where :command) gpb-modal--global-command-mode-map)
+                   ((eq where :local)
+                    ;; The first time we define a local key binding in a
+                    ;; buffer, `gpb-modal--local-command-mode-map' is nil
+                    ;; so we need to create a sparse keymap.
+                    (or gpb-modal--local-command-mode-map
+                        (setq gpb-modal--local-command-mode-map
+                              (make-sparse-keymap))))
+                   ((symbol where)
+                    (or (alist-get where gpb-modal--command-mode-keymap-alist)
+                        (let ((new-map (make-sparse-keymap)))
+                          (push (cons mode new-map)
+                                gpb-modal--command-mode-keymap-alist)
+                          new-map)))
+                   (t
+                    (error (concat "WHERE must be a :insert, :command, "
+                                   ":local or a minor mode symbol."))))))
+    (define-key map key def)))
 
-(gpb-modal--define-command-key "i" 'gpb-modal--enter-insert-mode)
-(gpb-modal--define-command-key "\M-i" 'gpb-modal--execute-one-command)
-;; (gpb-modal--define-command-key "I" 'gpb-modal--enter-overwrite-mode)
-;; (gpb-modal--define-command-key [(control ?\;)] 'gpb-modal--enter-insert-mode)
 
-(gpb-modal--define-command-key "j" 'next-line)
-(gpb-modal--define-command-key "k" 'previous-line)
-(gpb-modal--define-command-key "h" 'backward-char)
-(gpb-modal--define-command-key "l" 'forward-char)
-
-(gpb-modal--define-command-key "t" 'isearch-forward)
-(gpb-modal--define-command-key "T" 'isearch-backward)
-
-(gpb-modal--define-command-key "a" 'repeat)
-(gpb-modal--define-command-key "^" 'back-to-indentation)
-(gpb-modal--define-command-key "%" 'gpb-modal--to-matching-delimiter)
-(gpb-modal--define-command-key "J" 'scroll-up-command)
-(gpb-modal--define-command-key "K" 'scroll-down-command)
-(gpb-modal--define-command-key "$" 'end-of-line)
-
-(gpb-modal--define-command-key "m" 'mark-text-object)
-;; (gpb-modal--define-command-key "M" 'gpb-reg-reselect-region)
-(gpb-modal--define-command-key "c" 'copy-text-object)
-(gpb-modal--define-command-key "C" 'copy-append-text-object)
-
-(gpb-modal--define-command-key "b" 'goto-beginning-of-text-object)
-(gpb-modal--define-command-key "e" 'goto-end-of-text-object)
-(gpb-modal--define-command-key "n" 'goto-next-text-object)
-(gpb-modal--define-command-key "f" 'isearch-for-text-object)
-(gpb-modal--define-command-key "F" 'isearch-backward)
-;;(gpb-modal--define-command-key "f" 'goto-next-text-object)
-(gpb-modal--define-command-key "=" 'indent-text-object)
-(gpb-modal--define-command-key ";" 'comment/uncomment-text-object)
-(gpb-modal--define-command-key ":" 'gpb-exec-command/eval-expression)
-
-(gpb-modal--define-command-key "w" 'gpb-modal--next-word)
-(gpb-modal--define-command-key "W" 'gpb-modal--beginning-of-word)
-(gpb-modal--define-command-key "s" 'gpb-modal--next-symbol)
-(gpb-modal--define-command-key "S" 'gpb-modal--beginning-of-symbol)
-(gpb-modal--define-command-key " " 'gpb-modal--next-VIM-WORD)
-(gpb-modal--define-command-key [(shift ?\ )] 'gpb-modal--beginning-of-VIM-WORD)
-(gpb-modal--define-command-key "p" 'gpb-modal--next-paragraph)
-(gpb-modal--define-command-key "P" 'gpb-modal--beginning-of-paragraph)
-(gpb-modal--define-command-key "." 'gpb-modal--next-sentence)
-(gpb-modal--define-command-key "," 'gpb-modal--beginning-of-sentence)
-
-(gpb-modal--define-command-key "(" 'gpb-modal--beginning-of-parenthesis)
-(gpb-modal--define-command-key ")" 'gpb-model--end-of-parenthesis)
-(gpb-modal--define-command-key "[" 'gpb-modal--beginning-of-square-braces)
-(gpb-modal--define-command-key "]" 'gpb-model--end-of-square-braces)
-(gpb-modal--define-command-key "{" 'gpb-modal--beginning-of-curly-braces)
-(gpb-modal--define-command-key "}" 'gpb-model--end-of-curly-braces)
-(gpb-modal--define-command-key "<" 'gpb-modal--beginning-of-indented-block)
-(gpb-modal--define-command-key ">" 'gpb-model--end-of-indented-block)
-
-(gpb-modal--define-command-key "d" 'delete-text-object)
-(gpb-modal--define-command-key "x" 'kill-text-object)
-(gpb-modal--define-command-key "X" 'kill-and-append-text-object)
-(gpb-modal--define-command-key "r" 'replace-text-object-with-clipboard)
-(gpb-modal--define-command-key "E" 'execute-text-object)
-
-(gpb-modal--define-command-key "z" 'undo)
-(gpb-modal--define-command-key "u" 'undo)
-(gpb-modal--define-command-key "v" 'yank)
-(gpb-modal--define-command-key "V" 'gpb-modal--yank-after)
-;; (gpb-modal--define-command-key "\t" 'indent-for-tab-command)
-
-(gpb-modal--define-command-key [remap describe-mode] 'gpb-modal--describe-mode)
-
-(gpb-modal--define-command-key [(control tab)] 'gpb-next-window)
-(gpb-modal--define-command-key [(control shift iso-lefttab)] 'gpb-previous-window)
-(gpb-modal--define-command-key [(control shift tab)] 'gpb-previous-window)
-(gpb-modal--define-command-key "\C-w" 'gpb-kill-buffer)
-
-(gpb-modal--define-command-key "q" 'fill-paragraph)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;  The main functions
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defun gpb-modal--update-overlay ()
+  "Update the buffer keymap according to `gpb-modal--current-mode'.
+
+Ensures that `gpb-modal--keymap-overlay' is defined and updates
+the keymap on this overlay."
+  (when (null gpb-modal--keymap-overlay)
+    (let ((ov (make-overlay (point-min) (point-max) nil nil t)))
+      (overlay-put ov 'priority gpb-modal--keymap-priority)
+      (setq gpb-modal--keymap-overlay ov))
+    (gpb-modal--log-message "Created new overlay in %s" (current-buffer)))
+
+  (let ((modal-map (gpb-modal--get-active-map)))
+    (overlay-put gpb-modal--keymap-overlay 'keymap modal-map)
+    (gpb-modal--log-forms 'gpb-modal--current-mode 'modal-map)))
+
+
+;; (defun gpb-modal--disable-overlay-keymap ()
+;;   "Disable the overlay keymap"
+;;   (when gpb-modal--keymap-overlay
+;;     (overlay-put gpb-modal--keymap-overlay 'keymap nil)
+;;     (gpb-modal--log-message "Disabled keymap in %s" (current-buffer))))
+
+
+(defmacro gpb-modal--with-disabled-overlay-keymap (&rest body)
+  "Temporary disable the modal key map while evaluating BODY."
+  (declare (indent 0) (debug t))
+  `(let ((keymap (and gpb-modal--keymap-overlay
+                      (prog1
+                          (overlay-get gpb-modal--keymap-overlay 'keymap)
+                        (overlay-put gpb-modal--keymap-overlay 'keymap nil)))))
+     (unwind-protect
+         (progn ,@body)
+       (when keymap
+         (overlay-put gpb-modal--keymap-overlay 'keymap keymap)))))
+
+
+(defun gpb-modal--describe-mode ()
+  "Disable modal keybindings and then call `describe-mode'."
+  (interactive)
+  (gpb-modal--with-disabled-overlay-keymap (describe-mode)))
+
+
+(defun gpb-model-describe-bindings (&optional buf)
+  (interactive)
+  (let ((buf (or buf (current-buffer))))
+    (help-setup-xref (list #'gpb-model-describe-bindings buf)
+                     (called-interactively-p 'interactive))
+    (with-help-window (help-buffer)
+      (with-current-buffer buf
+        (let ((insert-map (gpb-modal--get-active-map 'insert))
+              (command-map (gpb-modal--get-active-map 'command)))
+          (princ "Modal Key Bindings\n")
+          (princ "==================\n\n")
+          (princ "Insert mode bindings:\n\n")
+          (princ (substitute-command-keys "\\{insert-map}"))
+          (princ "\nCommand mode bindings:\n\n")
+          (princ (substitute-command-keys "\\{command-map}")))))))
+
+
+(defun gpb-modal--execute-one-command ()
+  "Disable modal keymaps for one command.
+You can use this function to get access to keybindings that have
+been hidden by the modal mode keybindings.  The overlay keymap
+will be reset in the post-command-hook."
+  (interactive)
+  (gpb-modal--with-disabled-overlay-keymap
+    (setq cursor-type gpb-modal-insert-cursor-type)
+    (let* ((key-seq (read-key-sequence nil))
+           (command (key-binding key-seq)))
+      ;; `read-key-sequence' does not update `last-command-event'.  This
+      ;; causes problems with, for example, `self-insert-command' which uses
+      ;; `last-command-event'.
+      (setq last-command-event last-input-event)
+      (call-interactively command))))
+
+
+(defun gpb-modal--enter-command-mode ()
+  "Enter command mode."
+  (interactive)
+  (setq gpb-modal--current-mode 'command
+        gpb-modal--mode-changed t)
+  (run-hooks 'gpb-modal--enter-command-mode-hook)
+  (when (called-interactively-p)
+    (unless (minibuffer-window-active-p (selected-window))
+      (message "Entering command mode..."))))
+
+
+(defun gpb-modal--enter-insert-mode ()
+  "Enter insert mode."
+  (interactive)
+  (setq gpb-modal--current-mode 'insert
+        gpb-modal--mode-changed t)
+  (run-hooks 'gpb-modal--enter-insert-mode-hook)
+  (when (called-interactively-p)
+    (unless (minibuffer-window-active-p (selected-window))
+      (message "Entering insert mode..."))))
+
+
+(defun gpb-modal--not-defined ()
+  (interactive)
+  (error "This key is not bound in command mode"))
+
+
+(defun gpb-modal--post-command-hook ()
+  "See `edebug-enter' for more on interactions with edebug"
+  (let* ((next-window (selected-window))
+         (next-buffer (window-buffer next-window))
+         (window-changed (not (eq gpb-modal--previous-window next-window)))
+         (buffer-changed (not (eq gpb-modal--previous-buffer next-buffer)))
+         (text-props (text-properties-at (point)))
+         (overlays (overlays-at (point)))
+         (orig-deactivate-mark deactivate-mark))
+    (gpb-modal--log-message "<begin gpb-modal--post-command-hook ...")
+    (gpb-modal--log-forms 'this-command
+                          'this-original-command
+                          'mark-active
+                          'deactivate-mark
+                          'orig-deactivate-mark
+                          'edebug-active
+                          'edebug-execution-mode
+                          'edebug-stop
+                          'arg-mode
+                          'gpb-modal--previous-buffer
+                          'gpb-modal--previous-window
+                          '(current-buffer)
+                          'next-buffer
+                          'next-window
+                          'text-props
+                          'overlays
+                          'window-changed
+                          'buffer-changed
+                          'gpb-modal--mode-changed)
+    (condition-case exc
+        (progn
+          (cond
+           ;; If the mode has been changed by `gpb-modal--enter-command-mode'
+           ;; or `gpb-modal--enter-insert-mode' during the last command, then
+           ;; we don't change it again.
+           (gpb-modal--mode-changed)
+
+           ;; It seems more reliable to test `this-original-command'
+           ;; than `this-command'.
+           ((member this-original-command gpb-modal--enter-command-mode-after)
+            (gpb-modal--log-message "case 1")
+            (gpb-modal--enter-command-mode))
+
+           ((member this-original-command gpb-modal--enter-insert-mode-after)
+            (gpb-modal--log-message "case 2")
+            (gpb-modal--enter-insert-mode))
+
+           ((or buffer-changed window-changed)
+            (with-current-buffer next-buffer
+              (cond
+               ((gpb-modal--insert-mode-buffer-p)
+                (gpb-modal--log-message "case 3")
+                (gpb-modal--enter-insert-mode))
+               (t
+                (gpb-modal--log-message "case 4")
+                (gpb-modal--enter-command-mode))))))
+
+          (setq gpb-modal--previous-window (selected-window)
+                gpb-modal--previous-buffer (current-buffer)
+                gpb-modal--mode-changed nil)
+
+          (with-current-buffer next-buffer
+            (setq cursor-type (case gpb-modal--current-mode
+                                (command gpb-modal-command-cursor-type)
+                                (insert gpb-modal-insert-cursor-type)
+                                (t (error "Runtime error"))))
+            (gpb-modal--update-overlay)
+            (gpb-modal--log-forms 'gpb-modal--current-mode
+                                  'cursor-type
+                                  'cursor-in-non-selected-windows)))
+
+      (error
+       (with-current-buffer (get-buffer-create "*Modal Log*")
+         (save-excursion
+           (goto-char (point-max))
+           (insert (format "Error in gpb-modal--post-command-hook:\n  %S\n" exc))
+           (setq gpb-modal--enable-logging t)))))
+
+    (gpb-modal--log-forms 'mark-active 'deactivate-mark)
+    (gpb-modal--log-message "... end gpb-modal--post-command-hook>")))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;  Various movement commands
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 (defun gpb-modal--beginning-of-curly-braces (arg)
   (interactive "p")
@@ -406,62 +570,6 @@ This variable should never accessed directly.  Instead use
   (interactive "p")
   (goto-end-of-text-object 'curly-braces (point) :count arg :outer t))
 
-(defun gpb-modal--describe-mode ()
-  "Disable modal keybindings and then call `describe-mode'."
-  (interactive)
-  (let ((gpb-modal--keymap-alist nil))
-    (describe-mode)))
-
-
-(defun gpb-modal--execute-one-command ()
-  "Disable modal keymaps for one command and then turn them back on.\n
-You can use this function to get access to keybindings that have
-been hidden by the modal mode keybindings."
-  (interactive)
-  (let* ((cursor-type gpb-modal-insert-cursor-type)
-         (gpb-modal--keymap-alist nil)
-         (key-seq (read-key-sequence nil))
-         (command (key-binding key-seq)))
-    ;; `read-key-sequence' does not update `last-command-event'.  This
-    ;; causes problems with, for example, `self-insert-command' which uses
-    ;; `last-command-event'.
-    (setq last-command-event last-input-event)
-    (call-interactively command)))
-
-
-(defun gpb-modal--enter-command-mode (&optional arg)
-  (interactive "P")
-  (setq gpb-modal--current-mode 'command
-        gpb-modal--keymap-alist `((gpb-modal-mode
-                                   . ,gpb-modal--command-mode-local-map))
-        ;; cursor-type 'box
-        ;; gpb-modal--cursor-type 'box
-        ;; gpb-modal--pending-post-command-hook-command 'dont-change-mode
-        gpb-modal--mode-changed t)
-  (run-hooks 'gpb-modal--enter-command-mode-hook)
-  (when (called-interactively-p)
-    (unless (minibuffer-window-active-p (selected-window))
-      (message "Entering command mode..."))))
-
-(defun gpb-modal--enter-insert-mode (&optional arg)
-  "Enter insert mode.\n
-With a prefix argument, disable all modal keymaps for one command
-and then reenter command mode."
-  (interactive "P")
-  ;; (gpb-modal--ensure-local-keymaps-are-defined)
-  (if arg
-      (gpb-modal--execute-one-command)
-    (setq gpb-modal--current-mode 'insert
-          gpb-modal--keymap-alist `((gpb-modal-mode
-                                     . ,gpb-modal--insert-mode-local-map))
-          ;; cursor-type 'bar gpb-modal--cursor-type 'bar
-          ;; gpb-modal--pending-post-command-hook-command 'dont-change-mode
-          gpb-modal--mode-changed t)
-    (run-hooks 'gpb-modal--enter-insert-mode-hook)
-    (when (called-interactively-p)
-      (unless (minibuffer-window-active-p (selected-window))
-        (message "Entering insert mode...")))))
-
 (defun gpb-modal--forward-to-char ()
   (interactive)
   (unless (member last-command '(gpb-modal--forward-to-char
@@ -516,7 +624,10 @@ enter command mode when we switch to a buffer."
   (interactive "p")
   (goto-next-text-object 'symbol (point) :count arg))
 
-(defun gpb-modal--next-VIM-WORD  (arg)
+(defvar gpb-modal--last-direction 1
+  "Implementation detail of gpb-modal--next-VIM-WORD")
+
+(defun gpb-modal--next-VIM-WORD (arg)
   "Move to the beginning of the next VIM-style word.\n
 With a negative prefix argument, moves to beginning of text
 object and continues moving backwards on consecutive calls."
@@ -535,182 +646,6 @@ object and continues moving backwards on consecutive calls."
   (interactive "p")
   (goto-next-text-object 'word (point) :count arg))
 
-(defun gpb-modal--not-defined ()
-  (interactive)
-  (error "This key is not bound in command mode"))
-
-(defun gpb-modal--pre-command-hook ()
-  (remove-hook 'after-change-functions 'gpb-modal--show-fake-cursor t)
-  (when gpb-modal-cursor-overlay
-    (gpb-log-forms 'gpb-modal--pre-command-hook
-                   'this-command
-                   '(overlay-start gpb-modal-cursor-overlay)
-                   '(overlay-end gpb-modal-cursor-overlay)
-                   '(overlay-buffer gpb-modal-cursor-overlay)
-                   '(overlay-get gpb-modal-cursor-overlay 'face)
-                   '(overlay-get gpb-modal-cursor-overlay 'display)
-                   '(overlay-get gpb-modal-cursor-overlay 'after-string))
-    (delete-overlay gpb-modal-cursor-overlay)))
-
-(defun gpb-modal--post-command-hook ()
-  "See `edebug-enter' for more on interactions with edebug"
-  (let* ((next-frame (selected-frame))
-         (next-window (selected-window))
-         (next-buffer (window-buffer next-window))
-         (frame-changed (not (eq gpb-modal--previous-frame next-frame)))
-         (window-changed (not (eq gpb-modal--previous-window next-window)))
-         (buffer-changed (not (eq gpb-modal--previous-buffer next-buffer)))
-         (continue t))
-    (gpb-log-forms 'gpb-modal--post-command-hook
-                   'this-command 'this-original-command
-                   'edebug-active 'edebug-execution-mode
-                   'edebug-stop 'arg-mode
-                   'gpb-modal--previous-buffer 'gpb-modal--previous-window
-                   'gpb-modal--previous-frame
-                   '(current-buffer) 'next-buffer 'next-window 'next-frame
-                   'frame-changed 'window-changed 'buffer-changed
-                   ;; 'gpb-modal--pending-post-command-hook-command
-                   'gpb-modal--mode-changed
-                   ;;'gpb-modal--keymap-alist
-                   )
-    (unwind-protect
-        (cond
-         ;; If the mode has been changed by `gpb-modal--enter-command-mode'
-         ;; or `gpb-modal--enter-insert-mode' during the last command, then
-         ;; we don't change it again.
-         (gpb-modal--mode-changed)
-
-         ;; It seems more reliable to test `this-original-command'
-         ;; than `this-command'.
-         ((member this-original-command gpb-modal--enter-command-mode-after)
-          (gpb-log-message 'gpb-modal--post-command-hook "case 1")
-          (gpb-modal--enter-command-mode))
-
-         ((member this-original-command gpb-modal--enter-insert-mode-after)
-          (gpb-log-message 'gpb-modal--post-command-hook "case 2")
-          (gpb-modal--enter-insert-mode))
-
-         ((or buffer-changed window-changed frame-changed)
-          (with-current-buffer next-buffer
-            (cond
-             ((gpb-modal--insert-mode-buffer-p)
-              (gpb-log-message 'gpb-modal--post-command-hook "case 3")
-              (gpb-modal--enter-insert-mode))
-             (t
-              (gpb-log-message 'gpb-modal--post-command-hook "case 4")
-              (gpb-modal--enter-command-mode))))))
-
-      (setq gpb-modal--previous-frame (selected-frame)
-            gpb-modal--previous-window (selected-window)
-            gpb-modal--previous-buffer (current-buffer)
-            gpb-modal--mode-changed nil
-            cursor-type t
-            cursor-in-non-selected-windows gpb-modal-nonselected-cursor-type)
-
-      (with-current-buffer next-buffer
-        (setq cursor-type (case gpb-modal--current-mode
-                            (command gpb-modal-command-cursor-type)
-                            (insert gpb-modal-insert-cursor-type)
-                            (t (error "Runtime error")))
-              gpb-modal-cursor-marker (or gpb-modal-cursor-marker
-                                          (make-marker)))
-        (set-marker-insertion-type gpb-modal-cursor-marker t)
-        (move-marker gpb-modal-cursor-marker (point) (current-buffer))
-        (gpb-modal--show-fake-cursor)
-        (gpb-log-forms 'gpb-modal--post-command-hook
-                       'gpb-modal--current-mode 'cursor-type
-                       'cursor-in-non-selected-windows
-                       '(overlay-start gpb-modal-cursor-overlay)
-                       '(overlay-end gpb-modal-cursor-overlay)
-                       '(overlay-buffer gpb-modal-cursor-overlay)
-                       '(overlay-get gpb-modal-cursor-overlay 'face)
-                       '(overlay-get gpb-modal-cursor-overlay 'display)
-                       '(overlay-get gpb-modal-cursor-overlay 'after-string))
-        (add-hook 'after-change-functions 'gpb-modal--show-fake-cursor t t)))))
-
-(defun gpb-modal--show-fake-cursor (&rest args)
-  "Simulate a fake block cursor by adding text properties to the
-character that follows `gpb-modal-cursor-marker'.  This function
-is temporarily added to `after-change-functions' between commands
-to keep the cursor updates when there are asynchronous insertions
-into the buffer (e.g. comint-mode)."
-  (when (marker-buffer gpb-modal-cursor-marker)
-    (let ((inhibit-modification-hooks t))
-      (save-excursion
-        (gpb-log-forms 'gpb-modal--show-fake-cursor
-                       '(point) 'gpb-modal-cursor-marker
-                       '(window-point))
-        (goto-char gpb-modal-cursor-marker)
-        (let* ((inhibit-modification-hooks t)
-               (beg (point))
-               (end (min (1+ beg) (save-restriction (widen) (point-max))))
-               (ov (or (and gpb-modal-cursor-overlay
-                            (move-overlay gpb-modal-cursor-overlay
-                                          beg end (current-buffer)))
-                       (make-overlay beg end (current-buffer))))
-               (face-symbol (case gpb-modal--current-mode
-                              (command 'gpb-modal-command-cursor-face)
-                              (insert 'gpb-modal-insert-cursor-face)
-                              (t (error "Runtime error"))))
-               (eob-placeholder (propertize " " 'cursor t
-                                            'face face-symbol))
-               (eol-placeholder (concat (propertize " " 'cursor t
-                                                    'face face-symbol)
-                                        "\n")))
-          (overlay-put ov 'face nil)
-          (overlay-put ov 'display nil)
-          (overlay-put ov 'after-string nil)
-          (overlay-put ov 'window (selected-window))
-          (overlay-put ov 'priority (1+ show-paren-priority))
-          (overlay-put ov 'front-sticky t)
-          (cond
-           ((eobp) (overlay-put ov 'after-string eob-placeholder))
-           ((eolp) (overlay-put ov 'display eol-placeholder))
-           (t (overlay-put ov 'face face-symbol)))
-          (setq gpb-modal-cursor-overlay ov))))))
-
-
-;; (defun gpb-modal--update-display ()
-;;   (save-excursion
-;;     (ignore-errors (forward-char))
-;;     (redisplay t)))
-
-
-;; (defun gpb-modal--add-overlay ()
-;;   (let ((ov gpb-modal-cursor-overlay)
-;;         (face-symbol 'gpb-modal-command-cursor-face))
-;;   (cond
-;;    ((and (eq gpb-modal--current-mode 'command) (eobp))
-;;     (setq ov (gpb-modal--make-or-move-overlay ov (point) (point))
-;;           cursor-type nil)
-;;     (overlay-put ov 'face nil)
-;;     (overlay-put ov 'display nil)
-;;     (overlay-put ov 'after-string
-;;                  (propertize " " 'face face-symbol))
-;;     (overlay-put ov 'window (selected-window)))
-
-;;    ((eq gpb-modal--current-mode 'command)
-;;     (setq ov (gpb-modal--make-or-move-overlay ov (point) (1+ (point)))
-;;           cursor-type nil)
-;;     (overlay-put ov 'face nil)
-;;     (overlay-put ov 'display nil)
-;;     (overlay-put ov 'after-string nil)
-;;     (if (eolp)
-;;         (overlay-put ov 'display (concat
-;;                                   (propertize " " 'face face-symbol) "\n"))
-;;       (overlay-put ov 'face face-symbol))
-;;     (overlay-put ov 'window (selected-window))
-;;     (overlay-put ov 'priority (1+ show-paren-priority))
-;;     )
-
-;;    (t
-;;     (when ov
-;;       (delete-overlay ov)
-;;       (setq ov nil
-;;             cursor-type t))))
-;;   (setq gpb-modal-cursor-overlay ov)))
-
-
 (defun gpb-modal--to-matching-delimiter ()
   "From http://www.emacswiki.org/emacs/ParenthesisMatching#toc4"
   (interactive)
@@ -723,6 +658,7 @@ into the buffer (e.g. comint-mode)."
         (gpb-modal--to-matching-delimiter)))))
 
 (defun gpb-modal--yank-after ()
+  "Paste text after the point."
   (interactive)
   (save-excursion (call-interactively 'yank)))
 
@@ -740,7 +676,6 @@ into the buffer (e.g. comint-mode)."
 
 (add-hook 'gpb-tobj--pre-read-text-object-hook 'gpb-modal--show-bar-cursor)
 (add-hook 'gpb-tobj--post-read-text-object-hook 'gpb-modal--show-box-cursor)
-(gpb-tobj--global-set-key "\C-j" 'gpb-tobj--cancel-command)
 
 
 (defun gpb-modal--use-major-mode-binding ()
@@ -786,14 +721,14 @@ that this function is called in `edebug--recursive-edit' right
 before the `recursive-edit' that correpsonds to the debugger
 loop."
   (unless (and arg (< arg 0))
-    (gpb-log-forms 'edebug-mode 'post-command-hook '(current-buffer)
+    (gpb-modal--log-forms 'edebug-mode 'post-command-hook '(current-buffer)
                    'source-buffer 'cursor-type)
     (unless (or (member 'gpb-modal--post-command-hook post-command-hook)
                 (and (member t post-command-hook)
                      (member 'gpb-modal--post-command-hook
                              (default-value 'post-command-hook))))
       (add-to-list 'post-command-hook 'gpb-modal--post-command-hook))
-    (gpb-log-forms 'edebug-mode 'post-command-hook '(current-buffer)
+    (gpb-modal--log-forms 'edebug-mode 'post-command-hook '(current-buffer)
                    'source-buffer 'cursor-type)
     (gpb-modal--enter-insert-mode)))
 
@@ -808,7 +743,7 @@ loop."
 ;; pre/post command hooks if we want to the modal to work correctly
 ;; during edebug."
 ;;   (let ((source-buffer (marker-buffer (car (get function 'edebug)))))
-;;     (gpb-log-forms 'edebug-enter 'post-command-hook '(current-buffer)
+;;     (gpb-modal--log-forms 'edebug-enter 'post-command-hook '(current-buffer)
 ;;                                  'source-buffer 'cursor-type)
 ;;     ;; (when (null pre-command-hook)
 ;;     ;;   (add-to-list 'pre-command-hook 'gpb-modal--pre-command-hook))
@@ -830,6 +765,50 @@ loop."
 
 (add-to-list 'gpb-modal--insert-mode-buffer-predicates
              'gpb-modal--in-edebug-buffer-p)
+
+
+(defun gpb-modal--get-caller ()
+  (catch 'found-caller
+    (mapbacktrace
+     (lambda (evald func args flags)
+       (let ((fname (symbol-name func)))
+         (and (string-match "^gpb-modal-" fname)
+              (not (cl-some (lambda (x) (string-equal fname x))
+                            '("gpb-modal--log-message"
+                              "gpb-modal--log-forms"
+                              "gpb-modal--get-caller"
+                              "gpb-modal--with-disabled-overlay-keymap")))
+              (throw 'found-caller fname)))))
+    "<no caller>"))
+
+
+(defun gpb-modal--log-message (message &rest args)
+  "Evaluate FORMS and write value to \"*Modal Log*\" buffer.
+
+The forms are only logged if logging has been enabled for the
+function using `gpb-log--enable-logging'.  This is not a macro,
+so forms must be quoted to prevent premature evaluation."
+  (when gpb-modal--enable-logging
+    (let ((caller (gpb-modal--get-caller))
+          (inhibit-modification-hooks t))
+      (when args (setq message (apply 'format message args)))
+      (with-current-buffer (get-buffer-create "*Modal Log*")
+        (save-excursion
+          (goto-char (point-max))
+          (insert (format "%s: %s\n" caller message)))))))
+
+
+(defun gpb-modal--log-forms (&rest forms)
+  "Evaluate FORMS and write value to \"*Modal Log*\" buffer.
+
+The forms are only logged if logging has been enabled for the
+function using `gpb-log--enable-logging'.  This is not a macro,
+so forms must be quoted to prevent premature evaluation."
+  (when gpb-modal--enable-logging
+    (dolist (form forms)
+      (let* ((value (condition-case exc (eval form)
+                      ('error (format "Error: %s" exc)))))
+        (gpb-modal--log-message "%S = %S" form value)))))
 
 
 ;; Interacte nicely with commands issued by emacsclient outside of the
@@ -914,14 +893,8 @@ loop."
 ;; Magit integration --------------------------------------------------
 
 (defun gpb-magit-status-mode-setup ()
-  (gpb-modal--define-command-key  [tab] 'magit-section-cycle t)
-  (gpb-modal--define-command-key  [(backtab)] 'magit-section-cycle-diffs t)
-  (gpb-modal--define-command-key  "s" 'gpb-modal--use-major-mode-binding t)
-  (gpb-modal--define-command-key  "c" 'gpb-modal--use-major-mode-binding t)
-  (gpb-modal--define-command-key  "u" 'gpb-modal--use-major-mode-binding t)
-  (gpb-modal--define-command-key  "l" 'gpb-modal--use-major-mode-binding t)
-  (gpb-modal--define-command-key  "J" 'magit-section-forward t)
-  (gpb-modal--define-command-key  "K" 'magit-section-backward t))
+  (gpb-modal--define-command-key  [tab] 'magit-section-toggle t)
+  (gpb-modal--define-command-key  [(backtab)] 'magit-section-cycle t))
 
 (add-hook 'magit-status-mode-hook 'gpb-magit-status-mode-setup)
 (add-hook 'magit-popup-mode-hook 'gpb-modal--enter-insert-mode)
