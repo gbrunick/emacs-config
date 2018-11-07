@@ -61,7 +61,7 @@
 (global-set-key "\C-ci" 'gpb-filtered-imenu)
 (global-set-key "\C-c$" 'gpb-ispell)
 (global-set-key "\C-cg" 'gpb-grep)
-(global-set-key "\C-cr" 'gpb-rect--begin-rect-command)
+(global-set-key "\C-cr" 'rectangle-mark-mode)
 (global-set-key "\C-cv" 'magit-status)
 
 ;; The next binding does nothing because escape is now remapped to C-g
@@ -595,8 +595,8 @@
 (require 'gpb-modal)
 (gpb-modal-mode 1)
 
-(require 'gpb-region)
-(gpb-region-keymap-mode 1)
+;; (require 'gpb-region)
+;; (gpb-region-keymap-mode 1)
 
 ;; Rectangle mark mode
 (autoload 'gpb-rect--begin-rect-command "gpb-rect-commands")

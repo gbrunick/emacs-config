@@ -219,6 +219,24 @@ The functions `gpb-modal--enter-command-mode' and
 (fset 'gpb-modal--global-command-mode-map gpb-modal--global-command-mode-map)
 
 
+(defvar gpb-modal--active-region-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "\t" 'indent-for-tab-command)
+    (define-key map "o" 'exchange-point-and-mark)
+    (define-key map ">" 'gpb-modal--shift-region-right)
+    (define-key map "<" 'gpb-modal--shift-region-left)
+    (define-key map "$" 'ispell-region)
+    (define-key map "n" 'gpb-modal--narrow-to-region)
+
+    (define-key map [(meta u)] 'upcase-region)
+    (define-key map [(meta l)] 'downcase-region)
+    (define-key map [(meta c)] 'capitalize-region)
+    map)
+  "This keymap is added when the region is active.")
+
+(fset 'gpb-modal--active-region-map gpb-modal--active-region-map)
+
+
 (defvar gpb-modal--command-mode-keymap-alist nil
   "An alist of conditional command mode keymaps.
 
@@ -247,16 +265,19 @@ buffer."
     (command
      (gpb-modal--with-disabled-overlay-keymap
       (let* ((local-map gpb-modal--local-command-mode-map)
-             (cond-maps (mapcar (lambda (x) (when (and (boundp x)
-                                                       (symbol-value x))
+             (region-map (when (region-active-p)
+                           'gpb-modal--active-region-map))
+             (cond-maps (mapcar (lambda (x) (when (and (boundp (car x))
+                                                       (symbol-value (car x)))
                                               (cdr x)))
                                 gpb-modal--command-mode-keymap-alist))
              ;; The overlay keymap will override any other overlay or text
              ;; properties, so we find the keymap we are covering and put it
              ;; last in the list below.
              (keymap (get-char-property (point) 'keymap))
-             (global-map gpb-modal--global-command-mode-map)
-             (map-list (delq nil `(,local-map ,@cond-maps ,global-map ,keymap)))
+             (global-map 'gpb-modal--global-command-mode-map)
+             (map-list (delq nil `(,local-map ,region-map ,@cond-maps
+                                   ,global-map ,keymap)))
              (map (make-composed-keymap map-list)))
         (gpb-modal--log-message "Entering let form.")
         ;; The following key binding provides access to the global command
@@ -265,7 +286,8 @@ buffer."
         ;; `gpb-modal--command-mode-map' is only for help/documentation
         ;; purposes.
         (setq-local gpb-modal--command-mode-map map)
-        (gpb-modal--log-forms 'local-map 'cond-maps 'keymap 'global-map 'map)
+        (gpb-modal--log-forms 'local-map 'region-map 'cond-maps
+                              'global-map 'keymap 'map)
         map)))
 
     (t (error "Invalid mode %s" mode))))
@@ -296,10 +318,10 @@ activated."
                     (or gpb-modal--local-command-mode-map
                         (setq gpb-modal--local-command-mode-map
                               (make-sparse-keymap))))
-                   ((symbol where)
+                   ((symbolp where)
                     (or (alist-get where gpb-modal--command-mode-keymap-alist)
                         (let ((new-map (make-sparse-keymap)))
-                          (push (cons mode new-map)
+                          (push (cons where new-map)
                                 gpb-modal--command-mode-keymap-alist)
                           new-map)))
                    (t
@@ -709,6 +731,36 @@ object and continues moving backwards on consecutive calls."
              'gpb-modal--in-minibuffer-p)
 
 
+(defun gpb-modal--shift-region-right (beg end arg)
+  (interactive "r\np")
+  (let* ((deactivate-mark nil)
+         (beg (progn (goto-char beg)
+                     (beginning-of-line)
+                     (point))))
+    (set-mark beg)
+    (while (< (point) end)
+      (when (and (< arg 0)
+                 (< (current-indentation) (- arg))
+                 (not (looking-at "[ \t]*$")))
+        (user-error "Can't dedent region"))
+      (forward-line))
+    (indent-rigidly beg (point) arg)))
+
+
+(defun gpb-modal--shift-region-left (beg end arg)
+  (interactive "r\np")
+  (gpb-modal--shift-region-right beg end (- arg)))
+
+
+(defun gpb-modal--narrow-to-region (beg end arg)
+  (interactive "r\nP")
+  (deactivate-mark)
+  (with-current-buffer (clone-indirect-buffer nil nil)
+    (narrow-to-region beg end)
+    (if arg (switch-to-buffer-other-window (current-buffer)))
+    (switch-to-buffer (current-buffer))))
+
+
 ;; interact nicely with edebug
 
 (defadvice edebug-mode (after gpb-modal-compatibility (&optional arg) activate)
@@ -771,7 +823,7 @@ loop."
   (catch 'found-caller
     (mapbacktrace
      (lambda (evald func args flags)
-       (let ((fname (symbol-name func)))
+       (let ((fname (or (and (symbolp func) (symbol-name func)) "")))
          (and (string-match "^gpb-modal-" fname)
               (not (cl-some (lambda (x) (string-equal fname x))
                             '("gpb-modal--log-message"
@@ -846,8 +898,6 @@ so forms must be quoted to prevent premature evaluation."
 
 (add-hook 'help-mode-hook 'gpb-modal--init-help-buffer)
 (defun gpb-modal--init-help-buffer ()
-  (gpb-modal--define-command-key "b" 'gpb-modal--use-major-mode-binding t)
-  (gpb-modal--define-command-key "f" 'gpb-modal--use-major-mode-binding t)
   (gpb-modal--define-command-key "q" 'gpb-modal--use-major-mode-binding t))
 
 
@@ -862,13 +912,13 @@ so forms must be quoted to prevent premature evaluation."
   (gpb-modal--define-command-key "g" gpb-modal--use-major-mode-binding t)
   (gpb-modal--define-command-key "q" gpb-modal--use-major-mode-binding t))
 
-(add-hook 'property-list-mode-hook 'gpb-modal--property-list-mode-hook)
-(defun gpb-modal--property-list-mode-hook ()
-  (gpb-modal--define-command-key "j" 'widget-forward t)
-  (gpb-modal--define-command-key "l" 'widget-forward t)
-  (gpb-modal--define-command-key "h" 'widget-backward t)
-  (gpb-modal--define-command-key "k" 'widget-backward t)
-  (gpb-modal--define-command-key " " nil t))
+;; (add-hook 'property-list-mode-hook 'gpb-modal--property-list-mode-hook)
+;; (defun gpb-modal--property-list-mode-hook ()
+;;   (gpb-modal--define-command-key "j" 'widget-forward t)
+;;   (gpb-modal--define-command-key "l" 'widget-forward t)
+;;   (gpb-modal--define-command-key "h" 'widget-backward t)
+;;   (gpb-modal--define-command-key "k" 'widget-backward t)
+;;   (gpb-modal--define-command-key " " nil t))
 
 (add-hook 'Buffer-menu-mode-hook 'gpb-modal--Buffer-menu-mode-hook)
 (defun gpb-modal--Buffer-menu-mode-hook ()
@@ -898,6 +948,19 @@ so forms must be quoted to prevent premature evaluation."
 
 (add-hook 'magit-status-mode-hook 'gpb-magit-status-mode-setup)
 (add-hook 'magit-popup-mode-hook 'gpb-modal--enter-insert-mode)
+
+
+;; Rectangle mark mode ------------------------------------------------
+
+(gpb-modal:define-key 'rectangle-mark-mode "c" 'copy-rectangle-as-kill)
+(gpb-modal:define-key 'rectangle-mark-mode "\C-c" 'copy-rectangle-as-kill)
+(gpb-modal:define-key 'rectangle-mark-mode "d" 'delete-rectangle)
+(gpb-modal:define-key 'rectangle-mark-mode "x" 'kill-rectangle)
+(gpb-modal:define-key 'rectangle-mark-mode "\C-x" 'kill-rectangle)
+(gpb-modal:define-key 'rectangle-mark-mode "s" 'string-rectangle)
+(gpb-modal:define-key 'rectangle-mark-mode "v" 'yank-rectangle)
+(gpb-modal:define-key 'rectangle-mark-mode "\C-v" 'yank-rectangle)
+(gpb-modal:define-key 'rectangle-mark-mode " " 'clear-rectangle)
 
 
 (provide 'gpb-modal)
