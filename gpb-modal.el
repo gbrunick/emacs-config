@@ -29,7 +29,7 @@ current active keybindings."
   (if gpb-modal-mode
       (progn
         (add-hook 'post-command-hook 'gpb-modal--post-command-hook)
-        (setq cursor-in-non-selected-windows '(bar . 1))
+        (set-default 'cursor-in-non-selected-windows '(bar . 1))
         (gpb-modal--enter-command-mode))
     (dolist (buf (buffer-list))
       (with-current-buffer buf
@@ -37,7 +37,7 @@ current active keybindings."
           (delete-overlay gpb-modal--keymap-overlay)
           (setq gpb-modal--keymap-overlay nil))))
     (remove-hook 'post-command-hook 'gpb-modal--post-command-hook)
-    (setq cursor-in-non-selected-windows t)))
+    (set-default 'cursor-in-non-selected-windows t)))
 
 (defvar gpb-modal--current-mode nil
   "The current global editing mode.
@@ -125,16 +125,8 @@ The functions `gpb-modal--enter-command-mode' and
 (defvar gpb-modal--global-command-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [remap self-insert-command] 'gpb-modal--not-defined)
-    (define-key map "0" 'digit-argument)
-    (define-key map "1" 'digit-argument)
-    (define-key map "2" 'digit-argument)
-    (define-key map "3" 'digit-argument)
-    (define-key map "4" 'digit-argument)
-    (define-key map "5" 'digit-argument)
-    (define-key map "6" 'digit-argument)
-    (define-key map "7" 'digit-argument)
-    (define-key map "8" 'digit-argument)
-    (define-key map "9" 'digit-argument)
+    (dolist (key '("0" "1" "2" "3" "4" "5" "6" "7" "8" "9"))
+      (define-key map key (gpb-modal--make-soft-command 'digit-argument)))
 
     (define-key map "i" 'gpb-modal--enter-insert-mode)
     (define-key map "\M-i" 'gpb-modal--execute-one-command)
@@ -210,18 +202,19 @@ The functions `gpb-modal--enter-command-mode' and
     (define-key map [(control shift tab)] 'gpb-previous-window)
     (define-key map "\C-w" 'gpb-kill-buffer)
 
-    (define-key map "q" 'fill-paragraph)
+    (define-key map "q" (gpb-modal--make-soft-command 'fill-paragraph))
+
+    ;; This allows us to use the symbol
+    ;; `gpb-modal--global-command-mode-map' in keymaps.
+    (fset 'gpb-modal--global-command-mode-map map)
+
     map)
   "The global keymap for command mode.")
-
-;; This allows us to use the symbol `gpb-modal--global-command-mode-map' in
-;; keymaps.
-(fset 'gpb-modal--global-command-mode-map gpb-modal--global-command-mode-map)
 
 
 (defvar gpb-modal--active-region-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\t" 'indent-for-tab-command)
+    (define-key map [(tab)] 'indent-for-tab-command)
     (define-key map "o" 'exchange-point-and-mark)
     (define-key map ">" 'gpb-modal--shift-region-right)
     (define-key map "<" 'gpb-modal--shift-region-left)
@@ -231,10 +224,9 @@ The functions `gpb-modal--enter-command-mode' and
     (define-key map [(meta u)] 'upcase-region)
     (define-key map [(meta l)] 'downcase-region)
     (define-key map [(meta c)] 'capitalize-region)
+    (fset 'gpb-modal--active-region-map map)
     map)
   "This keymap is added when the region is active.")
-
-(fset 'gpb-modal--active-region-map gpb-modal--active-region-map)
 
 
 (defvar gpb-modal--command-mode-keymap-alist nil
@@ -712,6 +704,20 @@ object and continues moving backwards on consecutive calls."
              (key-description (this-command-keys))))))
 
 
+(defun gpb-modal--make-soft-command (command)
+  "Wrap COMMAND to check for overriding buffer local bindings."
+  (assert (commandp command))
+  `(lambda ()
+    (interactive)
+    (let ((binding (gpb-modal--with-disabled-overlay-keymap
+                     (or (cdar (minor-mode-key-binding (this-command-keys)))
+                         (local-key-binding (this-command-keys))))))
+      (message "local binding: %S" binding)
+      (if binding
+          (call-interactively binding)
+        (call-interactively ',command)))))
+
+
 ;; When a file is opened using emacsclient, the `find-file' is called
 ;; after the post command loop has already run.
 
@@ -863,7 +869,7 @@ so forms must be quoted to prevent premature evaluation."
         (gpb-modal--log-message "%S = %S" form value)))))
 
 
-;; Interacte nicely with commands issued by emacsclient outside of the
+;; Interact nicely with commands issued by emacsclient outside of the
 ;; usual command loop
 ;; (defadvice server-process-filter (around gpb-modal-compatibility activate)
 ;;   "Allow emacslient to interoperate with `gpb-modal-mode'."
@@ -894,13 +900,6 @@ so forms must be quoted to prevent premature evaluation."
 (add-hook 'Man-mode-hook 'gpb-modal--enter-command-mode)
 
 
-;; help-mode
-
-(add-hook 'help-mode-hook 'gpb-modal--init-help-buffer)
-(defun gpb-modal--init-help-buffer ()
-  (gpb-modal--define-command-key "q" 'gpb-modal--use-major-mode-binding t))
-
-
 ;; vc-mode integration --------------------------------------------------
 
 (add-hook 'vc-dir-mode-hook 'gpb-modal--vc-dir-mode-hook)
@@ -909,8 +908,7 @@ so forms must be quoted to prevent premature evaluation."
   (gpb-modal--define-command-key "m" gpb-modal--use-major-mode-binding t)
   (gpb-modal--define-command-key "n" gpb-modal--use-major-mode-binding t)
   (gpb-modal--define-command-key "p" gpb-modal--use-major-mode-binding t)
-  (gpb-modal--define-command-key "g" gpb-modal--use-major-mode-binding t)
-  (gpb-modal--define-command-key "q" gpb-modal--use-major-mode-binding t))
+  (gpb-modal--define-command-key "g" gpb-modal--use-major-mode-binding t))
 
 ;; (add-hook 'property-list-mode-hook 'gpb-modal--property-list-mode-hook)
 ;; (defun gpb-modal--property-list-mode-hook ()
@@ -923,22 +921,13 @@ so forms must be quoted to prevent premature evaluation."
 (add-hook 'Buffer-menu-mode-hook 'gpb-modal--Buffer-menu-mode-hook)
 (defun gpb-modal--Buffer-menu-mode-hook ()
   (gpb-modal--define-command-key "d" 'gpb-modal--use-major-mode-binding t)
-  (gpb-modal--define-command-key "q" 'gpb-modal--use-major-mode-binding t)
   (gpb-modal--define-command-key "x" 'gpb-modal--use-major-mode-binding t))
 
-
-(defun gpb-modal--give-back-q ()
-  (gpb-modal--define-command-key "q" 'gpb-modal--use-major-mode-binding t))
-
-(add-hook 'grep-mode-hook 'gpb-modal--give-back-q)
-(add-hook 'help-mode-hook 'gpb-modal--give-back-q)
-(add-hook 'debugger-mode-hook 'gpb-modal--give-back-q)
-(add-hook 'completion-list-mode-hook 'gpb-modal--give-back-q)
 
 (eval-after-load 'eldoc
   '(eldoc-add-command-completions "gpb-modal--next-"
                                   "gpb-modal--beginning-of-"
-                                  "gpb-model--end-of-"))
+                                  "gpb-modal--end-of-"))
 
 ;; Magit integration --------------------------------------------------
 
