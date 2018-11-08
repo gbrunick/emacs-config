@@ -3,8 +3,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Add the source tree rooted at this directory containing this file to the
-;; load path.
+;;  Add the source tree rooted at the directory containing this file to the
+;;  load path.
 ;;
 
 (let* ((default-directory (file-name-directory
@@ -57,11 +57,17 @@
 (global-set-key [remap list-buffers] 'buffer-menu)
 (global-set-key [remap apropos-command] 'apropos)
 
+;; It seems more useful to show the buffer than to clone it.
+(global-set-key "\C-x4c" 'gpb:show-buffer-other-window)
+(global-set-key "\C-x4C" 'clone-indirect-buffer-other-window)
+
 ;; Control-c bindings
-(global-set-key "\C-ci" 'gpb-filtered-imenu)
+(global-set-key "\C-ci" 'gpb:create-imenu-index-buffer)
+(global-set-key "\C-c4i" 'gpb:create-imenu-index-buffer-other-window)
+(global-set-key "\C-cn" 'gpb-new-document)
 (global-set-key "\C-c$" 'gpb-ispell)
 (global-set-key "\C-cg" 'gpb-grep)
-(global-set-key "\C-cr" 'rectangle-mark-mode)
+(global-set-key "\C-cr" 'recentf-open-files)
 (global-set-key "\C-cv" 'magit-status)
 
 ;; The next binding does nothing because escape is now remapped to C-g
@@ -71,7 +77,6 @@
 ;; Some CUA standard bindings for common operations
 (global-set-key "\C-o" 'gpb-find-file-filtered)
 (global-set-key "\M-o" 'gpb-ffap)
-(global-set-key "\C-n" 'gpb-new-document)
 (global-set-key "\C-f" 'isearch-forward)
 (global-set-key "\C-s" 'save-buffer)
 (global-set-key [(control shift s)] 'write-file)
@@ -589,8 +594,8 @@
 (require 'gpb-yank-rigidly)
 (gpb-yank-rigidly-mode 1)
 
-(require 'gpb-mark-ring)
-(gpb-mark-ring-mode 1)
+;; (require 'gpb-mark-ring)
+;; (gpb-mark-ring-mode -1)
 
 (require 'gpb-modal)
 (gpb-modal-mode 1)
@@ -599,7 +604,9 @@
 ;; (gpb-region-keymap-mode 1)
 
 ;; Rectangle mark mode
-(autoload 'gpb-rect--begin-rect-command "gpb-rect-commands")
+;; (autoload 'gpb-rect--begin-rect-command "gpb-rect-commands")
+
+(recentf-mode 1)
 
 ;; More convenience names for some interactive functions.
 (defalias 'ediff-with-saved 'gpb-ediff-with-saved)

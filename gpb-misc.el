@@ -465,12 +465,14 @@ This code is taken from fx-misc.el by Dave Love"
            (let ((s (case (window-system)
                       (w32
                        (concat "grep -RinHI "
+                               "--exclude=\".git\" "
                                "--exclude=*~ "
                                "--exclude=.#* "
                                "--exclude=*\\.ipynb "
                                "--line-buffered -E \"\" ."))
                       (otherwise
                        (concat "grep -RinH "
+                               "--exclude=\".git\" "
                                "--exclude=\"#*#\" "
                                "--exclude=\"\\.#*\" "
                                "--exclude=\"*~\" "
@@ -906,6 +908,115 @@ Returns t on success and nil on failure."
 (defun use-git ()
   (interactive)
   (setq vc-handled-backends '(Git RCS CVS SVN SCCS Bzr Hg Mtn Arch)))
+
+
+(defun gpb:jump-to-index-item (how)
+  "This is an implementation detail of `gpb:create-imenu-index-buffer'."
+  (interactive)
+  (let* ((marker (get-char-property (point) 'link))
+         (buf (marker-buffer marker)))
+    (when (null buf) (user-error "Buffer has been deleted"))
+    ;; If called using the button, switch in the current window.
+    ;; Otherwise, show in the other window.
+    (case how
+      (:here
+       (switch-to-buffer buf)
+       (goto-char marker)
+       (recenter (when (> (window-height) 30) 10)))
+      (:other-switch
+       (switch-to-buffer-other-window buf)
+       (goto-char marker)
+       (recenter (when (> (window-height) 30) 10)))
+      (:other-no-switch
+       (let ((win (display-buffer buf t)))
+         (set-window-point win marker)
+         (with-selected-window win
+           (recenter (when (> (window-height) 30) 10)))))
+      (t (error "Invalid how: %S" how)))))
+
+
+(defun gpb:create-imenu-index-buffer (&optional arg)
+  "Use `imenu-create-index-function' to create an index buffer.
+
+The buffer created contains links to the various objects that
+are identified by `imenu-create-index-function'."
+  (interactive "P")
+  (let* ((buf (or (and (boundp 'gpb:reference-buffer)
+                       (prog1
+                           gpb:reference-buffer
+                         (unless (buffer-live-p gpb:reference-buffer)
+                           (user-error "Buffer has been deleted"))))
+                  (current-buffer)))
+         (keymap (make-sparse-keymap))
+         (items (with-current-buffer buf
+                  (save-excursion
+                    (funcall imenu-create-index-function))))
+         (src-buffer-point (with-current-buffer buf (point)))
+         (bufname (format "Index for %s" (buffer-name buf)))
+         (inhibit-read-only t)
+         (initial-pt 0)
+         item section-name)
+    (with-current-buffer (get-buffer-create bufname)
+      (erase-buffer)
+      (insert (format "\n    =====  %s  =====\n\n" bufname))
+      (dolist (item items)
+        (cond
+         ;; We have a section header and a list of subitems
+         ((listp (cdr item))
+          (insert (format "    %s\n\n" (car item)))
+          (dolist (subitem (cdr item))
+            (insert (format "        %s" (car subitem)))
+            (make-button (save-excursion (back-to-indentation) (point))
+                         (point)
+                         'link (cdr subitem)
+                         'action (lambda (btn) (gpb:jump-to-index-item :here)))
+            (when (< (marker-position (cdr subitem)) src-buffer-point)
+              (setq initial-pt (point)))
+            (insert "\n"))
+          (insert "\n\n"))
+         ;; We have a single item
+         (t
+          (insert (format "    %s " (car item)))
+          (make-button (save-excursion (back-to-indentation) (point))
+                       (point) 'link (cdr item) 'other-window nil
+                       'action (lambda (btn) (gpb:jump-to-index-item :here)))
+          (when (< (marker-position (cdr item)) src-buffer-point)
+            (setq initial-pt (point)))
+          (insert "\n"))))
+
+      (setq-local gpb:reference-buffer buf)
+      (define-key keymap "\t" 'forward-button)
+      (define-key keymap [(backtab)] 'backward-button)
+      (define-key keymap "q" 'quit-window)
+      (define-key keymap "g" 'gpb:create-imenu-index-buffer)
+      (define-key keymap "o" (lambda () (interactive)
+                               (gpb:jump-to-index-item :other-switch)))
+      (define-key keymap "\C-o" (lambda () (interactive)
+                                  (gpb:jump-to-index-item :other-no-switch)))
+      (use-local-map keymap)
+      (setq buffer-read-only t))
+    (unless (string= (buffer-name) bufname)
+      (if arg (switch-to-buffer-other-window bufname)
+        (switch-to-buffer bufname))
+      (with-current-buffer bufname
+        (goto-char initial-pt)
+        (forward-button 1))
+      (recenter))))
+
+(defun gpb:create-imenu-index-buffer-other-window ()
+  (interactive)
+  (gpb:create-imenu-index-buffer t))
+
+(defun gpb:show-buffer-other-window ()
+  "Show the current buffer in another window."
+  (interactive)
+  (let ((pop-up-windows t)
+        (current-window-point (point))
+        (current-window-start (window-start)))
+    (pop-to-buffer (current-buffer) t)
+    (set-window-start (selected-window) current-window-start)
+    (set-window-point (selected-window) current-window-point)))
+
 
 (provide 'gpb-misc)
 
