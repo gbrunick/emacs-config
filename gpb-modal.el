@@ -119,6 +119,8 @@ The functions `gpb-modal--enter-command-mode' and
 (defvar gpb-modal--insert-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [(control ?j)] 'gpb-modal--enter-command-mode)
+    (define-key map [?\C- ] 'gpb-modal--enter-command-mode)
+    (fset 'gpb-modal--insert-mode-map map)
     map)
   "The global keymap for insert mode.")
 
@@ -251,38 +253,40 @@ Don't modify this variable directly; use `gpb-modal:define-key'")
 MODE should be the symbol insert or command.  The map returned is
 the top-lvel keymap that is added to the overlay keymap in each
 buffer."
-  (case (or mode gpb-modal--current-mode)
-    (insert gpb-modal--insert-mode-map)
+  (gpb-modal--with-disabled-overlay-keymap
+    (case (or mode gpb-modal--current-mode)
+      (insert
+       (make-composed-keymap `(gpb-modal--insert-mode-map)
+                             (get-char-property (point) 'keymap)))
 
-    (command
-     (gpb-modal--with-disabled-overlay-keymap
-      (let* ((local-map gpb-modal--local-command-mode-map)
-             (region-map (when (region-active-p)
-                           'gpb-modal--active-region-map))
-             (cond-maps (mapcar (lambda (x) (when (and (boundp (car x))
-                                                       (symbol-value (car x)))
-                                              (cdr x)))
-                                gpb-modal--command-mode-keymap-alist))
-             ;; The overlay keymap will override any other overlay or text
-             ;; properties, so we find the keymap we are covering and put it
-             ;; last in the list below.
-             (keymap (get-char-property (point) 'keymap))
-             (global-map 'gpb-modal--global-command-mode-map)
-             (map-list (delq nil `(,local-map ,region-map ,@cond-maps
-                                   ,global-map ,keymap)))
-             (map (make-composed-keymap map-list)))
-        (gpb-modal--log-message "Entering let form.")
-        ;; The following key binding provides access to the global command
-        ;; map, skipping over any local or alist bindings.
-        (define-key map "\C-j" 'gpb-modal--global-command-mode-map)
-        ;; `gpb-modal--command-mode-map' is only for help/documentation
-        ;; purposes.
-        (setq-local gpb-modal--command-mode-map map)
-        (gpb-modal--log-forms 'local-map 'region-map 'cond-maps
-                              'global-map 'keymap 'map)
-        map)))
+      (command
+       (let* ((local-map gpb-modal--local-command-mode-map)
+              (region-map (when (region-active-p)
+                            'gpb-modal--active-region-map))
+              (cond-maps (mapcar (lambda (x) (when (and (boundp (car x))
+                                                        (symbol-value (car x)))
+                                               (cdr x)))
+                                 gpb-modal--command-mode-keymap-alist))
+              ;; The overlay keymap will override any other overlay or text
+              ;; properties, so we find the keymap we are covering and put it
+              ;; last in the list below.
+              (keymap (get-char-property (point) 'keymap))
+              (global-map 'gpb-modal--global-command-mode-map)
+              (map-list (delq nil `(,local-map ,region-map ,@cond-maps
+                                               ,global-map ,keymap)))
+              (map (make-composed-keymap map-list)))
+         (gpb-modal--log-message "Entering let form.")
+         ;; The following key binding provides access to the global command
+         ;; map, skipping over any local or alist bindings.
+         (define-key map "\C-j" 'gpb-modal--global-command-mode-map)
+         ;; `gpb-modal--command-mode-map' is only for help/documentation
+         ;; purposes.
+         (setq-local gpb-modal--command-mode-map map)
+         (gpb-modal--log-forms 'local-map 'region-map 'cond-maps
+                               'global-map 'keymap 'map)
+         map))
 
-    (t (error "Invalid mode %s" mode))))
+    (t (error "Invalid mode %s" mode)))))
 
 
 (defun gpb-modal--define-command-key (key function &optional local)
