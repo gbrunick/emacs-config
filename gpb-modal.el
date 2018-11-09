@@ -116,6 +116,21 @@ The functions `gpb-modal--enter-command-mode' and
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+(defun gpb-modal--make-soft-command (command)
+  "Wrap COMMAND to check for overriding buffer local bindings."
+  (assert (commandp command))
+  `(lambda ()
+    (interactive)
+    (let ((binding (gpb-modal--with-disabled-overlay-keymap
+                     (or (cdar (minor-mode-key-binding (this-command-keys)))
+                         (local-key-binding (this-command-keys))))))
+      (message "local binding: %S" binding)
+      (if binding
+          (call-interactively binding)
+        (call-interactively ',command)))))
+
+
 (defvar gpb-modal--insert-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [(control ?j)] 'gpb-modal--enter-command-mode)
@@ -706,20 +721,6 @@ object and continues moving backwards on consecutive calls."
         (call-interactively binding)
       (error "%s is not defined in the local keymap"
              (key-description (this-command-keys))))))
-
-
-(defun gpb-modal--make-soft-command (command)
-  "Wrap COMMAND to check for overriding buffer local bindings."
-  (assert (commandp command))
-  `(lambda ()
-    (interactive)
-    (let ((binding (gpb-modal--with-disabled-overlay-keymap
-                     (or (cdar (minor-mode-key-binding (this-command-keys)))
-                         (local-key-binding (this-command-keys))))))
-      (message "local binding: %S" binding)
-      (if binding
-          (call-interactively binding)
-        (call-interactively ',command)))))
 
 
 ;; When a file is opened using emacsclient, the `find-file' is called
