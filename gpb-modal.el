@@ -106,6 +106,7 @@ The functions `gpb-modal--enter-command-mode' and
 
 (defvar-local gpb-modal--keymap-overlay nil
   "The the buffer local overlay that enables the modal keymap.")
+(put 'gpb-modal--keymap-overlay 'permanent-local t)
 
 (defconst gpb-modal--keymap-priority 10)
 
@@ -354,6 +355,13 @@ activated."
 
 Ensures that `gpb-modal--keymap-overlay' is defined and updates
 the keymap on this overlay."
+  (gpb-modal--log-forms '(current-buffer)
+                        'gpb-modal--keymap-overlay
+                        '(overlay-buffer gpb-modal--keymap-overlay))
+  (when (and (overlayp gpb-modal--keymap-overlay)
+             (null (overlay-buffer gpb-modal--keymap-overlay)))
+    (delete-overlay gpb-modal--keymap-overlay)
+    (setq gpb-modal--keymap-overlay nil))
   (when (null gpb-modal--keymap-overlay)
     (let ((ov (make-overlay (point-min) (point-max) nil nil t)))
       (overlay-put ov 'priority gpb-modal--keymap-priority)
