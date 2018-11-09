@@ -1018,5 +1018,19 @@ are identified by `imenu-create-index-function'."
     (set-window-point (selected-window) current-window-point)))
 
 
+(defun push-mark:set-global-mark-ring-pos (&optional location &rest rest)
+  "Always update the global mark ring position.
+
+When I back to the previous buffer using `pop-global-mark', I
+want to go to the last position I marked in that buffer, not the
+first position that I marked when I initially switched to the
+buffer."
+  (when (and global-mark-ring (eq (marker-buffer (car global-mark-ring))
+                                  (current-buffer)))
+    (set-marker (car global-mark-ring) (or location (point)))))
+
+(advice-add 'push-mark :after 'push-mark:set-global-mark-ring-pos)
+
+
 (provide 'gpb-misc)
 
