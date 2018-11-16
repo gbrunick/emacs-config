@@ -8,7 +8,7 @@
 (require 'gpb-logging)
 (require 'gpb-text-objects)
 
-(defvar gpb-modal--enable-logging t
+(defvar gpb-modal--enable-logging nil
   "If non-nil, log information to *Modal Log* buffer.")
 
 (defcustom gpb-modal-command-cursor-type 'box
@@ -237,11 +237,15 @@ The functions `gpb-modal--enter-command-mode' and
     (define-key map ">" 'gpb-modal--shift-region-right)
     (define-key map "<" 'gpb-modal--shift-region-left)
     (define-key map "$" 'ispell-region)
-    (define-key map "n" 'gpb-modal--narrow-to-region)
+    ;; (define-key map "\C-n" 'gpb-modal--narrow-to-region)
 
     (define-key map [(meta u)] 'upcase-region)
     (define-key map [(meta l)] 'downcase-region)
     (define-key map [(meta c)] 'capitalize-region)
+
+    (define-key map "\"" 'gpb-modal--quote-symbols-in-region)
+    (define-key map "'" 'gpb-modal--quote-symbols-in-region)
+
     (fset 'gpb-modal--active-region-map map)
     map)
   "This keymap is added when the region is active.")
@@ -778,6 +782,22 @@ object and continues moving backwards on consecutive calls."
     (narrow-to-region beg end)
     (if arg (switch-to-buffer-other-window (current-buffer)))
     (switch-to-buffer (current-buffer))))
+
+
+(defun gpb-modal--quote-symbols-in-region (beg end &optional unquote)
+  (interactive "r\nP")
+  (let* ((quote-char (if (string-equal (this-command-keys) "'") "'" "\""))
+         (end-marker (copy-marker end)))
+    (message "this-command-keys: %S" (this-command-keys))
+    (save-excursion
+      (goto-char beg)
+      (cond
+       (unquote
+        (while (re-search-forward "['\"]\\(\\_<\\(:?\\sw\\|\\s_\\)+\\_>\\)['\"]" end-marker t)
+          (replace-match (match-string 1))))
+       (t
+        (while (re-search-forward "\\_<\\(:?\\sw\\|\\s_\\)+\\_>" end-marker t)
+          (replace-match (concat quote-char (match-string 0) quote-char))))))))
 
 
 ;; interact nicely with edebug
