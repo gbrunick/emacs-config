@@ -49,6 +49,16 @@ used to show the errors to the user.")
 
 (defvar gpb-git:saved-window-configuration nil)
 
+
+(defvar gpb-git:commit-message-buffer-name "*commit message*"
+  "The name of the temporary buffer used to edit commit messages.")
+
+(defvar gpb-git:commit-buffer-name "*git commit*"
+  "The name of the temporary buffer used to edit commit messages.")
+
+(defvar gpb-git:commit-messages nil
+  "We save all commit messages so they can be recovered.")
+
 ;;
 ;;  Local variables used in the various editing buffers.
 ;;
@@ -168,6 +178,7 @@ used to show the errors to the user.")
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
     (define-key map "m" 'gpb-git:mark-lines)
     (define-key map "u" 'gpb-git:unmark-lines)
+    (define-key map "\C-c\C-c" 'gpb-git:commit)
     (fset 'gpb-git:unstaged-hunks-keymap map)
     map)
   "The keymap used for choosing hunks.")
@@ -180,6 +191,7 @@ used to show the errors to the user.")
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
     (define-key map "m" 'gpb-git:mark-lines)
     (define-key map "u" 'gpb-git:unmark-lines)
+    (define-key map "\C-c\C-c" 'gpb-git:commit)
     (fset 'gpb-git:staged-hunks-keymap map)
     map)
   "The keymap used for removing and staging hunks.")
@@ -1121,6 +1133,91 @@ DIR defaults to `default-directory' if omitted."
           (and line-is-marked (cl-some (lambda (x) x) line-is-marked))))
       (overlays-in (point-min) (point-max)))
      (lambda (ov1 ov2) (< (overlay-start ov1) (overlay-start ov2))))))
+
+
+(define-derived-mode gpb-git:commit-message-mode diff-mode "Git Commit"
+  "Mode for editing a Git commit message and completing the commit."
+  (local-set-key "\C-c\C-c" 'gpb-git:complete-commit))
+
+
+(defun gpb-git:commit ()
+  (interactive)
+  (let ((dir default-directory)
+        (buf (get-buffer-create gpb-git:commit-message-buffer-name))
+        filename)
+    (with-current-buffer buf
+      (erase-buffer)
+      (setq default-directory dir)
+      ;; Set the editor to echo so it will write the name of the commit
+      ;; message file into the buffer, but git will abort the commit as the
+      ;; message file was not modified.
+      (process-file "git" nil t nil "-c" "core.editor=echo" "commit" "-v")
+      (goto-char (point-min))
+      (setq filename (buffer-substring-no-properties
+                      (point) (progn (end-of-line) (point))))
+      (erase-buffer)
+      (insert "\n\n")
+      (insert-file-contents filename)
+      (goto-char (point-min))
+      (gpb-git:commit-message-mode)
+      (setq-local commit-message-file filename))
+
+    (switch-to-buffer buf)))
+
+
+(defun gpb-git:complete-commit (arg)
+  "Complete the current commit.
+With a prefix argument, prompt the user for the commit command."
+  (interactive "P")
+  (let* ((dir default-directory)
+         ;; The buffer we use to write the cleaned commit message.
+         (clean-buf (get-buffer-create "*clean Git commit message*"))
+         ;; The buffer we use to show the output of the commit command.
+         (proc-buf (get-buffer-create gpb-git:commit-buffer-name))
+         (filename (file-relative-name commit-message-file))
+         (coding-system-for-write 'unix)
+         (cmd (split-string-and-unquote
+               (if arg (read-string "Commit command: "
+                                    (format "git commit -F \"%s\"" filename))
+                 (format "git commit -F \"%s\"\n" filename))))
+         text)
+    (goto-char (point-min))
+
+    ;; It appears that --cleanup is ignored when using -F, so we have to
+    ;; trim the buffer outselves.  Boo.
+    (with-current-buffer clean-buf (erase-buffer))
+    (while (not (eobp))
+      (cond
+       ;; Snip everything after this.
+       ((looking-at-p "^# +-+ +>8 +-+")
+        (goto-char (point-max)))
+       ;; Skip commentary lines.
+       ((looking-at-p "^#")
+        (forward-line 1))
+       ;; Otherwise, keep the line.
+       (t
+        (setq text (buffer-substring-no-properties
+                    (point) (progn (forward-line 1) (point))))
+        (with-current-buffer clean-buf (insert text)))))
+
+    ;; Save the current commit message.
+    (with-current-buffer clean-buf
+      (setq gpb-git:commit-messages (cons (buffer-substring-no-properties
+                                           (point-min) (point-max))
+                                          gpb-git:commit-messages))
+
+      (write-region (point-min) (point-max) filename))
+
+    ;; Now call git commit ...
+    (with-current-buffer proc-buf
+      (erase-buffer)
+      (setq default-directory dir)
+      (insert (combine-and-quote-strings cmd) "\n")
+      (when (= 0 (apply 'process-file (car cmd) nil t nil (cdr cmd)))
+        (kill-buffer gpb-git:commit-message-buffer-name))
+      (goto-char (point-min)))
+
+    (switch-to-buffer proc-buf)))
 
 
 (global-set-key "\C-cs" 'gpb-git:stage-changes)
