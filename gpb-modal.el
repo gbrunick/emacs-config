@@ -935,7 +935,7 @@ so forms must be quoted to prevent premature evaluation."
 
 ;; vc-mode integration --------------------------------------------------
 
-(add-hook 'vc-dir-mode-hook 'gpb-modal--vc-dir-mode-hook)
+;; (add-hook 'vc-dir-mode-hook 'gpb-modal--vc-dir-mode-hook)
 (defun gpb-modal--vc-dir-mode-hook ()
   (gpb-modal--define-command-key "u" gpb-modal--use-major-mode-binding t)
   (gpb-modal--define-command-key "m" gpb-modal--use-major-mode-binding t)
