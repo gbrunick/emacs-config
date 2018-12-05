@@ -75,8 +75,7 @@
 (global-set-key [escape] 'keyboard-quit)
 
 ;; Some CUA standard bindings for common operations
-(global-set-key "\C-o" 'gpb-find-file-filtered)
-(global-set-key "\M-o" 'gpb-ffap)
+(global-set-key "\C-o" 'gpb-ffap)
 (global-set-key "\C-f" 'isearch-forward)
 (global-set-key "\C-s" 'save-buffer)
 (global-set-key [(control shift s)] 'write-file)

@@ -8,6 +8,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar gpb-a2ps-args "--portrait --columns=1 --medium=Letter")
+(defvar gpb-view-file-cache
+  (concat temporary-file-directory
+          (file-name-as-directory "emacs-file-cache"))
+  "Directory used to store local copies of remote files for local viewing.")
+
 
 (defun as-root ()
   "Close the current buffer and revisit the buffer as root."
@@ -390,15 +395,27 @@ This code is taken from fx-misc.el by Dave Love"
                :comint t
                :buffer-name "*script output*"))
 
-(defun gpb-ffap (arg)
-  (interactive "P")
-  (cond
-   ((and arg (string-match ".html$" (or (ffap-file-at-point) "")))
-    (browse-url-of-file (expand-file-name (ffap-file-at-point))))
-   (arg
-    (ffap-other-window))
-   (t
-    (ffap))))
+
+(defun gpb-ffap ()
+  (interactive)
+  (let ((filename (ffap-prompter)))
+    (cond
+     ((and (string-match ".html$" filename)
+           (y-or-n-p "View in browser?"))
+      (when (file-remote-p filename)
+        (unless (file-exists-p gpb-view-file-cache)
+          (make-directory gpb-view-file-cache))
+        (let* ((remote-dir (file-name-directory filename))
+               (local-dir (file-name-as-directory
+                           (make-temp-file gpb-view-file-cache t)))
+               (local-file (concat local-dir
+                                   (file-name-nondirectory filename))))
+          (copy-directory remote-dir local-dir t nil t)
+          (setq filename local-file)))
+      (browse-url-of-file filename))
+     (t
+      (find-file-at-point filename)))))
+
 
 (defun gpb-forward-page-1 (&optional arg)
   "Move to top of page, then scroll up by a single page"
