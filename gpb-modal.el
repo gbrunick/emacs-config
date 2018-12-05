@@ -232,6 +232,10 @@ The functions `gpb-modal--enter-command-mode' and
 
 (defvar gpb-modal--active-region-map
   (let ((map (make-sparse-keymap)))
+    ;; CUA-style copy/delete bindings
+    (define-key map "\C-c" 'copy-region-as-kill)
+    (define-key map "\C-x" 'kill-region)
+
     (define-key map [(tab)] 'indent-for-tab-command)
     (define-key map "o" 'exchange-point-and-mark)
     (define-key map ">" 'gpb-modal--shift-region-right)
