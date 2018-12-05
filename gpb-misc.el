@@ -7,7 +7,6 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar gpb-a2ps-args "--portrait --columns=1 --medium=Letter")
 (defvar gpb-view-file-cache
   (concat temporary-file-directory
           (file-name-as-directory "emacs-file-cache"))
@@ -244,31 +243,6 @@ index in STRING."
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun gpb-a2ps ()
-  (interactive)
-  (let* ((tmp-dir (make-temp-file "emacs-pretty-print" t))
-         (ext (or (and (buffer-file-name)
-                       (file-name-extension (buffer-file-name)))
-                  "txt"))
-         (buffer-contents (concat tmp-dir "/"
-                                  (or (and (buffer-file-name)
-                                           (file-name-nondirectory
-                                            (buffer-file-name)))
-                                      (buffer-name))))
-         (buffer-as-ps (concat buffer-contents ".ps"))
-         (buffer-as-pdf (concat buffer-contents ".pdf"))
-         )
-    ;; (make-directory tmp-dir)
-    (write-region (point-min) (point-max) buffer-contents)
-    (shell-command (format "a2ps %s --output %S %S"
-                           gpb-a2ps-args buffer-as-ps buffer-contents))
-    (shell-command (format "ps2pdf %S %S" buffer-as-ps buffer-as-pdf))
-    ;; (shell-command (format "a2ps %s --printer=pdf %S"
-    ;;                        gpb-a2ps-args buffer-contents))
-    (if (file-exists-p buffer-as-pdf)
-        (start-process-shell-command "oktabus" nil
-                                     (format "oktabus %S" buffer-as-pdf))
-      (error "Couldn't produce output"))))
 
 (defun gpb-backward-page-1 ()
   "Move to top of page, or scroll up by a single page"
