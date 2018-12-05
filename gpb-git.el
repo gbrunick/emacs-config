@@ -733,12 +733,14 @@ If NESTED-ALISTS is an overlay, we use its 'hunk-info property."
 If UNSTAGE is non-nil, we apply the marked hunks in reverse."
   (interactive)
   (let* ((tempfile (make-nearby-temp-file "git-" nil ".patch"))
+         (localname (or (file-remote-p tempfile 'localname) tempfile))
          (proc-output-buf gpb-git:process-output-buffer-name)
-         (args (if unstage `("apply" "--cached" "-R" ,tempfile)
-                 `("apply" "--cached" ,tempfile))))
+         (args (if unstage `("apply" "--cached" "-R" ,localname)
+                 `("apply" "--cached" ,localname))))
 
     (with-current-buffer (gpb-git:make-patch unstage)
-      (write-region (point-min) (point-max) tempfile))
+      (let ((coding-system-for-write 'unix))
+        (write-region (point-min) (point-max) tempfile)))
 
     (with-current-buffer (get-buffer-create proc-output-buf)
       (erase-buffer)
