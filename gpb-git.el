@@ -1329,8 +1329,15 @@ DIR defaults to `default-directory' if omitted."
       ;; message file was not modified.
       (process-file "git" nil t nil "-c" "core.editor=echo" "commit" "-v")
       (goto-char (point-min))
-      (setq filename (buffer-substring-no-properties
-                      (point) (progn (end-of-line) (point))))
+      (while (not (or (eobp) (looking-at-p ".*COMMIT_EDITMSG$")))
+        (forward-line 1))
+      (when (eobp)
+        (pop-to-buffer buf)
+        (error "Couldn't find commit message file"))
+      (setq filename (concat
+                      (or (file-remote-p default-directory) "")
+                      (buffer-substring-no-properties
+                       (point) (progn (end-of-line) (point)))))
       (erase-buffer)
       (insert "\n")
       (insert-file-contents filename)
@@ -1350,12 +1357,14 @@ With a prefix argument, prompt the user for the commit command."
          (clean-buf (get-buffer-create "*clean Git commit message*"))
          ;; The buffer we use to show the output of the commit command.
          (proc-buf (get-buffer-create gpb-git:commit-buffer-name))
-         (filename (file-relative-name commit-message-file))
+         ;; `commit-message-file' was set by `gpb-git:commit'.
+         (filename commit-message-file)
+         (localname (file-relative-name commit-message-file))
          (coding-system-for-write 'unix)
          (cmd (split-string-and-unquote
                (if arg (read-string "Commit command: "
-                                    (format "git commit -F \"%s\"" filename))
-                 (format "git commit -F \"%s\"\n" filename))))
+                                    (format "git commit -F \"%s\"" localname))
+                 (format "git commit -F \"%s\"\n" localname))))
          text)
     (goto-char (point-min))
 
