@@ -397,7 +397,7 @@ the keymap on this overlay."
                         (overlay-put gpb-modal--keymap-overlay 'keymap nil)))))
      (unwind-protect
          (progn ,@body)
-       (when keymap
+       (when (and gpb-modal--keymap-overlay keymap)
          (overlay-put gpb-modal--keymap-overlay 'keymap keymap)))))
 
 
