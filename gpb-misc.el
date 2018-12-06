@@ -384,7 +384,9 @@ This code is taken from fx-misc.el by Dave Love"
                            (make-temp-file gpb-view-file-cache t)))
                (local-file (concat local-dir
                                    (file-name-nondirectory filename))))
-          (copy-directory remote-dir local-dir t nil t)
+          (if (y-or-n-p "Copy surrounding files?")
+              (copy-directory remote-dir local-dir t nil t)
+            (copy-file filename local-file nil t))
           (setq filename local-file)))
       (browse-url-of-file filename))
      (t
