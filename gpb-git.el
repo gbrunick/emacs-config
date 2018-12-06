@@ -26,6 +26,19 @@
 ;;    Once we are done choosing hunks, we then reset the index to HEAD,
 ;;    write all the hunks in the right buffer to a patch, and apply the
 ;;    patch to the index via `git apply --cached TEMPFILE`.
+;;
+;;  Hunk properties:
+;;
+;;    :marked This property is non-nil if the entire hunk is marked.
+;;      Typically t when the hunk is marked, but may be set to a cons cell
+;;      of the form (:rename . filename) when the hunk is a file deletion
+;;      that has been marked as a rename (see `gpb-git:mark-as-rename').
+;;    :marked-lines A vector of bools or nil.  If a vector, there is one
+;;      component for each line in the hunk and at least one entry is t.
+;;
+;;  The functions `gpb-git:get', `gpb-git:put', and `gpb-git:del' should be
+;;  used to modify hunk properties.
+;;
 
 (defvar gpb-git:unstaged-buffer-name "*unstaged changes*"
   "The name of the buffer used to show staged changes.")
@@ -170,31 +183,47 @@ used to show the errors to the user.")
 ;;  Keymaps
 ;;
 
-(defvar gpb-git:unstaged-hunks-keymap
+(defvar gpb-git:unstaged-changes-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'gpb-git:forward-hunk-command)
     (define-key map [(backtab)] 'gpb-git:backward-hunk-command)
     (define-key map "x" 'gpb-git:stage-marked-hunks)
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
-    (define-key map "m" 'gpb-git:mark-lines)
-    (define-key map "u" 'gpb-git:unmark-lines)
-    (define-key map "\C-c\C-c" 'gpb-git:commit)
-    (fset 'gpb-git:unstaged-hunks-keymap map)
+    (define-key map "m" 'gpb-git:mark-hunk)
+    (define-key map "u" 'gpb-git:unmark-hunk)
+    (define-key map "r" 'gpb-git:mark-as-rename)
+    (define-key map "\C-c\C-c" 'gpb-git:complete-commit)
+    (fset 'gpb-git:unstaged-changes-mode-map map)
     map)
   "The keymap used for choosing hunks.")
 
-(defvar gpb-git:staged-hunks-keymap
+
+(define-derived-mode gpb-git:unstaged-changes-mode special-mode
+  "Unstaged Changes"
+  "\nMode for selecting unstages changes to be added to the index.
+
+\\{gpb-git:unstaged-changes-mode-map}\n")
+
+
+(defvar gpb-git:staged-changes-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'gpb-git:forward-hunk-command)
     (define-key map [(backtab)] 'gpb-git:backward-hunk-command)
     (define-key map "x" 'gpb-git:unstage-marked-hunks)
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
-    (define-key map "m" 'gpb-git:mark-lines)
-    (define-key map "u" 'gpb-git:unmark-lines)
+    (define-key map "m" 'gpb-git:mark-hunk)
+    (define-key map "u" 'gpb-git:unmark-hunk)
     (define-key map "\C-c\C-c" 'gpb-git:commit)
-    (fset 'gpb-git:staged-hunks-keymap map)
+    (fset 'gpb-git:staged-changes-mode-map map)
     map)
   "The keymap used for removing and staging hunks.")
+
+
+(define-derived-mode gpb-git:staged-changes-mode special-mode
+  "Staged Changes"
+  "\nMode for selecting stages changes to be removed from the index.
+
+\\{gpb-git:staged-changes-mode-map}\n")
 
 
 ;;
@@ -217,7 +246,7 @@ used to show the errors to the user.")
 
 
 (defun gpb-git:decorate-hunk (hunk &optional focused)
-  "Apply faces to diff output.
+  "Apply faces to hunk text.
 HUNK is an overlay, or a cons cell of the form (beg . end).  If
 FOCUSED is non-nil, we used alternative faces."
   ;; FIXME: Handle the (beg . end) case again.
@@ -225,14 +254,12 @@ FOCUSED is non-nil, we used alternative faces."
   (let* ((beg (or (and (overlayp hunk) (overlay-start hunk)) (car hunk)))
          (end (copy-marker (or (and (overlayp hunk) (overlay-end hunk))
                                (cdr hunk))))
-         (line-is-marked (ignore-errors (gpb-git:get hunk :line-is-marked)))
-         (some-lines-are-marked (and line-is-marked
-                                     (cl-some (lambda (x) x) line-is-marked)))
-
+         (hunk-is-marked (ignore-errors (gpb-git:get hunk :marked)))
+         (marked-lines (ignore-errors (gpb-git:get hunk :marked-lines)))
          (hunk-header-face (cond
-                            ((and some-lines-are-marked focused)
+                            ((and hunk-is-marked focused)
                              'gpb-git:focused-and-marked-hunk-header)
-                            (some-lines-are-marked 'gpb-git:marked-hunk-header)
+                            (hunk-is-marked 'gpb-git:marked-hunk-header)
                             (focused 'gpb-git:focused-hunk-header)
                             (t 'gpb-git:hunk-header)))
 
@@ -265,7 +292,10 @@ FOCUSED is non-nil, we used alternative faces."
       (put-text-property (point) (progn (forward-line 1) (point))
                          'face hunk-header-face)
       (while (< (point) end)
-        (setq marked (and line-is-marked (aref line-is-marked i)))
+        ;; Either the entire is hunk is marked, or only some lines are
+        ;; marked and this is one of them.
+        (setq marked (and hunk-is-marked
+                          (or (null marked-lines) (aref marked-lines i))))
         (cond
          ((looking-at-p "^+")
           (put-text-property (point) (progn (forward-line 1) (point))
@@ -325,7 +355,7 @@ Looks for the .git directory rather than calling Git."
           (set-window-point win (point))
           (redisplay t)))
       ;; Ensure that file name is visible when possible.
-      (when (gpb-git:get ov :first-hunk)
+      (when (gpb-git:get ov :first-file-hunk)
         (save-excursion
           (forward-line -1)
           (set-window-point win (point))
@@ -364,7 +394,7 @@ Looks for the .git directory rather than calling Git."
   (let ((win (selected-window)))
     (assert (eq (window-buffer win) (current-buffer)))
     ;; Ensure that file name is visible when possible.
-    (when (gpb-git:get-current-hunk-info :first-hunk)
+    (when (gpb-git:get-current-hunk-info :first-file-hunk)
       (save-excursion
         (forward-line -1)
         (set-window-point win (point))
@@ -468,7 +498,7 @@ Looks for the .git directory rather than calling Git."
 
 Returns a list of hunks, where each hunk is an alist with the
 keys :filename1, :filename2, :file1-start, :file1-len,
-:file2-start, :file2-len, :first-hunk, :insertion, :deletion,
+:file2-start, :file2-len, :first-file-hunk, :insertion, :deletion,
 :rename and :diff.
 
 File sections with no hunks are ignored.  For example:
@@ -486,6 +516,14 @@ content using `git add --intent-to-add -- test.txt`."
                  '("diff-files" "--patch" "--find-renames")))
          (cmd-string (mapconcat 'identity (cons "git" args) " "))
          (buf-name (concat "*" cmd-string "*"))
+         ;; Some hunks consist of a file header have no trailing diff
+         ;; sections (e.g., renames with 100% similarity and empty files
+         ;; staged with --intent-to-add).  We set add-diffless-hunk to t
+         ;; when we see a file header, and set it back to nil when we see
+         ;; the first diff section.  If we see a file header and
+         ;; add-diffless-hunk is t, we know that the previous file header
+         ;; had no diff sections.
+         (add-diffless-hunk nil)
          beg end insertion deletion filename1 filename2 header)
 
     (with-current-buffer (get-buffer-create buf-name)
@@ -514,6 +552,21 @@ content using `git add --intent-to-add -- test.txt`."
           (while (< (point) (point-max))
             (cond
              ((looking-at "^diff --git a/\\(.*\\) b/\\(.*\\)")
+              (when add-diffless-hunk
+                ;; The previous file header had no trailing diff sections,
+                ;; so we need to record it as a diff-less hunk.
+                (nconc hunk-list `(((:filename1 . ,filename1)
+                                    (:filename2 . ,filename2)
+                                    (:file1-start . 0)
+                                    (:file1-len . 0)
+                                    (:file2-start . 0)
+                                    (:file2-len . 0)
+                                    (:header . ,header)
+                                    (:insertion . ,(when insertion t))
+                                    (:deletion . ,(when deletion t))
+                                    (:rename . ,(not (string= filename1
+                                                              filename2)))))))
+
               ;; The previous header had no hunks following it.  This
               ;; happens when adding a file with no content using `git add
               ;; --intent-to-add`.
@@ -533,7 +586,8 @@ content using `git add --intent-to-add -- test.txt`."
                                 (re-search-backward "--- /dev/null" beg t))
                     deletion (save-excursion
                                (re-search-backward "+++ /dev/null" beg t))
-                    header (buffer-substring-no-properties beg end)))
+                    header (buffer-substring-no-properties beg end)
+                    add-diffless-hunk t))
 
              ((looking-at (concat "^@@ -\\([0-9]+\\),\\([0-9]+\\) +"
                                   "\\+\\([0-9]+\\),\\([0-9]+\\) @@"))
@@ -549,6 +603,7 @@ content using `git add --intent-to-add -- test.txt`."
                                   (goto-char (match-beginning 0)))
                                  (goto-char (point-max)))
                              (point)))))
+                (setq add-diffless-hunk nil)
                 (nconc hunk-list `(((:filename1 . ,filename1)
                                     (:file1-start . ,file1-start)
                                     (:file1-len . ,file1-len)
@@ -563,6 +618,20 @@ content using `git add --intent-to-add -- test.txt`."
                                     (:diff . ,diff))))))
 
              (t (error "Assertion error")))))))
+
+    (when add-diffless-hunk
+      ;; The last file header had no trailing diff sections.
+      (nconc hunk-list `(((:filename1 . ,filename1)
+                          (:filename2 . ,filename2)
+                          (:file1-start . 0)
+                          (:file1-len . 0)
+                          (:file2-start . 0)
+                          (:file2-len . 0)
+                          (:header . ,header)
+                          (:insertion . ,(when insertion t))
+                          (:deletion . ,(when deletion t))
+                          (:rename . ,(not (string= filename1
+                                                    filename2)))))))
 
     (setq hunk-list (sort (cdr hunk-list)
                           (lambda (x y)
@@ -580,7 +649,7 @@ content using `git add --intent-to-add -- test.txt`."
                (first-hunk (not (equal current-file
                                        `(,filename1 . ,filename2)))))
           (setq current-file `(,filename1 . ,filename2))
-          (nconc hunk `((:first-hunk . ,first-hunk))))))
+          (nconc hunk `((:first-file-hunk . ,first-hunk))))))
 
     hunk-list))
 
@@ -594,8 +663,10 @@ content using `git add --intent-to-add -- test.txt`."
 
     (with-current-buffer buf
       (setq default-directory repo-dir)
+      (setq-local staged-changes-buffer nil)
+      (put 'staged-changes-buffer 'permanent-local t)
       (gpb-git:refresh-hunks)
-      (use-local-map 'gpb-git:unstaged-hunks-keymap)
+      (gpb-git:unstaged-changes-mode)
 
       (dolist (ov (overlays-in (point-min) (point-min)))
         (when (overlay-get ov 'title)
@@ -616,8 +687,10 @@ content using `git add --intent-to-add -- test.txt`."
 
     (with-current-buffer buf
       (setq default-directory repo-dir)
+      (setq-local staged-changes-buffer t)
+      (put 'staged-changes-buffer 'permanent-local t)
       (gpb-git:refresh-hunks t)
-      (use-local-map 'gpb-git:staged-hunks-keymap)
+      (gpb-git:staged-changes-mode)
 
       (dolist (ov (overlays-in (point-min) (point-min)))
         (when (overlay-get ov 'title)
@@ -658,9 +731,10 @@ values which are the hunk text."
               (and (ignore-errors (gpb-git:forward-hunk))
                    (gpb-git:get-current-hunk-info))
               (and (ignore-errors (gpb-git:backward-hunk))
-                   (let* ((hunk-info2 (gpb-git:get-current-hunk-info))
-                          (filename1 (gpb-git:get hunk-info2 :filename1))
-                          (file1-start (gpb-git:get hunk-info2 :file1-start)))
+                   (let* ((filename1 (gpb-git:get-current-hunk-info
+                                      :filename1))
+                          (file1-start (gpb-git:get-current-hunk-info
+                                        :file1-start)))
                      `((:filename1 . ,filename1)
                        (:file1-start . ,(1+ file1-start)))))))
          ov)
@@ -674,31 +748,20 @@ values which are the hunk text."
     (add-hook 'kill-buffer-hook 'gpb-git:kill-buffer-hook nil t)
     (add-hook 'post-command-hook 'gpb-git:post-command-hook)
 
-    ;; (use-local-map gpb-git:selected-hunks-keymap)
-
     (dolist (diff-hunk diff-hunks)
       (let* ((filename1 (gpb-git:get diff-hunk :filename1))
              (filename2 (gpb-git:get diff-hunk :filename2)))
-        ;; (when (gpb-git:get diff-hunk :first-hunk)
-        ;;   (if (string= filename1 filename2)
-        ;;       (put-text-property (point) (progn (insert filename1)
-        ;;                                         (insert "\n")
-        ;;                                         (point))
-        ;;                          'face 'gpb-git:file-name)
-        ;;     (put-text-property (point) (progn (insert filename1)
-        ;;                                       (insert " -> ")
-        ;;                                       (insert filename2)
-        ;;                                       (insert "\n")
-        ;;                                       (point))
-        ;;                        'face 'gpb-git:file-name)))
-
         (setq ov (make-overlay (point)
                                (progn
-                                 (insert (gpb-git:get-hunk-header
-                                          diff-hunk staged))
-                                 (insert (gpb-git:get diff-hunk :diff))
+                                 ;; (insert (gpb-git:get-hunk-header
+                                 ;;          diff-hunk staged))
+                                 (insert (or (aget diff-hunk :diff t)
+                                             " No differences\n"))
                                  (point))))
         (overlay-put ov 'hunk-info diff-hunk)
+        (gpb-git:put ov :marked nil)
+        (gpb-git:put ov :marked-lines nil)
+        (gpb-git:update-hunk-header ov staged)
         (gpb-git:decorate-hunk ov)
         (nconc hunk-overlays (list ov))))
 
@@ -726,8 +789,11 @@ If NESTED-ALISTS is an overlay, we use its 'hunk-info property."
 (defun gpb-git:put (hunk key value)
   "Set KEY to VALUE in alist associated with HUNK."
    (assert (overlayp hunk))
-   (let* ((alist (overlay-get hunk 'hunk-info)))
-     (aput 'alist key value)
+   (let* ((alist (overlay-get hunk 'hunk-info))
+          (key-val (assoc key alist)))
+     (if key-val
+         (setcdr key-val value)
+       (push `(,key . ,value) alist))
      (overlay-put hunk 'hunk-info alist)))
 
 
@@ -878,34 +944,63 @@ modify the given file."
                  (gpb-git:get-hunk-overlays)))
         'string<))
 
-(defun gpb-git:get-hunk-header (hunk-info staged)
+(defun gpb-git:update-hunk-header (hunk &optional staged)
   "Create the string which appears at the start of a hunk."
-  (let* ((rename (gpb-git:get hunk-info :rename))
-         (filename1 (gpb-git:get hunk-info :filename1))
-         (filename2 (gpb-git:get hunk-info :filename2))
-         (file1-start (gpb-git:get hunk-info :file1-start))
-         (file2-start (gpb-git:get hunk-info :file2-start))
-         (file1-len (gpb-git:get hunk-info :file1-len))
-         (file2-len (gpb-git:get hunk-info :file2-len))
-         (file1-end (1- (+ file1-start file1-len)))
-         (file2-end (1- (+ file2-start file2-len)))
-         ;; We give file line ranges relative to the working directory and
-         ;; the previous commit.  In particular, if staged, we use the
-         ;; first line number range as this corresponds to where the patch
-         ;; would apply to the corresponding change in HEAD.  Otherwise, we
-         ;; use the second range as this is where the patch applies to the
-         ;; current state of the file.
-         (line-range (format "%s-%s,%s-%s"
-                             file1-start file1-end
-                             file2-start file2-end)))
+  (let ((text (gpb-git:get-hunk-header hunk))
+        (inhibit-read-only t))
+    (with-current-buffer (overlay-buffer hunk)
+      (save-excursion
+        (goto-char (overlay-start hunk))
+        ;; There is alread a hunk header, delete it.
+        (when (get-text-property (point) :hunk-header)
+          (delete-region (point) (progn (forward-line 1) (point))))
+        (insert (propertize text :hunk-header t))))))
+
+
+(defun gpb-git:get-hunk-header (hunk)
+  "Create the string which appears at the start of a hunk."
+  (let* ((staged (with-current-buffer (overlay-buffer hunk)
+                   staged-changes-buffer))
+         (filename1 (gpb-git:get hunk :filename1))
+         (filename2 (gpb-git:get hunk :filename2)))
+
     (cond
-     (rename (format "%s -> %s: %s\n" filename1 filename2 line-range))
-     ((gpb-git:get hunk-info :insertion)
+     ;; A deletion that has been marked as a rename
+     ((eq (car-safe (gpb-git:get hunk :marked)) :rename)
+      (let* ((filename (gpb-git:get hunk :filename1))
+             (new-name (cdr (gpb-git:get hunk :marked))))
+        (format "%s: delete (marked as rename to %s)\n" filename new-name)))
+
+     ;; New file
+     ((gpb-git:get hunk :insertion)
+      (assert (string= filename1 filename2))
       (format "%s: %s\n" filename1 (if staged "added" "add")))
-     ((gpb-git:get hunk-info :deletion)
-      (format "%s: %s\n" filename1 (if staged "removed" "remove")))
-     (staged (format "%s: %s\n" filename1 line-range))
-     (t (format "%s: %s\n" filename2 line-range)))))
+
+     ;; Deleted file
+     ((gpb-git:get hunk :deletion)
+      (assert (string= filename1 filename2))
+      (format "%s: %s\n" filename1 (if staged "deleted" "delete")))
+
+     ;; A standard hunk with diff lines.
+     ((ignore-errors (gpb-git:get hunk :diff))
+      (let* ((file1-start (gpb-git:get hunk :file1-start))
+             (file2-start (gpb-git:get hunk :file2-start))
+             (file1-len (gpb-git:get hunk :file1-len))
+             (file2-len (gpb-git:get hunk :file2-len))
+             (file1-end (1- (+ file1-start file1-len)))
+             (file2-end (1- (+ file2-start file2-len)))
+             (line-range (format "%s-%s -> %s-%s"
+                                 file1-start file1-end
+                                 file2-start file2-end)))
+        (if (string= filename1 filename2)
+            (format "%s: %s\n" filename1 line-range)
+          (format "%s -> %s: %s\n" filename1 filename2 line-range))))
+
+     ;; A rename with no other changes to the file.
+     ((gpb-git:get hunk :rename)
+      (format "%s -> %s\n" filename1 filename2))
+
+     (t (error "Assertion error: unhandled hunk %S" hunk)))))
 
 
 (defun gpb-git:make-patch (&optional reverse)
@@ -924,97 +1019,141 @@ index.
 Returns a buffer with the name `gpb-git:patch-buffer-name' that
 contains the patch."
   (let* ((patch-buf (get-buffer-create gpb-git:patch-buffer-name))
-         (output-offset 0) current-output-file)
+         (output-offset 0)
+         current-output-file)
 
-    (with-current-buffer patch-buf
-      (erase-buffer))
+    (with-current-buffer patch-buf (erase-buffer))
 
     (dolist (hunk (gpb-git:get-marked-hunks))
-      (let* ((header (gpb-git:get hunk :header))
-             (output-file (if reverse (gpb-git:get hunk :filename1)
-                            (gpb-git:get hunk :filename2)))
-             (input-start (if reverse (gpb-git:get hunk :file2-start)
-                            (gpb-git:get hunk :file1-start)))
-             (new-file (if reverse (gpb-git:get hunk :deletion)
-                         (gpb-git:get hunk :insertion)))
-             (line-is-marked (gpb-git:get hunk :line-is-marked))
-             (patch-start (with-current-buffer patch-buf (point)))
-             (has-no-changes t)
-             (input-lines 0)
-             (output-lines 0)
-             (i 0)
-             diff-line first-char)
-
-        ;; If have changed files, return the offset between hunks in the
-        ;; input file and hunks in the output file.
-        (unless (equal output-file current-output-file)
-          (setq current-output-file output-file
-                output-offset 0))
-
-        (save-excursion
-          (goto-char (overlay-start hunk))
-          ;; Move past the hunk header to the first line of the diff
-          (forward-line 1)
-          (while (< (point) (overlay-end hunk))
-            (setq diff-line (buffer-substring-no-properties
-                             (point)
-                             (progn (forward-line 1) (point)))
-                  include-line (aref line-is-marked i)
-                  first-char (substring diff-line 0 1)
-                  i (1+ i))
-
-            (when reverse
-              (setq first-char (aget `((" " . " ") ("+" . "-") ("-" . "+"))
-                                     first-char)))
-
-            ;; We have a removed line in the diff that we don't want to
-            ;; include, so we convert it to a context line.
-            (when (and (not include-line) (equal first-char "-"))
-              (aset diff-line 0 ?\ )
-              (setq first-char " "))
-
-            (cond
-             ;; We always keep context lines. They appear in both the
-             ;; input and ouput files.
-             ((equal first-char " ")
-              (with-current-buffer patch-buf (insert diff-line))
-              (incf input-lines)
-              (incf output-lines))
-
-             ;; We have an added or removed line that we want to include.
-             (include-line
-              (with-current-buffer patch-buf (insert diff-line))
-              ;; A deleted line appears in the input, but not the output.
-              (when (equal first-char "-") (incf input-lines))
-              ;; An added line appears in the output, but not the input.
-              (when (equal first-char "+") (incf output-lines))
-              (setq has-no-changes nil)))))
-
+      (cond
+       ;; A deletion that has been marked as a rename.
+       ((eq (car-safe (gpb-git:get hunk :marked)) :rename)
+        (let* ((filename1 (gpb-git:get hunk :filename1))
+               (filename2 (gpb-git:get hunk :filename2))
+               (new-name (cdr (gpb-git:get hunk :marked))))
+          (assert (string= filename1 filename2))
+          (with-current-buffer patch-buf
+            (insert (format
+                     (concat "diff --git a/%s b/%s\n"
+                             "rename from %s\n"
+                             "rename to %s\n")
+                     filename1 new-name filename1 new-name)))))
+       ;; If the hunk is marked and there are no diff lines, insert the
+       ;; header.
+       ((and (gpb-git:get hunk :marked)
+             (not (ignore-errors (gpb-git:get hunk :diff))))
         (with-current-buffer patch-buf
-          (if has-no-changes
-              ;; There were no changes included in the patch so we have
-              ;; only context lines.  Git treats such a hunk as an error,
-              ;; so we delete it.
-              (delete-region patch-start (point))
-            (save-excursion
-              (goto-char patch-start)
-              (insert header)
-              (if reverse
-                  (insert (format "@@ -%s,%s +%s,%s @@\n"
-                                  (if new-file 1 (+ input-start output-offset))
-                                  output-lines
-                                  input-start input-lines))
-                (insert (format "@@ -%s,%s +%s,%s @@\n"
-                                input-start input-lines
-                                (if new-file 1 (+ input-start output-offset))
-                                output-lines))))))
-
-        ;; If there is a difference between the number of input and output
-        ;; lines, the next hunk for this file will start at different lines
-        ;; in the input and output files.
-        (setq output-offset (+ output-offset (- output-lines input-lines)))))
+          (insert (gpb-git:get hunk :header))))
+       ;; Otherwise we use the primary algorithm in `gpb-git:make-patch-1'.
+       (t
+        (gpb-git:make-patch-1 hunk patch-buf reverse))))
 
     patch-buf))
+
+
+(defun gpb-git:make-patch-1 (hunk patch-buf reverse)
+  "Write patch content for HUNK into PATCH-BUF.
+
+This function is an implemenation detail of `gpb-git:make-patch'."
+  (let* ((header (gpb-git:get hunk :header))
+         (input-file (if reverse (gpb-git:get hunk :filename2)
+                       (gpb-git:get hunk :filename1)))
+         (output-file (if reverse (gpb-git:get hunk :filename1)
+                        (gpb-git:get hunk :filename2)))
+         (input-start (if reverse (gpb-git:get hunk :file2-start)
+                        (gpb-git:get hunk :file1-start)))
+         (new-file (if reverse (gpb-git:get hunk :deletion)
+                     (gpb-git:get hunk :insertion)))
+         (hunk-is-marked (gpb-git:get hunk :marked))
+         (line-is-marked (gpb-git:get hunk :marked-lines))
+         (patch-start (with-current-buffer patch-buf (point)))
+         (has-no-changes t)
+         (input-lines 0)
+         (output-lines 0)
+         (i 0)
+         diff-line first-char)
+
+    ;; If have changed files, return the offset between hunks in the
+    ;; input file and hunks in the output file.
+    (unless (equal output-file current-output-file)
+      (setq current-output-file output-file
+            output-offset 0))
+
+    (save-excursion
+      (goto-char (overlay-start hunk))
+      ;; Move past the hunk header to the first line of the diff
+      (forward-line 1)
+      (while (< (point) (overlay-end hunk))
+        (setq diff-line (buffer-substring-no-properties
+                         (point)
+                         (progn (forward-line 1) (point)))
+              include-line (and hunk-is-marked
+                                (or (null line-is-marked)
+                                    (aref line-is-marked i)))
+              first-char (substring diff-line 0 1)
+              i (1+ i))
+
+        (when reverse
+          (setq first-char (aget `((" " . " ") ("+" . "-") ("-" . "+"))
+                                 first-char)))
+
+        ;; We have a removed line in the diff that we don't want to
+        ;; include, so we convert it to a context line.
+        (when (and (not include-line) (equal first-char "-"))
+          (aset diff-line 0 ?\ )
+          (setq first-char " "))
+
+        (cond
+         ;; We always keep context lines. They appear in both the
+         ;; input and ouput files.
+         ((equal first-char " ")
+          (with-current-buffer patch-buf (insert diff-line))
+          (incf input-lines)
+          (incf output-lines))
+
+         ;; We have an added or removed line that we want to include.
+         (include-line
+          (with-current-buffer patch-buf (insert diff-line))
+          ;; A deleted line appears in the input, but not the output.
+          (when (equal first-char "-") (incf input-lines))
+          ;; An added line appears in the output, but not the input.
+          (when (equal first-char "+") (incf output-lines))
+          (setq has-no-changes nil)))))
+
+    (with-current-buffer patch-buf
+      (if has-no-changes
+          ;; There were no changes included in the patch so we have
+          ;; only context lines.  Git treats such a hunk as an error,
+          ;; so we delete it.
+          (delete-region patch-start (point))
+        (save-excursion
+          (goto-char patch-start)
+          (cond
+           ;; If we have staged a file that was renamed and modified, and
+           ;; we have selected a subset of these changes, we only want roll
+           ;; back the changes, not the the rename.  Recall that
+           ;; `input-file' is the second file in the hunk header in this
+           ;; case because we are operating in reverse.
+           ((and reverse line-is-marked (gpb-git:get hunk :rename))
+            (insert (format "diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n"
+                            input-file input-file input-file input-file)))
+           ;; Otherwise, insert the header as is.
+           (t (insert header)))
+
+          (if reverse
+              (insert (format "@@ -%s,%s +%s,%s @@\n"
+                              (if new-file 1 (+ input-start output-offset))
+                              output-lines
+                              input-start input-lines))
+            (insert (format "@@ -%s,%s +%s,%s @@\n"
+                            input-start input-lines
+                            (if new-file 1 (+ input-start output-offset))
+                            output-lines))))))
+
+    ;; If there is a difference between the number of input and output
+    ;; lines, the next hunk for this file will start at different lines
+    ;; in the input and output files.
+    (setq output-offset (+ output-offset (- output-lines input-lines)))))
 
 
 (defun gpb-git:flash-hunk (ov)
@@ -1034,41 +1173,6 @@ contains the patch."
     (setq gpb-git:currently-flashed-hunk nil)))
 
 
-(defun gpb-git:mark-lines (&optional unmark)
-  "Mark some hunk lines.
-If if the region is active, mark every line in the current hunk
-that intersects the region.  Otherwise, mark every line in the
-current hunk."
-  (interactive)
-  (let* ((hunk (gpb-git:get-current-hunk))
-         (beg (if (use-region-p) (region-beginning) (overlay-start hunk)))
-         (end (if (use-region-p) (region-end) (overlay-end hunk)))
-         ;; Number of lines in the hunk (not counting the header line).
-         (nlines (- (1+ (line-number-at-pos (overlay-end hunk)))
-                    (line-number-at-pos (overlay-start hunk))))
-         (line-is-marked (or (ignore-errors (gpb-git:get hunk :line-is-marked))
-                             (make-vector nlines nil)))
-         (i 0))
-    ;; Ensure `beg' lies at the start of the line.
-    (setq beg (save-excursion (goto-char beg) (forward-line 0) (point)))
-    (save-excursion
-      (goto-char (overlay-start hunk))
-      ;;Skip past the header line.
-      (forward-line 1)
-      (while (< (point) (overlay-end hunk))
-        (when (and (>= (point) beg) (< (point) end))
-          (aset line-is-marked i (not unmark)))
-        (forward-line 1)
-        (incf i)))
-    (if (cl-some (lambda (x) x) line-is-marked)
-        (gpb-git:put hunk :line-is-marked line-is-marked)
-      (gpb-git:del hunk :line-is-marked))
-
-    ;; Update the hunk text properties to reflect the new marked lines.
-    (gpb-git:decorate-hunk hunk)
-    (setq gpb-git:currently-focused-hunk nil)))
-
-
 (defun gpb-git:mark-hunk-command ()
   "Mark the current hunk."
   (interactive)
@@ -1077,13 +1181,99 @@ current hunk."
   )
 
 
-(defun gpb-git:unmark-lines ()
-  "Mark some hunk lines.
-If if the region is active, mark every line in the current hunk
-that intersects the region.  Otherwise, mark every line in the
-current hunk."
+(defun gpb-git:mark-hunk (&optional unmark new-name)
+  "Mark the current hunk.
+If a region is active, we only mark the lines of the hunk that
+intersect the resion.  If UNMARK is non-nil we unmark the hunk or
+lines within the hunk and ignore NEW-NAME.  If NEW-NAME is
+non-nil, we mark the entire hunk as a rename.  This is only
+allowed when the hunk corresponds to a file deletion and the
+region is not active."
   (interactive)
-  (gpb-git:mark-lines 'unmark))
+  (let* ((hunk (or (gpb-git:get-current-hunk)
+                   (user-error "Point is not in a hunk")))
+         (filename1 (gpb-git:get hunk :filename1))
+         ;; Number of lines in the hunk (not counting the header line).
+         (nlines (- (line-number-at-pos (overlay-end hunk))
+                    (1+ (line-number-at-pos (overlay-start hunk)))))
+         (inhibit-read-only t))
+
+    (when new-name
+      (unless (gpb-git:get hunk :deletion)
+        (user-error "Only deleted files may be marked as renames."))
+      (when (use-region-p)
+        (user-error "Renames may only be applied to a full hunk.")))
+
+    (cond
+     ;; Mark or unmark only the lines in the current region.
+     ((use-region-p)
+      (let ((beg (region-beginning))
+            (end (region-end))
+            (line-is-marked (or (ignore-errors (gpb-git:get hunk :marked-lines))
+                                (make-vector nlines (gpb-git:get hunk :marked))))
+            (i 0))
+        ;; Ensure `beg' lies at the start of the line.
+        (setq beg (save-excursion (goto-char beg) (forward-line 0) (point)))
+        (save-excursion
+          (goto-char (overlay-start hunk))
+          ;;Skip past the header line.
+          (forward-line 1)
+          (while (< (point) (overlay-end hunk))
+            (when (and (>= (point) beg) (< (point) end))
+              (aset line-is-marked i (not unmark)))
+            (forward-line 1)
+            (incf i)))
+        (if (cl-some (lambda (x) x) line-is-marked)
+            ;; If any lines are still marked, the hunk is still considered
+            ;; marked.
+            (progn
+              (gpb-git:put hunk :marked t)
+              (gpb-git:put hunk :marked-lines line-is-marked))
+          ;; Otherwise, we remove all marks info.
+          (gpb-git:put hunk :marked nil)
+          (gpb-git:put hunk :marked-lines nil))))
+
+     (unmark
+      (gpb-git:put hunk :marked nil)
+      (gpb-git:put hunk :marked-lines nil))
+     (new-name
+      (gpb-git:put hunk :marked `(:rename . ,new-name))
+      (gpb-git:put hunk :marked-lines nil))
+     (t
+      (gpb-git:put hunk :marked t)
+      (gpb-git:put hunk :marked-lines nil)))
+
+    ;; Update the text properties to reflect the new state of the hunk.
+    (gpb-git:update-hunk-header hunk)
+    (gpb-git:decorate-hunk hunk)
+    (setq gpb-git:currently-focused-hunk nil)))
+
+
+(defun gpb-git:unmark-hunk (&optional unmark new-name)
+  "Unmark the current hunk."
+  (interactive)
+  (gpb-git:mark-hunk 'unmark))
+
+
+(defun gpb-git:mark-as-rename (new-name)
+  "Mark file deletion hunk as a rename.
+
+Prompts the user for the new file name and marks the file as a
+rename.  When staged, the current filename will be removed from
+the index, but the contents will be added under the new name.
+
+This can be useful when the file has been renamed and modified,
+but you only want to commit the rename.  Any changes to contents
+of the file will then show up as unstaged changes to the new file
+name."
+  (interactive
+   (list (progn
+           (let ((hunk (gpb-git:get-current-hunk)))
+             (unless hunk (user-error "Point is not in a hunk renames"))
+             (unless (gpb-git:get hunk :deletion)
+               (user-error "Only deleted hunks can be marked as a rename")))
+           (file-relative-name (read-file-name "New name: ")))))
+  (gpb-git:mark-hunk nil new-name))
 
 
 (defun gpb-git:unmark-hunk-command ()
@@ -1092,22 +1282,6 @@ current hunk."
   (gpb-git:unmark-hunk)
   ;;(gpb-git:forward-hunk-command)
   )
-
-
-(defun gpb-git:show-faces ()
-  (interactive)
-  (let ((text (concat "@@ -89,21 +89,59 @@\n Some context\n-(defface "
-                      "gpb-git:highlighted-hunk-header\n+;; Focused "
-                      "faces\n '((t :background \"#9999ff\"))\n-  "
-                      "\"Face used for context lines in the highlighted "
-                      "hunk\")\n+  \"Face used for context lines in the "
-                      "focused hunk\")\n \n")))
-  (with-current-buffer (get-buffer-create "*show faces*")
-    (erase-buffer)
-    (dolist (modifier '(nil :focused :marked :focused-and-marked))
-      (gpb-git:decorate-hunk `(,(point) . ,(progn (insert text) (point)))
-                              modifier))
-    (pop-to-buffer (current-buffer)))))
 
 
 (defun gpb-git:list-unstaged-files (&optional dir)
@@ -1129,8 +1303,10 @@ DIR defaults to `default-directory' if omitted."
     (sort
      (remove-if-not
       (lambda (ov)
-        (let ((line-is-marked (ignore-errors (gpb-git:get ov :line-is-marked))))
-          (and line-is-marked (cl-some (lambda (x) x) line-is-marked))))
+        (let ((hunk-is-marked (ignore-errors (gpb-git:get ov :marked)))
+              (line-is-marked (ignore-errors (gpb-git:get ov :marked-lines))))
+          (or hunk-is-marked
+              (and line-is-marked (cl-some (lambda (x) x) line-is-marked)))))
       (overlays-in (point-min) (point-max)))
      (lambda (ov1 ov2) (< (overlay-start ov1) (overlay-start ov2))))))
 
@@ -1156,7 +1332,7 @@ DIR defaults to `default-directory' if omitted."
       (setq filename (buffer-substring-no-properties
                       (point) (progn (end-of-line) (point))))
       (erase-buffer)
-      (insert "\n\n")
+      (insert "\n")
       (insert-file-contents filename)
       (goto-char (point-min))
       (gpb-git:commit-message-mode)
@@ -1218,6 +1394,22 @@ With a prefix argument, prompt the user for the commit command."
       (goto-char (point-min)))
 
     (switch-to-buffer proc-buf)))
+
+
+(defun gpb-git--show-faces ()
+  (interactive)
+  (let ((text (concat "@@ -89,21 +89,59 @@\n Some context\n-(defface "
+                      "gpb-git:highlighted-hunk-header\n+;; Focused "
+                      "faces\n '((t :background \"#9999ff\"))\n-  "
+                      "\"Face used for context lines in the highlighted "
+                      "hunk\")\n+  \"Face used for context lines in the "
+                      "focused hunk\")\n \n")))
+  (with-current-buffer (get-buffer-create "*show faces*")
+    (erase-buffer)
+    (dolist (modifier '(nil :focused :marked :focused-and-marked))
+      (gpb-git:decorate-hunk `(,(point) . ,(progn (insert text) (point)))
+                              modifier))
+    (pop-to-buffer (current-buffer)))))
 
 
 (global-set-key "\C-cs" 'gpb-git:stage-changes)
