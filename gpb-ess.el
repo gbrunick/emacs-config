@@ -66,17 +66,36 @@ Contains a cons of two markers.")
 
 
 (defun gpb:inferior-ess-mode-hook ()
-  (local-set-key [?\t] 'ess-complete-object-name)
   (local-set-key "\r" 'gpb:inferior-ess-send-or-copy-input)
   (local-set-key "\C-n" 'comint-next-input)
   (local-set-key "\C-p" 'gpb-comint:previous-input)
   (local-set-key "\C-ct" 'gpb:ess-send-traceback-command)
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
+  (local-set-key [?\t] 'gpb:inferior-ess-tab-command)
+  (local-set-key [(backtab)] 'gpb:inferior-ess-previous-traceback)
 
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
 
   (setq-local comint-input-filter 'gpb:ess-comint-input-filter)
+
+  ;; Correct some syntax assignments.
+  (setq-local syntax-propertize-function
+              'gpb:inferior-ess-mode-syntax-propertize-function)
+
+  ;; Customize some faces
+  (dolist (face '(underline compilation-error compilation-line-number))
+    (face-remap-add-relative face :foreground "royal blue" :weight 'normal))
+
+  ;; Don't underline the " at " part of the traceback.
+  (aput 'compilation-error-regexp-alist-alist
+        'R '("\\(?: at \\|(@\\)\\(\\([^#()\n]+\\)[#:]\\([0-9]+\\)\\)"
+             2 3 nil 2 1))
+
+  ;; This matches Shiny tracebacks like:
+  ;;     <reactive> [/nfs/home/trpgh47/src/CrossAssetBeta/R/module_tradeTable.R#136]
+  (aput 'compilation-error-regexp-alist-alist
+        'R2 '("\\(?:\\w\\|\\s.\\)+ \\[?\\(\\([^[())\n]+\\)#\\([0-9]+\\)\\)" 2 3 nil 2 1))
 
   ;; Implementation detail of "?" help.
   (add-hook 'comint-redirect-hook 'gpb:show-definition-buffer nil t)
@@ -706,6 +725,20 @@ displayed."
         (ess-completing-read "Choose location" pkgs nil t)))))
 
 
+
+
+(defun gpb:inferior-ess-mode-syntax-propertize-function (beg end)
+  "Overwrite the comment syntax on # when it is in a traceback"
+  (save-match-data
+    (save-excursion
+      (goto-char beg)
+      (while (re-search-forward "\\(?:at \\|from \\|\\[\\).*\\.[rR]\\(#\\)[0-9]+" end t)
+        ;; Mark the # that lies between a filename and a line number as
+        ;; punctation rather than the start of a comment.
+        (put-text-property (match-beginning 1) (match-end 1)
+                           'syntax-table (string-to-syntax "."))))))
+
+
 (defun gpb:ess-sniff-out-two-space-indentation ()
   (let ((two-space-count 0))
     ;; Count the number of lines with two space indentation.
@@ -717,3 +750,23 @@ displayed."
 
     ;; Now check against some arbitrary threshold.
     (when (> two-space-count 5) (setq ess-indent-offset 2))))
+
+
+(defun gpb:inferior-ess-tab-command ()
+  (interactive)
+  (setq this-command (if (comint-after-pmark-p)
+                         'ess-complete-object-name
+                       'gpb:inferior-ess-next-traceback))
+  (call-interactively this-command))
+
+
+(defun gpb:inferior-ess-next-traceback ()
+  (interactive)
+  (condition-case exc
+      (compilation-next-error 1 nil (point))
+    (error (goto-char (point-max)))))
+
+
+(defun gpb:inferior-ess-previous-traceback ()
+  (interactive)
+  (compilation-next-error -1 nil (point)))
