@@ -10,6 +10,7 @@
 ;; For `string-trim'.
 (require 'subr-x)
 
+
 (defvar gpb:ess-region-file-cache nil
   "An alist mapping from TRAMP remotes to region files.
 
@@ -19,7 +20,7 @@ filenames for temporary files that are used by
 `gpb:ess-eval-region' to allow for evaluation of regions of
 code.")
 
-(add-hook 'ess-mode-hook 'gpb:ess-mode-hook)
+(add-hook 'R-mode-hook 'gpb:R-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 
 
@@ -29,12 +30,31 @@ Contains a cons of two markers.")
 
 (setq ess-use-auto-complete nil)
 
-(defun gpb:ess-mode-hook ()
+(defun gpb:R-mode-hook ()
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
+
   (local-set-key "\C-cb" 'gpb:ess-insert-browser)
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
   (setq-local ess-indent-with-fancy-comments nil)
+  ;; The Data section of the imenu entries is pretty useless.
+  (adelete 'ess-imenu-S-generic-expression "Data")
+  ;; Only match top-level function definitions.
+  (setcdr (assoc "Functions" ess-imenu-S-generic-expression)
+          '("^\\([^ \t]+\\)[ 	\n]*<-[ 	\n]*function[ ]*(" 1))
+  (adelete 'ess-imenu-S-generic-expression "Data")
+
+  (gpb:ess-sniff-out-two-space-indentation)
+
+  ;; Use etags rather than ESS's custom xref implementation.
+  (xref-etags-mode 1)
+  ;; (add-hook 'xref-backend-functions #'etags--xref-backend t)
+
+  (let ((package-item (or (assoc "Package" ess-imenu-S-generic-expression)
+                          (assoc "Packages" ess-imenu-S-generic-expression))))
+    (setcar package-item "Packages")
+    (setcdr package-item '("^.*\\(library\\|require\\)(\\([^,)]*\\)" 2)))
+
   (when (require 'yasnippet nil t)
     (yas-minor-mode 1))
   (when (require 'gpb-text-objects nil t)
@@ -684,3 +704,16 @@ displayed."
       (if dont-ask
           (car pkgs)
         (ess-completing-read "Choose location" pkgs nil t)))))
+
+
+(defun gpb:ess-sniff-out-two-space-indentation ()
+  (let ((two-space-count 0))
+    ;; Count the number of lines with two space indentation.
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (when (= (current-indentation) 2) (incf two-space-count))
+        (forward-line 1)))
+
+    ;; Now check against some arbitrary threshold.
+    (when (> two-space-count 5) (setq ess-indent-offset 2))))
