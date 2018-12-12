@@ -207,11 +207,12 @@ an ESS inferior buffer."
     (let* ((proc (get-buffer-process (current-buffer)))
            (pmark (process-mark proc))
            (initial-pmark (marker-position pmark))
-           (command (buffer-substring pmark (point)))
-           (buffer (get-buffer-create (concat "*" command "*"))))
+           (r-object (buffer-substring pmark (point)))
+           (buffer (get-buffer-create (concat "*" r-object "*")))
+           command)
       (delete-region initial-pmark (save-excursion (end-of-line) (point)))
-      ;; Send a blank line and wait fora responds to trigger all the proper
-      ;; comint prompt accounting.
+      ;; Send a blank line and wait for a responds to trigger all the
+      ;; proper comint prompt accounting.
       (inferior-ess-send-input)
       (while (or (= (marker-position pmark) initial-pmark)
                  (not (looking-back "> *")))
@@ -219,12 +220,30 @@ an ESS inferior buffer."
       ;; Now insert the fake input above.
       (save-excursion
         (goto-char initial-pmark)
-        (insert (concat command "?"))
-        (comint-add-to-input-history (concat command "?")))
+        (insert (concat r-object "?"))
+        (comint-add-to-input-history (concat r-object "?")))
+
+      (let ((obj-class (ess-string-command (format "class(%s)\n" r-object)))
+            (dt-command (format "print(%%s, %s)"
+                                (mapconcat 'identity
+                                           '("nrows = 10000"
+                                             "topn = 2000"
+                                             "row.names = FALSE")
+                                           ", "))))
+        (cond
+         ((string-match "^Error:" obj-class)
+          (setq command r-object))
+         ((string-match "data.table" obj-class)
+          (setq command (read-string "Print command: "
+                                     (format dt-command r-object))))
+         ((string-match "data.frame" obj-class)
+          (setq command (format "print(%s, max = 10000)" r-object)))
+         (t
+          (setq command r-object))))
+
 
       ;; Now actually send the command and pipe the results to a new buffer.
       (with-current-buffer buffer
-        (setq-local default-directory nil)
         (setq-local buffer-read-only nil)
         (erase-buffer)
         (insert (format "#\n#  %s\n#\n\n" command))
