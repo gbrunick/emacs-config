@@ -816,3 +816,18 @@ displayed."
 
 
 (advice-add 'ess-quit :before 'ess-quit:confirm-quit)
+
+
+(defun ess-r-package-eval-linewise:remove-tramp-prefix
+    (f command &optional msg p actions pkg-path)
+  "Remove the TRAMP prefix from the package path."
+  (let* ((pkg-info (or (ess-r-package-project)
+                       (ess-r-package-set-package)))
+         (pkg-path (cdr pkg-info)))
+    (when (and pkg-path (file-remote-p pkg-path))
+      (setq pkg-path (file-remote-p pkg-path 'localname)))
+    (funcall f command msg p actions
+             (concat "'" (abbreviate-file-name pkg-path) "'"))))
+
+(advice-add 'ess-r-package-eval-linewise :around
+            'ess-r-package-eval-linewise:remove-tramp-prefix)
