@@ -108,7 +108,7 @@ The functions `gpb-modal--enter-command-mode' and
   "The the buffer local overlay that enables the modal keymap.")
 (put 'gpb-modal--keymap-overlay 'permanent-local t)
 
-(defconst gpb-modal--keymap-priority 10)
+(defconst gpb-modal--keymap-priority 200)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
