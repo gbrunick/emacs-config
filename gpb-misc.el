@@ -637,7 +637,7 @@ Rotate the buffers within the current window when a prefix
 argument is given."
   (interactive "P")
   (if arg
-      (let* ((wins (apply 'append (mapcar 'window-list (frame-list))))
+      (let* ((wins (window-list))
              (bufs (mapcar (lambda (x) (window-buffer x)) wins)))
         (setq bufs (append (cdr bufs) (list (car bufs))))
         (mapcar* (lambda (w b) (set-window-buffer w b))
