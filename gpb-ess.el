@@ -764,6 +764,10 @@ displayed."
         (ess-completing-read "Choose location" pkgs nil t)))))
 
 
+(defun ess-quit:confirm-quit (&rest args)
+  "Confirm before killing the R process."
+  (unless (y-or-n-p "Kill R process?")
+    (signal 'quit nil)))
 
 
 (defun gpb:inferior-ess-mode-syntax-propertize-function (beg end)
@@ -809,3 +813,6 @@ displayed."
 (defun gpb:inferior-ess-previous-traceback ()
   (interactive)
   (compilation-next-error -1 nil (point)))
+
+
+(advice-add 'ess-quit :before 'ess-quit:confirm-quit)
