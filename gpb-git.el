@@ -589,20 +589,21 @@ content using `git add --intent-to-add -- test.txt`."
                     header (buffer-substring-no-properties beg end)
                     add-diffless-hunk t))
 
-             ((looking-at (concat "^@@ -\\([0-9]+\\),\\([0-9]+\\) +"
-                                  "\\+\\([0-9]+\\),\\([0-9]+\\) @@"))
-              (let ((file1-start (string-to-number (match-string 1)))
-                    (file1-len (string-to-number (match-string 2)))
-                    (file2-start (string-to-number (match-string 3)))
-                    (file2-len (string-to-number (match-string 4)))
-                    (diff (buffer-substring-no-properties
-                           (progn (forward-line 1) (point))
-                           (progn
-                             (or (and
-                                  (re-search-forward "^@@\\|^diff --git " nil t)
-                                  (goto-char (match-beginning 0)))
-                                 (goto-char (point-max)))
-                             (point)))))
+             ((looking-at "^@@ -\\([0-9,]+\\) \\+\\([0-9,]+\\) @@")
+              (let* ((range1 (save-match-data (split-string (match-string 1) ",")))
+                     (range2 (save-match-data (split-string (match-string 2) ",")))
+                     (file1-start (string-to-number (first range1)))
+                     (file1-len (string-to-number (or (second range1) "1")))
+                     (file2-start (string-to-number (first range2)))
+                     (file2-len (string-to-number (or (second range2) "1")))
+                     (diff (buffer-substring-no-properties
+                            (progn (forward-line 1) (point))
+                            (progn
+                              (or (and
+                                   (re-search-forward "^@@\\|^diff --git " nil t)
+                                   (goto-char (match-beginning 0)))
+                                  (goto-char (point-max)))
+                              (point)))))
                 (setq add-diffless-hunk nil)
                 (nconc hunk-list `(((:filename1 . ,filename1)
                                     (:file1-start . ,file1-start)
