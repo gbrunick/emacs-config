@@ -364,9 +364,9 @@ an ESS inferior buffer."
 (defun gpb:ess-make-region-file (beg end &optional where)
   "Create an R source file containing a region of code.
 
-We jump through hopes to ensure that the R source code references
-refer to the current buffer, rather than to the temporary file
-that is produced."
+We jump through some hoops to ensure that the R source code
+references refer to the current buffer, rather than to the
+temporary file that is produced."
   (interactive "r")
   (let* ((line-number (line-number-at-pos beg))
          (text (buffer-substring-no-properties
@@ -391,21 +391,29 @@ that is produced."
       (insert "\n\n"))
     (message "Wrote %s" region-filename)
     (with-temp-file wrapper-filename
-      (insert (format "srcFile <- %s\n" (prin1-to-string source-filename)))
-      (insert (format "regionFile <- %s\n"
+      ;; Wrap everything in local() so our temporary variables don't clash
+      ;; with anthing.
+      (insert (format "local({\n"))
+      (insert (format "    srcFile <- %s\n" (prin1-to-string source-filename)))
+      (insert (format "    regionFile <- %s\n"
                       (prin1-to-string
                        (gpb:ess-get-local-filename region-filename))))
-      (insert "src <- srcfilecopy(srcFile, readLines(regionFile),\n")
-      (insert "                   timestamp = Sys.time(), isFile = TRUE)\n")
-      (insert "expr <- parse(text = readLines(regionFile), srcfile = src)\n")
-      (insert "eval(expr)\n"))
+      (insert "    src <- srcfilecopy(srcFile, readLines(regionFile),\n")
+      (insert "                       timestamp = Sys.time(), isFile = TRUE)\n")
+      (insert "    expr <- parse(text = readLines(regionFile), srcfile = src)\n")
+      ;; Eval outside of the local() wrapper, so the code being evaluated
+      ;; can change the global environment.
+      (insert "    eval.parent(expr, 2)\n")
+      (insert (format "})\n")))
     (message "Wrote %s" wrapper-filename)
     wrapper-filename))
 
 
 (defun gpb:ess-eval-region (beg end)
   (interactive "r")
-  (let* ((end (save-excursion
+  (let* ((whole-buffer-p (save-restriction (widen) (and (= beg (point-min))
+                                                        (= end (point-max)))))
+         (end (save-excursion
                 (goto-char end) (skip-chars-backward " \n\t") (point)))
          (line1 (line-number-at-pos beg))
          (line2 (line-number-at-pos end))
@@ -418,17 +426,29 @@ that is produced."
     (set-marker (car gpb:ess-last-eval-region) beg)
     (set-marker (cdr gpb:ess-last-eval-region) end)
 
-    (if (= line1 line2)
-        (ess-send-string ess-proc (buffer-substring-no-properties beg end) t)
+    (cond
+     ;; If the regions is a single line, just send it directly to the
+     ;; inferior process.
+     ((= line1 line2)
+      (ess-send-string ess-proc (buffer-substring-no-properties beg end) t))
+     ;; If the file is up to date and the region is whole file, just source
+     ;; the file.
+     ((and whole-buffer-p (not (buffer-modified-p)))
+      (let* ((filename (buffer-file-name))
+             (working-dir (ess-string-command "cat(sprintf(\"%s\\n\", getwd()))\n"))
+             (localname (or (file-remote-p filename 'localname) filename))
+             (relative-name (file-relative-name localname working-dir))
+             (cmd (format "source(%s)" (prin1-to-string relative-name))))
+        (ess-send-string ess-proc cmd t)))
+     ;; Otherwise, write temp files (we actually use two files for this see
+     ;; `gpb:ess-make-region-file') and source the appropriate temp file.
+     (t
       (let* ((filename (gpb:ess-make-region-file beg end proc-default-directory))
-             (local-filename (if (tramp-tramp-file-p filename)
-                                 (tramp-file-name-localname
-                                  (tramp-dissect-file-name filename))
-                               filename))
+             (local-filename (or (file-remote-p filename 'localname) filename))
              (cmd (format "source(%s)" (prin1-to-string local-filename))))
         (gpb:exit-all-browsers)
         (ess-send-string ess-proc cmd (format "[Evaluate lines %s-%s in %s]"
-                                              line1 line2 (buffer-name)))))))
+                                              line1 line2 (buffer-name))))))))
 
 
 (defun gpb:ess-save-package ()
