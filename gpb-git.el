@@ -499,16 +499,7 @@ Looks for the .git directory rather than calling Git."
 Returns a list of hunks, where each hunk is an alist with the
 keys :filename1, :filename2, :file1-start, :file1-len,
 :file2-start, :file2-len, :first-file-hunk, :insertion, :deletion,
-:rename and :diff.
-
-File sections with no hunks are ignored.  For example:
-
-  diff --git a/test.txt b/test.txt
-  new file mode 100644
-  index 0000000..e69de29
-
-will appear in `git diff --cached` if we stage the file with no
-content using `git add --intent-to-add -- test.txt`."
+:rename and :diff."
   (let* ((dir (or dir default-directory))
          (hunk-list (list :stub))
          (args (if staged
@@ -524,7 +515,7 @@ content using `git add --intent-to-add -- test.txt`."
          ;; add-diffless-hunk is t, we know that the previous file header
          ;; had no diff sections.
          (add-diffless-hunk nil)
-         beg end insertion deletion filename1 filename2 header)
+         beg end insertion deletion filename1 filename2 header binary-info)
 
     (with-current-buffer (get-buffer-create buf-name)
       (erase-buffer)
@@ -564,12 +555,10 @@ content using `git add --intent-to-add -- test.txt`."
                                     (:header . ,header)
                                     (:insertion . ,(when insertion t))
                                     (:deletion . ,(when deletion t))
+                                    (:binary-info . ,binary-info)
                                     (:rename . ,(not (string= filename1
                                                               filename2)))))))
 
-              ;; The previous header had no hunks following it.  This
-              ;; happens when adding a file with no content using `git add
-              ;; --intent-to-add`.
               (setq filename1 (substring-no-properties
                                (or (match-string 1) (error "Assertion error")))
                     filename2 (substring-no-properties
@@ -583,10 +572,15 @@ content using `git add --intent-to-add -- test.txt`."
                               (end-of-buffer))
                           (point))
                     insertion (save-excursion
-                                (re-search-backward "--- /dev/null" beg t))
+                                (or (re-search-backward "^--- /dev/null" beg t)
+                                    (re-search-backward "^new file" beg t)))
                     deletion (save-excursion
-                               (re-search-backward "+++ /dev/null" beg t))
+                               (re-search-backward "^+++ /dev/null" beg t))
                     header (buffer-substring-no-properties beg end)
+                    binary-info (save-excursion
+                                  (when (re-search-backward "^Binary files" beg t)
+                                    (buffer-substring-no-properties
+                                     (point) (progn (end-of-line) (point)))))
                     add-diffless-hunk t))
 
              ((looking-at "^@@ -\\([0-9,]+\\) \\+\\([0-9,]+\\) @@")
@@ -631,6 +625,7 @@ content using `git add --intent-to-add -- test.txt`."
                           (:header . ,header)
                           (:insertion . ,(when insertion t))
                           (:deletion . ,(when deletion t))
+                          (:binary-info . ,binary-info)
                           (:rename . ,(not (string= filename1
                                                     filename2)))))))
 
@@ -757,6 +752,7 @@ values which are the hunk text."
                                  ;; (insert (gpb-git:get-hunk-header
                                  ;;          diff-hunk staged))
                                  (insert (or (aget diff-hunk :diff t)
+                                             (aget diff-hunk :binary-info t)
                                              " No differences\n"))
                                  (point))))
         (overlay-put ov 'hunk-info diff-hunk)
