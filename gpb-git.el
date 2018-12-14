@@ -393,8 +393,7 @@ Looks for the .git directory rather than calling Git."
   ;; consider it to already be deactivated when we compute the highlights
   ;; to avoid flicker.
   (let ((mark-active (and mark-active (not deactivate-mark))))
-    (gpb-git:update-highlights)
-    (gpb-git--mark-full-lines)))
+    (gpb-git:update-highlights)))
 
 
 (defun gpb-git:update-highlights (&optional buf)
@@ -643,6 +642,7 @@ keys :filename1, :filename2, :file1-start, :file1-len,
       (put 'staged-changes-buffer 'permanent-local t)
       (gpb-git:refresh-hunks)
       (gpb-git:unstaged-changes-mode)
+      (add-hook 'post-command-hook 'gpb-git--mark-full-lines nil t)
 
       (dolist (ov (overlays-in (point-min) (point-min)))
         (when (overlay-get ov 'title)
@@ -667,6 +667,7 @@ keys :filename1, :filename2, :file1-start, :file1-len,
       (put 'staged-changes-buffer 'permanent-local t)
       (gpb-git:refresh-hunks t)
       (gpb-git:staged-changes-mode)
+      (add-hook 'post-command-hook 'gpb-git--mark-full-lines nil t)
 
       (dolist (ov (overlays-in (point-min) (point-min)))
         (when (overlay-get ov 'title)
