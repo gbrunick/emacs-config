@@ -407,7 +407,8 @@ Looks for the .git directory rather than calling Git."
   ;; consider it to already be deactivated when we compute the highlights
   ;; to avoid flicker.
   (let ((mark-active (and mark-active (not deactivate-mark))))
-    (gpb-git:update-highlights)))
+    (gpb-git:update-highlights)
+    (gpb-git--mark-full-lines)))
 
 
 (defun gpb-git:update-highlights (&optional buf)
@@ -1416,6 +1417,37 @@ With a prefix argument, prompt the user for the commit command."
       (gpb-git:decorate-hunk `(,(point) . ,(progn (insert text) (point)))
                               modifier))
     (pop-to-buffer (current-buffer)))))
+
+
+(defvar-local gpb-git--mark-full-lines-overlay nil
+  "The overlay used to visually extend the region to full lines.")
+
+(defun gpb-git--mark-full-lines ()
+  "Unsure that the visual indication of the region includes full lines."
+  (let* ((ov gpb-git--mark-full-lines-overlay)
+         (region-active (region-active-p))
+         (beg (when region-active
+                (save-excursion (goto-char (region-beginning))
+                                (forward-line 0)
+                                (point))))
+         (end (when region-active
+                (save-excursion (goto-char (region-end))
+                                (unless (bolp) (forward-line 1))
+                                (point)))))
+    (cond
+     ;; The region is active and the overlay already exists, so we move it.
+     ((and region-active ov)
+      (move-overlay ov beg end))
+     ;; The region is active and the overlay doesn't exists, so we create
+     ;; it.
+     (region-active
+      (setq ov (make-overlay beg end))
+      (overlay-put ov 'face 'region)
+      (setq gpb-git--mark-full-lines-overlay ov))
+     ;; The region is not active but an overlay exists, so we delete it.
+     (ov
+      (delete-overlay ov)
+      (setq gpb-git--mark-full-lines-overlay nil)))))
 
 
 (global-set-key "\C-cs" 'gpb-git:stage-changes)
