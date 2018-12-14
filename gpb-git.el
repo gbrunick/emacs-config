@@ -189,8 +189,8 @@ used to show the errors to the user.")
     (define-key map [(backtab)] 'gpb-git:backward-hunk-command)
     (define-key map "x" 'gpb-git:stage-marked-hunks)
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
-    (define-key map "m" 'gpb-git:mark-hunk)
-    (define-key map "u" 'gpb-git:unmark-hunk)
+    (define-key map "m" 'gpb-git:mark-hunk-command)
+    (define-key map "u" 'gpb-git:unmark-hunk-command)
     (define-key map "r" 'gpb-git:mark-as-rename)
     (define-key map "\C-c\C-c" 'gpb-git:complete-commit)
     (fset 'gpb-git:unstaged-changes-mode-map map)
@@ -211,8 +211,8 @@ used to show the errors to the user.")
     (define-key map [(backtab)] 'gpb-git:backward-hunk-command)
     (define-key map "x" 'gpb-git:unstage-marked-hunks)
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
-    (define-key map "m" 'gpb-git:mark-hunk)
-    (define-key map "u" 'gpb-git:unmark-hunk)
+    (define-key map "m" 'gpb-git:mark-hunk-command)
+    (define-key map "u" 'gpb-git:unmark-hunk-command)
     (define-key map "\C-c\C-c" 'gpb-git:commit)
     (fset 'gpb-git:staged-changes-mode-map map)
     map)
@@ -810,7 +810,8 @@ If UNSTAGE is non-nil, we apply the marked hunks in reverse."
           ;; (kill-buffer proc-output-buf)
           (delete-file tempfile)
           (gpb-git:refresh-unstaged-hunk-buffer default-directory)
-          (gpb-git:refresh-staged-hunk-buffer default-directory))
+          (gpb-git:refresh-staged-hunk-buffer default-directory)
+          (pop-to-buffer gpb-git:staged-buffer-name))
 
       ;; If the application failed, we pop to the process output.
       (pop-to-buffer proc-output-buf))))
@@ -1149,14 +1150,13 @@ This function is an implemenation detail of `gpb-git:make-patch'."
   "Mark the current hunk."
   (interactive)
   (gpb-git:mark-hunk)
-  ;;(gpb-git:forward-hunk-command)
-  )
+  (gpb-git:forward-hunk-command))
 
 
 (defun gpb-git:mark-hunk (&optional unmark new-name)
-  "Mark the current hunk.
+  "Mark the hunk at the current point.
 If a region is active, we only mark the lines of the hunk that
-intersect the resion.  If UNMARK is non-nil we unmark the hunk or
+intersect the region.  If UNMARK is non-nil we unmark the hunk or
 lines within the hunk and ignore NEW-NAME.  If NEW-NAME is
 non-nil, we mark the entire hunk as a rename.  This is only
 allowed when the hunk corresponds to a file deletion and the
@@ -1240,8 +1240,7 @@ name."
   "Mark the current hunk."
   (interactive)
   (gpb-git:unmark-hunk)
-  ;;(gpb-git:forward-hunk-command)
-  )
+  (gpb-git:forward-hunk-command))
 
 
 (defun gpb-git:list-unstaged-files (&optional dir)
