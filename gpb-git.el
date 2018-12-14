@@ -250,66 +250,52 @@ used to show the errors to the user.")
 HUNK is an overlay, or a cons cell of the form (beg . end).  If
 FOCUSED is non-nil, we used alternative faces."
   ;; FIXME: Handle the (beg . end) case again.
-  (assert (overlayp hunk))
-  (let* ((beg (or (and (overlayp hunk) (overlay-start hunk)) (car hunk)))
-         (end (copy-marker (or (and (overlayp hunk) (overlay-end hunk))
-                               (cdr hunk))))
-         (hunk-is-marked (ignore-errors (gpb-git:get hunk :marked)))
-         (marked-lines (ignore-errors (gpb-git:get hunk :marked-lines)))
-         (hunk-header-face (cond
-                            ((and hunk-is-marked focused)
-                             'gpb-git:focused-and-marked-hunk-header)
-                            (hunk-is-marked 'gpb-git:marked-hunk-header)
-                            (focused 'gpb-git:focused-hunk-header)
-                            (t 'gpb-git:hunk-header)))
+  (assert (and (overlayp hunk) (overlay-buffer hunk)))
+  (with-current-buffer (overlay-buffer hunk)
+    (let* ((beg (or (and (overlayp hunk) (overlay-start hunk)) (car hunk)))
+           (end (copy-marker (or (and (overlayp hunk) (overlay-end hunk))
+                                 (cdr hunk))))
+           (marked (gpb-git:get hunk :marked))
+           (marked-lines (gpb-git--get-marked-lines hunk))
+           (inhibit-read-only t) (i 0) line-marked)
 
-         ;; Faces for unmarked lines
-         (context-face (if focused
-                           'gpb-git:focused-context-line
-                         'gpb-git:context-line))
-         (added-face (if focused
-                         'gpb-git:focused-added-line
-                       'gpb-git:added-line))
-         (deleted-face (if focused
-                           'gpb-git:focused-deleted-line
-                         'gpb-git:deleted-line))
-
-         ;; Faces for marked lines
-         (marked-context-face (if focused
-                                  'gpb-git:focused-and-marked-context-line
-                                'gpb-git:marked-context-line))
-         (marked-added-face (if focused
-                                'gpb-git:focused-and-marked-added-line
-                              'gpb-git:marked-added-line))
-         (marked-deleted-face (if focused
-                                  'gpb-git:focused-and-marked-deleted-line
-                                'gpb-git:marked-deleted-line))
-
-         (inhibit-read-only t) (i 0) marked)
-
-    (save-excursion
-      (goto-char beg)
-      (put-text-property (point) (progn (forward-line 1) (point))
-                         'face hunk-header-face)
-      (while (< (point) end)
-        ;; Either the entire is hunk is marked, or only some lines are
-        ;; marked and this is one of them.
-        (setq marked (and hunk-is-marked
-                          (or (null marked-lines) (aref marked-lines i))))
-        (cond
-         ((looking-at-p "^+")
-          (put-text-property (point) (progn (forward-line 1) (point))
-                             'face (if marked marked-added-face
-                                     added-face)))
-         ((looking-at-p "^-")
-          (put-text-property (point) (progn (forward-line 1) (point))
-                             'face (if marked marked-deleted-face
-                                     deleted-face)))
-         (t
-          (put-text-property (point) (progn (forward-line 1) (point))
-                             'face (if marked marked-context-face
-                                     context-face))))
-        (incf i)))))
+      (save-excursion
+        (goto-char beg)
+        (put-text-property (point) (progn (forward-line 1) (point))
+                           'face (cond
+                                  ((and marked focused)
+                                   'gpb-git:focused-and-marked-hunk-header)
+                                  (marked 'gpb-git:marked-hunk-header)
+                                  (focused 'gpb-git:focused-hunk-header)
+                                  (t 'gpb-git:hunk-header)))
+        (while (< (point) end)
+          (setq line-marked (aref marked-lines i))
+          (cond
+           ((looking-at-p "^+")
+            (put-text-property (point) (progn (forward-line 1) (point))
+                               'face (cond
+                                      ((and line-marked focused)
+                                       'gpb-git:focused-and-marked-added-line)
+                                      (line-marked 'gpb-git:marked-added-line)
+                                      (focused 'gpb-git:focused-added-line)
+                                      (t 'gpb-git:added-line))))
+           ((looking-at-p "^-")
+            (put-text-property (point) (progn (forward-line 1) (point))
+                               'face (cond
+                                      ((and line-marked focused)
+                                       'gpb-git:focused-and-marked-deleted-line)
+                                      (line-marked 'gpb-git:marked-deleted-line)
+                                      (focused 'gpb-git:focused-deleted-line)
+                                      (t 'gpb-git:deleted-line))))
+           (t
+            (put-text-property (point) (progn (forward-line 1) (point))
+                               'face (cond
+                                      ((and line-marked focused)
+                                       'gpb-git:focused-and-marked-context-line)
+                                      (line-marked 'gpb-git:marked-context-line)
+                                      (focused 'gpb-git:focused-context-line)
+                                      (t 'gpb-git:context-line)))))
+          (incf i))))))
 
 
 (defun gpb-git:find-repo-root ()
@@ -418,20 +404,13 @@ Looks for the .git directory rather than calling Git."
            (new-hunk  (gpb-git:get-current-hunk))
            ;; We don't want the changes below to deactivate the mark.
            deactivate-mark)
-
       (when (not (eq new-hunk prev-hunk))
+
         (when (and prev-hunk (overlay-buffer prev-hunk))
-          (with-current-buffer (overlay-buffer prev-hunk)
-            (gpb-git:decorate-hunk prev-hunk
-                                   (if (overlay-get prev-hunk 'marked)
-                                       :marked
-                                     nil))))
+          (gpb-git:decorate-hunk prev-hunk))
+
         (when (and new-hunk (overlay-buffer new-hunk))
-          (with-current-buffer (overlay-buffer new-hunk)
-            (gpb-git:decorate-hunk new-hunk
-                                    (if (overlay-get new-hunk 'marked)
-                                        :focused-and-marked
-                                      :focused))))
+          (gpb-git:decorate-hunk new-hunk t))
 
         (set-default 'gpb-git:currently-focused-hunk new-hunk)))))
 
@@ -750,15 +729,12 @@ values which are the hunk text."
              (filename2 (gpb-git:get diff-hunk :filename2)))
         (setq ov (make-overlay (point)
                                (progn
-                                 ;; (insert (gpb-git:get-hunk-header
-                                 ;;          diff-hunk staged))
                                  (insert (or (aget diff-hunk :diff t)
                                              (aget diff-hunk :binary-info t)
                                              " No differences\n"))
                                  (point))))
         (overlay-put ov 'hunk-info diff-hunk)
         (gpb-git:put ov :marked nil)
-        (gpb-git:put ov :marked-lines nil)
         (gpb-git:update-hunk-header ov staged)
         (gpb-git:decorate-hunk ov)
         (nconc hunk-overlays (list ov))))
@@ -1062,8 +1038,7 @@ This function is an implemenation detail of `gpb-git:make-patch'."
                         (gpb-git:get hunk :file1-start)))
          (new-file (if reverse (gpb-git:get hunk :deletion)
                      (gpb-git:get hunk :insertion)))
-         (hunk-is-marked (gpb-git:get hunk :marked))
-         (line-is-marked (gpb-git:get hunk :marked-lines))
+         (marked-lines (gpb-git--get-marked-lines hunk))
          (patch-start (with-current-buffer patch-buf (point)))
          (has-no-changes t)
          (input-lines 0)
@@ -1085,9 +1060,7 @@ This function is an implemenation detail of `gpb-git:make-patch'."
         (setq diff-line (buffer-substring-no-properties
                          (point)
                          (progn (forward-line 1) (point)))
-              include-line (and hunk-is-marked
-                                (or (null line-is-marked)
-                                    (aref line-is-marked i)))
+              include-line (aref marked-lines i)
               first-char (substring diff-line 0 1)
               i (1+ i))
 
@@ -1132,7 +1105,7 @@ This function is an implemenation detail of `gpb-git:make-patch'."
            ;; back the changes, not the the rename.  Recall that
            ;; `input-file' is the second file in the hunk header in this
            ;; case because we are operating in reverse.
-           ((and reverse line-is-marked (gpb-git:get hunk :rename))
+           ((and reverse marked-lines (gpb-git:get hunk :rename))
             (insert (format "diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n"
                             input-file input-file input-file input-file)))
            ;; Otherwise, insert the header as is.
@@ -1191,7 +1164,7 @@ region is not active."
   (let* ((hunk (or (gpb-git:get-current-hunk)
                    (user-error "Point is not in a hunk")))
          (filename1 (gpb-git:get hunk :filename1))
-         ;; Number of lines in the hunk (not counting the header line).
+         ;; Number of lines in the hunk not counting the header line.
          (nlines (- (line-number-at-pos (overlay-end hunk))
                     (1+ (line-number-at-pos (overlay-start hunk)))))
          (inhibit-read-only t))
@@ -1203,12 +1176,11 @@ region is not active."
         (user-error "Renames may only be applied to a full hunk.")))
 
     (cond
-     ;; Mark or unmark only the lines in the current region.
+     ;; Mark or unmark a subset of the current hunk.
      ((use-region-p)
       (let ((beg (region-beginning))
             (end (region-end))
-            (line-is-marked (or (ignore-errors (gpb-git:get hunk :marked-lines))
-                                (make-vector nlines (gpb-git:get hunk :marked))))
+            (line-is-marked (gpb-git--get-marked-lines hunk))
             (i 0))
         ;; Ensure `beg' lies at the start of the line.
         (setq beg (save-excursion (goto-char beg) (forward-line 0) (point)))
@@ -1222,24 +1194,13 @@ region is not active."
             (forward-line 1)
             (incf i)))
         (if (cl-some (lambda (x) x) line-is-marked)
-            ;; If any lines are still marked, the hunk is still considered
-            ;; marked.
-            (progn
-              (gpb-git:put hunk :marked t)
-              (gpb-git:put hunk :marked-lines line-is-marked))
-          ;; Otherwise, we remove all marks info.
-          (gpb-git:put hunk :marked nil)
-          (gpb-git:put hunk :marked-lines nil))))
+            (gpb-git:put hunk :marked `(:partial . ,line-is-marked))
+          (gpb-git:put hunk :marked nil))
+        (deactivate-mark t)))
 
-     (unmark
-      (gpb-git:put hunk :marked nil)
-      (gpb-git:put hunk :marked-lines nil))
-     (new-name
-      (gpb-git:put hunk :marked `(:rename . ,new-name))
-      (gpb-git:put hunk :marked-lines nil))
-     (t
-      (gpb-git:put hunk :marked t)
-      (gpb-git:put hunk :marked-lines nil)))
+     (unmark (gpb-git:put hunk :marked nil))
+     (new-name (gpb-git:put hunk :marked `(:rename . ,new-name)))
+     (t (gpb-git:put hunk :marked t)))
 
     ;; Update the text properties to reflect the new state of the hunk.
     (gpb-git:update-hunk-header hunk)
@@ -1448,6 +1409,26 @@ With a prefix argument, prompt the user for the commit command."
      (ov
       (delete-overlay ov)
       (setq gpb-git--mark-full-lines-overlay nil)))))
+
+
+(defun gpb-git--get-marked-lines (hunk)
+  "Return the set of line in `hunk' that are marked.
+`hunk' is an overlay with associated data.  Returns an array of
+bools in which the i-th entry is true if i-th line in the hunk is
+marked."
+  (let ((marked (gpb-git:get hunk :marked))
+        ;; (1+ (line-number-at-pos (overlay-start hunk))) is the first diff
+        ;; line and (line-number-at-pos (overlay-end hunk)) is the line after
+        ;; the last diff line.
+        (nlines (- (line-number-at-pos (overlay-end hunk))
+                   (1+ (line-number-at-pos (overlay-start hunk))))))
+    (cond
+     ((eq (car-safe marked) :partial)
+      (cdr marked))
+     (marked
+      (make-vector nlines t))
+     (t
+      (make-vector nlines nil)))))
 
 
 (global-set-key "\C-cs" 'gpb-git:stage-changes)
