@@ -3,47 +3,49 @@
 ;;
 ;;  This package provides the command `gpb-git:stage-changes' which opens
 ;;  two side-by-side buffers for selecting unstaged changes that should be
-;;  applied to the Git index and staged changes to remove.
+;;  applied to the Git index, selecting staged changes to be removed, and
+;;  committed the currently staged changes.  This is essentially a GUI
+;;  interface to `git add --patch`, but the implementation makes no use of
+;;  this command.
+;;
+;;  To get started, call `gpb-git:stage-changes' from a buffer whose
+;;  `default-directory' lies inside a Git a repository and then call
+;;  `describe-mode' in the buffers that appear to get help on the
+;;  keybindings and workflow.
 ;;
 ;;  This package does not attempt to provide a full Git porcelain.  In
 ;;  particular, you will still need to use the command line (or `vc' or
-;;  `magit') to commit the changes after they are staged.
+;;  `magit') to view logs, merge branches, and perform other actions.
+;;
+;;  Due to a bug/missing feature in TRAMP, `magit' cannot commit hunks to a
+;;  Git reposity on a remote machine over TRAMP from a Windows machine.
+;;  This package works in this case because we write files rather than
+;;  trying to piping patchs into the stdin of a Git process.
+;;  See https://github.com/magit/magit/issues/3624 and
+;;      http://lists.gnu.org/archive/html/tramp-devel/2018-11/msg00020.html
 ;;
 ;;  Implementation overview:
 ;;
 ;;  We use git command `diff-files` to find the changes in the working
-;;  directory relative to the index and the command `diff-index` to see the
-;;  changes in the index relative to HEAD.
+;;  directory relative to the index and we insert these hunks into a buffer
+;;  named `gpb-git:unstaged-buffer-name', placing an overlay on each hunk.
+;;  We then give the user an opportunity to mark hunks and portions of
+;;  hunks in this buffers, recording the marked hunks using properties on
+;;  the hunk overlays.  Once the user has finished selecting the hunks, she
+;;  calls `gpb-git:stage-marked-hunks' to construct a patch from the
+;;  selected hunks and apply it to the Git index.
 ;;
-;;  We parse the values returned by these functions to identify the hunks,
-;;  and then insert the hunks into buffers whose names are given by
-;;  `gpb-git:unstaged-buffer-name' and `gpb-git:staged-buffer-name' and
-;;  place an onverlay on each hunk.  We then give the user an opportunity
-;;  to mark hunks in these buffers and we record the marked hunks by
-;;  useing the :marked property on the hunk overlays.
+;;  Similarly, we use `diff-index --cached` to find the changes in the
+;;  index relative to HEAD, place these hunks in the buffer
+;;  `gpb-git:staged-buffer-name', and give the user an opportunity mark
+;;  hunks and portions of hunks there as well.  When done, the user may
+;;  call `gpb-git:unstage-marked-hunks' to remove existing changes from the
+;;  index.  In this case, we create the patch, but apply it in reverse.
 ;;
-;;  Applying marked hunks in `gpb-git:unstaged-buffer-name' applies them to
-;;  the index; applying marked hunks in `gpb-git:staged-buffer-name'
-;;  removes them from the index.
-;;
-;;  cover each hunk with an overlay so we can easily toggle the visibility
-;;  of each hunk ensuring that each hunk is always visible in one and only
-;;  one of the buffers.  Initially, the first buffer shows the unstaged
-;;  changes and the second buffer shows the changes that have been staged,
-;;  but the user may then move hunks back and forth between the buffers.
-;;
-;;  Once we are done choosing hunks, we then reset the index to HEAD,
-;;  write all the hunks in the right buffer to a patch, and apply the
-;;  patch to the index via `git apply --cached TEMPFILE`.
-;;
-;;  The primary data structure we use is a hunk alist that contains
-;;  information about a given unit of change.  The function
-;;  `gpb-git:compute-diff' returns a list of such alists, and these alists
-;;  are stored in the 'hunk-info property of the overlays that are created
-;;  by `gpb-git:insert-hunks' when this function writes the hunks into a
-;;  buffer.
-;;
-;;  These alists have the following entries:
+;;  The primary complex data structure used is a hunk alist that contains
+;;  information from the Git diff output about a given unit of change.  The
+;;  function `gpb-git:compute-diff' returns a list of such alists.  These
+;;  alists have the following entries:
 ;;
 ;;    :filename1 A string giving the first filename in the diff header.
 ;;    :filename2 A string giving the second filename in the diff header.
@@ -59,6 +61,13 @@
 ;;    :header A string giving the diff header.  These are lines
 ;;        starting with "diff --git ..." and ending at the first diff
 ;;        lines header (i.e., lines of the form "@@ ... @@").
+;;    :diff A string or nil giving the changes to the file.  This is a
+;;        series of line additions and deletions surrounded by context
+;;        lines that describe the changes to be applied to the file.  Some
+;;        hunks have not diff lines (e.g., a file rename with no changes,
+;;        the addition of an empty file to the index using git add
+;;        --intent-to-add, or a change to a binary file).  In these case,
+;;        :diff is nil.
 ;;    :binary-info A string or nil.  This value is set when the hunk
 ;;        correponds to a change to a binary file.  In this case, it
 ;;        contains a string describing the change.
@@ -69,8 +78,12 @@
 ;;    :rename bool which is true when the hunk correspond to a file
 ;;        rename.
 ;;
-;;  In addition to those listed above, the hunk overlay also have
-;;  the following property:
+;;  The function `gpb-git:update-hunks' calls `gpb-git:compute-diff' to
+;;  produce a list of changes and inserts these changes into a buffer,
+;;  placing an overlay on the section of the buffer that correponds to each
+;;  hunk.  These overlays have all of the properties listed above as well
+;;  as the following properties (you can call `describe-text-properties' in
+;;  a hunk buffer to see the overlay properties):
 ;;
 ;;    :is-hunk t
 ;;    :marked This property is non-nil if the hunk is marked.  If the
@@ -89,28 +102,28 @@
   "The name of the buffer used to show unstaged changes.")
 
 (defvar gpb-git:patch-buffer-name "*git patch*"
-  "The name of the temporary buffer used to formulate patches.")
+  "The name of the temporary buffer used to construct patches.")
 
 (defvar gpb-git:process-output-buffer-name "*git output*"
-  "The name of the buffer used to display Git output.
-If the patch cannot be applied, this is the buffer that will be
-used to show the errors to the user.")
-
-(defvar gpb-git:currently-focused-hunk nil
-  "Used to track the currently focused hunk.")
-
-(defvar gpb-git:saved-window-configuration nil)
-
+  "The name of the buffer used to display Git output.")
 
 (defvar gpb-git:commit-message-buffer-name "*commit message*"
   "The name of the temporary buffer used to edit commit messages.")
 
+
+(defvar gpb-git:currently-focused-hunk nil
+  "Tracks the currently focused hunk (see `gpb-git--update-highlights').")
+
+(defvar gpb-git:saved-window-configuration nil)
 
 (defvar gpb-git:commit-messages nil
   "We save all commit messages so they can be recovered.")
 
 ;;
 ;;  Faces
+;;
+;;  The function `gpb-git:show-faces' can be used to view these faces in a
+;;  buffer.
 ;;
 
 (defun gpb-git--blend-colors (c1 c2 &optional alpha1 alpha2)
@@ -252,7 +265,7 @@ used to show the errors to the user.")
 
 (define-derived-mode gpb-git:hunk-buffer-mode special-mode
   "Hunk Buffer"
-  "\nMode for buffers showing hunks."
+  "\nBase mode for buffers showing hunks."
   (setq-local header-line-format '(:eval (gpb-git:compute-header)))
   (setq-local buffer-read-only t)
   (setq-local tab-width 4)
@@ -445,7 +458,10 @@ the start of the current hunk."
 
 (defun gpb-git--update-highlights (&optional buf)
   "Updates hunk highlighting.
-Implementation detail of `gpb-git:post-command-hook'."
+Implementation detail of `gpb-git:post-command-hook'.  The
+function adds additional highlighting to the hunk that currently
+contains the point and removes any highlighting from the
+previously highlighted hunk."
   (with-current-buffer (window-buffer (selected-window))
     (let* ((prev-hunk (default-value 'gpb-git:currently-focused-hunk))
            (new-hunk  (gpb-git:get-current-hunk))
@@ -679,17 +695,6 @@ keys described in the comments at the top of this file."
     buf))
 
 
-;; (defun gpb-git:refresh-unstaged-changes-buffer ()
-;;   "Refresh the buffer displaying unstaged changes."
-;;   (let* ((buf (get-buffer gpb-git:unstaged-buffer-name))
-;;          (inhibit-read-only t))
-;;     (with-current-buffer buf
-;;       (erase-buffer)
-;;       (dolist (ov (gpb-git--get-hunk-overlays)) (delete-overlay ov))
-;;       (insert (format "\nUnstaged changes in %s\n\n" repo-dir))
-;;       (gpb-git:insert-hunks (gpb-git:compute-diff)))))
-
-
 (defun gpb-git:get-staged-changes-buffer (repo-dir)
   "Create or refresh the buffer that displays staged changes."
   (let* ((buf (get-buffer-create gpb-git:staged-buffer-name)))
@@ -698,37 +703,6 @@ keys described in the comments at the top of this file."
       (setq default-directory repo-dir)
       (gpb-git:update-hunks))
     buf))
-
-
-;; (defun gpb-git:refresh-staged-changes-buffer ()
-;;   "Create or refresh the buffer that displays staged changes."
-;;   (let* ((buf (get-buffer-create gpb-git:staged-buffer-name))
-;;          (inhibit-read-only t))
-;;     (with-current-buffer buf
-;;       (erase-buffer)
-;;       (dolist (ov (gpb-git--get-hunk-overlays)) (delete-overlay ov))
-;;       (insert (format "\nUnstaged changes in %s\n\n" repo-dir))
-;;       (gpb-git:insert-hunks (gpb-git:compute-diff t)))))
-
-
-;; (defun gpb-git:insert-hunks (diff-info)
-;;   "Insert the hunks in DIFF-INFO after the point."
-;;   (save-excursion
-;;     (let* (ov)
-;;       (dolist (diff-hunk diff-info)
-;;         (let* ((filename1 (aget diff-hunk :filename1 t))
-;;                (filename2 (aget diff-hunk :filename2 t)))
-;;           (setq ov (make-overlay (point)
-;;                                  (progn
-;;                                    (insert (or (aget diff-hunk :diff t)
-;;                                                (aget diff-hunk :binary-info t)
-;;                                                " No differences\n"))
-;;                                    (point))))
-;;           (dolist (key-val diff-hunk)
-;;             (overlay-put ov (car key-val) (cdr key-val)))
-;;           (overlay-put ov :is-hunk t)
-;;           (overlay-put ov :marked nil)
-;;           (gpb-git:decorate-hunk ov))))))
 
 
 (defun gpb-git:update-hunks ()
@@ -815,7 +789,6 @@ If UNSTAGE is non-nil, we apply the marked hunks in reverse."
     (if (= retvalue 0)
         ;; We successfully applied the patch.
         (progn
-          ;; (kill-buffer proc-output-buf)
           (delete-file tempfile)
           (gpb-git:refresh-hunk-buffers)
           (pop-to-buffer gpb-git:staged-buffer-name))
