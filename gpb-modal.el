@@ -758,20 +758,58 @@ object and continues moving backwards on consecutive calls."
              'gpb-modal--in-minibuffer-p)
 
 
+(defun gpb-modal--find-comment-prefix (beg end)
+  "Determine if every line in region starts with a comment string.
+If every line in the region spanned by BEG END starts with the
+same comment string, we return that common string.  Otherwise, we
+return nil."
+  (interactive "r")
+  (save-excursion
+    (goto-char beg)
+    (beginning-of-line)
+    (let* ((prefix (buffer-substring-no-properties
+                    (point)
+                    (progn (skip-syntax-forward "<") (point))))
+           (regex (regexp-quote prefix)))
+      (forward-line 1)
+      (while (and (> (length prefix) 0) (< (point) end))
+        (unless (looking-at-p regex) (setq prefix ""))
+        (forward-line 1))
+      (when (> (length prefix) 0) prefix))))
+
+
 (defun gpb-modal--shift-region-right (beg end arg)
   (interactive "r\np")
-  (let* ((deactivate-mark nil)
-         (beg (progn (goto-char beg)
-                     (beginning-of-line)
-                     (point))))
-    (set-mark beg)
-    (while (< (point) end)
-      (when (and (< arg 0)
-                 (< (current-indentation) (- arg))
-                 (not (looking-at "[ \t]*$")))
-        (user-error "Can't dedent region"))
-      (forward-line))
-    (indent-rigidly beg (point) arg)))
+  (save-mark-and-excursion
+    (let* ((deactivate-mark nil)
+           (beg (progn (goto-char beg)
+                       (beginning-of-line)
+                       (point)))
+           (comment-prefix (gpb-modal--find-comment-prefix beg end)))
+
+      (if comment-prefix
+          (progn
+            (let ((beg (copy-marker beg))
+                  (end (copy-marker end)))
+              (goto-char beg)
+              (while (< (point) end)
+                (delete-region (point) (+ (point) (length comment-prefix)))
+                (forward-line 1))
+              (unwind-protect
+                  (gpb-modal--shift-region-right beg end arg)
+                (goto-char beg)
+                (while (< (point) end)
+                  (insert comment-prefix)
+                  (forward-line 1)))))
+
+        (set-mark beg)
+        (while (< (point) end)
+          (when (and (< arg 0)
+                     (< (current-indentation) (- arg))
+                     (not (looking-at "[ \t]*$")))
+            (user-error "Can't dedent region any further"))
+          (forward-line))
+        (indent-rigidly beg (point) arg))))))
 
 
 (defun gpb-modal--shift-region-left (beg end arg)
