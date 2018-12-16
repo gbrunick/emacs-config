@@ -231,6 +231,7 @@
     (define-key map "\t" 'gpb-git:forward-hunk-command)
     (define-key map [(backtab)] 'gpb-git:backward-hunk-command)
     (define-key map "x" 'gpb-git:stage-marked-hunks)
+    (define-key map "d" 'gpb-git:revert-marked-hunks)
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
     (define-key map "m" 'gpb-git:mark-hunk-command)
     (define-key map "M" 'gpb-git:mark-file-command)
@@ -412,9 +413,10 @@ Looks for the .git directory rather than calling Git."
           (goto-char (overlay-end ov))
           (when (looking-back "\n") (backward-char))
           ;; Temporarily move the point and force redisplay to scroll the
-          ;; window.
+          ;; window.  We temporarily disable the cursor during this
+          ;; redisplay to avoid flicker.
           (set-window-point win (point))
-          (redisplay t))))))
+          (let ((cursor-type nil)) (redisplay t)))))))
 
 
 (defun gpb-git:backward-hunk ()
@@ -763,44 +765,61 @@ keys described in the comments at the top of this file."
           (gpb-git:decorate-hunk ov))))))
 
 
-(defun gpb-git:stage-marked-hunks (&optional unstage)
-  "Apply the marked hunka to the Git index.
-If UNSTAGE is non-nil, we apply the marked hunks in reverse."
+(defun gpb-git:stage-marked-hunks ()
+  "Apply the marked hunks to the index."
   (interactive)
-  (let* ((tempfile (make-nearby-temp-file "git-" nil ".patch"))
-         (localname (or (file-remote-p tempfile 'localname) tempfile))
-         (proc-output-buf gpb-git:process-output-buffer-name)
-         (args (if unstage `("apply" "--cached" "-R" ,localname)
-                 `("apply" "--cached" ,localname))))
+  (let ((patch-file (gpb-git--apply-hunks "apply" "--cached")))
+    (delete-file patch-file)))
 
-    (with-current-buffer (gpb-git:make-patch unstage)
+(defun gpb-git:unstage-marked-hunks ()
+  "Remove the marked hunks from the index."
+  (interactive)
+  (let ((patch-file (gpb-git--apply-hunks "apply" "--cached" "-R")))
+    (delete-file patch-file)))
+
+(defun gpb-git:revert-marked-hunks ()
+  "Revert the marked changes in the working directory.
+Prints a message giving the name of the patch file that was
+applied in reverse.  If you make a mistake and remove change you
+wanted from the working tree, you can revert this revert by
+applying this patch file to the working directory."
+  (interactive)
+  (let ((patch-file (gpb-git--apply-hunks "apply" "-R")))
+    ;; This is a potentially destructive operation, so we leave the patch
+    ;; file intact and let the user know it exists.
+    (message "Successfully applied %s" patch-file)))
+
+
+
+(defun gpb-git--apply-hunks (&rest args)
+  "Apply marked hunks using ARGS.
+Creates a new patch file in `default-directory' and returns the
+name of this file."
+  (interactive)
+  (let* ((patch-file (make-temp-file (concat default-directory "gpb-git-")
+                                     nil ".patch"))
+         (proc-output-buf gpb-git:process-output-buffer-name)
+         (args (append args `(,patch-file))))
+
+    (with-current-buffer (gpb-git:make-patch (member "-R" args))
       (let ((coding-system-for-write 'unix))
-        (write-region (point-min) (point-max) tempfile)))
+        (write-region (point-min) (point-max) patch-file)))
 
     (with-current-buffer (get-buffer-create proc-output-buf)
       (erase-buffer)
-      (insert (format "git %s\n" (mapconcat 'identity args " ")))
-      (save-excursion
-        (insert "\n\nPatch contents:\n\n")
-        (insert-file-contents tempfile)))
+      (insert (format "git %s\n" (mapconcat 'identity args " "))))
 
     (setq retvalue (apply 'process-file "git" nil proc-output-buf t args))
 
     (if (= retvalue 0)
         ;; We successfully applied the patch.
         (progn
-          (delete-file tempfile)
           (gpb-git:refresh-hunk-buffers)
           (pop-to-buffer gpb-git:staged-buffer-name))
 
       ;; If the application failed, we pop to the process output.
-      (pop-to-buffer proc-output-buf))))
-
-
-(defun gpb-git:unstage-marked-hunks ()
-  "Toggle the selection of the hunk at the point."
-  (interactive)
-  (gpb-git:stage-marked-hunks t))
+      (pop-to-buffer proc-output-buf))
+    patch-file))
 
 
 (defun gpb-git:refresh-hunk-buffers ()
@@ -907,11 +926,14 @@ Returns a buffer with the name `gpb-git:patch-buffer-name' that
 contains the patch."
   (let* ((patch-buf (get-buffer-create gpb-git:patch-buffer-name))
          (output-offset 0)
+         (marked-hunks (gpb-git:get-marked-hunks))
          current-output-file)
 
-    (with-current-buffer patch-buf (erase-buffer))
+    (when (= (length marked-hunks) 0)
+      (user-error "No hunks have been marked"))
 
-    (dolist (hunk (gpb-git:get-marked-hunks))
+    (with-current-buffer patch-buf (erase-buffer))
+    (dolist (hunk marked-hunks)
       (cond
        ;; A deletion that has been marked as a rename.
        ((gpb-git--marked-as-rename-p hunk)
