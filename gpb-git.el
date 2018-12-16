@@ -105,8 +105,6 @@ used to show the errors to the user.")
 (defvar gpb-git:commit-message-buffer-name "*commit message*"
   "The name of the temporary buffer used to edit commit messages.")
 
-(defvar gpb-git:commit-buffer-name "*git commit*"
-  "The name of the temporary buffer used to edit commit messages.")
 
 (defvar gpb-git:commit-messages nil
   "We save all commit messages so they can be recovered.")
@@ -1255,7 +1253,7 @@ With a prefix argument, prompt the user for the commit command."
          ;; The buffer we use to write the cleaned commit message.
          (clean-buf (get-buffer-create "*clean Git commit message*"))
          ;; The buffer we use to show the output of the commit command.
-         (proc-buf (get-buffer-create gpb-git:commit-buffer-name))
+         (proc-buf (get-buffer-create gpb-git:process-output-buffer-name))
          ;; `commit-message-file' was set by `gpb-git:commit'.
          (filename commit-message-file)
          (localname (file-relative-name commit-message-file))
