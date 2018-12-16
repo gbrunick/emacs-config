@@ -1301,6 +1301,7 @@ With a prefix argument, prompt the user for the commit command."
         (kill-buffer gpb-git:commit-message-buffer-name))
       (goto-char (point-min)))
 
+    (gpb-git:refresh-hunk-buffers)
     (switch-to-buffer proc-buf)))
 
 
