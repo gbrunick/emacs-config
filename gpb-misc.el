@@ -7,6 +7,9 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(require 'ffap)
+
+
 (defvar gpb-view-file-cache
   (concat temporary-file-directory
           (file-name-as-directory "emacs-file-cache"))
