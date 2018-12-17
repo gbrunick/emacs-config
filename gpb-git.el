@@ -736,9 +736,13 @@ keys described in the comments at the top of this file."
       (if staged-changes-buffer
           ;; We are in the staged changes buffer.
           (progn
+            ;; Remove the branch information; we show it in the unstaged
+            ;; changes buffer.
             (delete-region (re-search-backward "^On branch")
-                           (progn (forward-line 2) (point)))
-            (when (re-search-forward "^Changes not" nil t)
+                           (progn (forward-line 2)
+                                  (skip-chars-forward " \t\n")
+                                  (point)))
+            (when (re-search-forward "^Changes not staged" nil t)
               (delete-region (match-beginning 0)
                              (progn
                                (forward-line 1)
@@ -760,6 +764,7 @@ keys described in the comments at the top of this file."
                          (progn
                            (forward-line 1)
                            (while (looking-at-p "^\t") (forward-line 1))
+                           (skip-chars-forward " \t\n")
                            (point))))))
 
     (save-excursion
