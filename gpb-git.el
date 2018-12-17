@@ -638,7 +638,7 @@ keys described in the comments at the top of this file."
                                   (when (re-search-backward "^Binary files"
                                                             beg t)
                                     (buffer-substring-no-properties
-                                     (point) (progn (end-of-line) (point)))))
+                                     (point) (progn (forward-line 1) (point)))))
                     add-diffless-hunk t))
 
              ((looking-at "^@@ -\\([0-9,]+\\) \\+\\([0-9,]+\\) @@")
@@ -1153,7 +1153,7 @@ If UNMARK is non-nil we unmark all hunks in the current file."
                    (user-error "Point is not in a hunk")))
          (filename1 (overlay-get hunk :filename1))
          (pt 0))
-    (dolist (hunk (gpb-git:get-hunk-overlays filename1))
+    (dolist (hunk (gpb-git--get-hunk-overlays filename1))
       (goto-char (overlay-start hunk))
       (setq pt (max pt (point)))
       (gpb-git:mark-hunk unmark))
