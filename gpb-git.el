@@ -167,11 +167,11 @@
 ;; Focused faces
 
 (defface gpb-git:focused-hunk-header
-  '((t :background "#9999ff"))
+  '((t :background "cornflower blue"))
   "Face used for context lines in the focused hunk")
 
 (defface gpb-git:focused-context-line
-  '((t :background "#e0e0ff"))
+  `((t :background ,(gpb-git--blend-colors "cornflower blue" "white" 0.25)))
   "Face used for context lines in the focused hunk")
 
 (defface gpb-git:focused-added-line
@@ -1313,7 +1313,7 @@ With a prefix argument, prompt the user for the commit command."
 
 
 (defun gpb-git:show-faces ()
-  "Show all the faces in a test buffer"
+  "Show all the faces in a test buffer."
   (interactive)
   (let ((text (concat " Some context\n-Removed line\n"
                       "+Added line\n Some more context\n"))
@@ -1329,7 +1329,7 @@ With a prefix argument, prompt the user for the commit command."
                  (:deletion . nil)
                  (:insertion . nil)))
         ov1 ov2 ov3 ov4)
-  (with-current-buffer (get-buffer-create "*show faces*")
+  (with-current-buffer (get-buffer-create "*gpb-git faces*")
     (erase-buffer)
     (setq-local staged-changes-buffer nil)
     (setq-local gpb-git:show-faces-buffer t)
