@@ -323,21 +323,33 @@ file.  If FOCUSED is non-nil, we use alternative faces."
            (marked (gpb-git--marked-p hunk))
            (inhibit-read-only t) (i 0) marked-lines line-marked)
 
-      (save-excursion
+      (save-mark-and-excursion
         (goto-char beg)
 
-        ;; If there is already a hunk header, delete it.
-        (when (get-text-property (point) :hunk-header)
-          (delete-region (point) (progn (forward-line 1) (point))))
-        (insert (propertize
-                 (gpb-git:get-hunk-header hunk)
-                 :hunk-header t
-                 'face (cond
-                        ((and marked focused)
-                         'gpb-git:focused-and-marked-hunk-header)
-                        (marked 'gpb-git:marked-hunk-header)
-                        (focused 'gpb-git:focused-hunk-header)
-                        (t 'gpb-git:hunk-header))))
+        ;; Update the hunk header.  We only delete it if it has changed as
+        ;; deleting text and adding it back can interact poorly with
+        ;; isearch.
+        (let ((current-header (and (get-text-property (point) :hunk-header)
+                                   (buffer-substring-no-properties
+                                    (point) (save-excursion
+                                              (forward-line 1) (point)))))
+              (new-header (gpb-git:get-hunk-header hunk)))
+          (unless (equal current-header new-header)
+            (when current-header
+              (delete-region (point) (save-excursion (forward-line 1)
+                                                     (point))))
+            (save-excursion (insert new-header))))
+
+        ;; Update the text properites
+        (add-text-properties
+         (point) (progn (forward-line 1) (point))
+         (list :hunk-header t
+               'face (cond
+                      ((and marked focused)
+                       'gpb-git:focused-and-marked-hunk-header)
+                      (marked 'gpb-git:marked-hunk-header)
+                      (focused 'gpb-git:focused-hunk-header)
+                      (t 'gpb-git:hunk-header))))
 
         ;; We wait until we have written the header to call
         ;; `gpb-git--get-marked-lines' as this function assumes that the
