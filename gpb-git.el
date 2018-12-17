@@ -239,6 +239,7 @@
     (define-key map "U" 'gpb-git:unmark-file-command)
     (define-key map "r" 'gpb-git:mark-as-rename)
     (define-key map "\C-c\C-c" 'gpb-git:complete-commit)
+    (define-key map (kbd "RET") 'gpb-git:goto-line)
     (fset 'gpb-git:unstaged-changes-mode-map map)
     map)
   "The keymap used for choosing hunks.")
@@ -255,6 +256,7 @@
     (define-key map "u" 'gpb-git:unmark-hunk-command)
     (define-key map "U" 'gpb-git:unmark-file-command)
     (define-key map "\C-c\C-c" 'gpb-git:commit)
+    (define-key map (kbd "RET") 'gpb-git:goto-line)
     (fset 'gpb-git:staged-changes-mode-map map)
     map)
   "The keymap used for removing and staging hunks.")
@@ -1413,6 +1415,25 @@ marked."
       (make-vector nlines t))
      (t
       (make-vector nlines nil)))))
+
+
+(defun gpb-git:goto-line (&optional hunk)
+  (interactive)
+  (let* ((pt (point))
+         (hunk (or hunk (gpb-git:get-current-hunk)))
+         (filename (overlay-get hunk :filename2))
+         (line-number (overlay-get hunk :file2-start)))
+
+    (save-excursion
+      (goto-char (overlay-start hunk))
+      (forward-line 1)
+      (while (< (point) pt)
+        (when (looking-at-p "^[ +]") (incf line-number))
+        (forward-line 1)))
+
+    (find-file-other-window filename)
+    (goto-line line-number)
+    (set-window-point (selected-window) (point))))
 
 
 (global-set-key "\C-cs" 'gpb-git:stage-changes)
