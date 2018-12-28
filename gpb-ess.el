@@ -15,8 +15,8 @@
   "An alist mapping from TRAMP remotes to region files.
 
 Each entry has a key corresponding to the TRAMP prefix string as
-returned by `file-remote-p' and value that is list containing two
-filenames for temporary files that are used by
+returned by `file-remote-p' and a value that is a list containing
+two filenames for temporary files that are used by
 `gpb:ess-eval-region' to allow for evaluation of regions of
 code.")
 
@@ -351,7 +351,7 @@ an ESS inferior buffer."
              (wrapper-file (funcall make-file "emacs-region-wrapper-" nil ".R"))
              (new-val (list remote region-file wrapper-file)))
         (push new-val gpb:ess-region-file-cache)
-        new-val))))
+        (cdr new-val)))))
 
 
 (defun gpb:ess-get-local-filename (filename)
