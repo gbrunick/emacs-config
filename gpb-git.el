@@ -816,13 +816,15 @@ applying this patch file to the working directory."
 
 (defun gpb-git--apply-hunks (&rest args)
   "Apply marked hunks using ARGS.
+
 Creates a new patch file in `default-directory' and returns the
 name of this file."
   (interactive)
   (let* ((patch-file (make-temp-file (concat default-directory "gpb-git-")
                                      nil ".patch"))
+         (localname (file-relative-name patch-file))
          (proc-output-buf gpb-git:process-output-buffer-name)
-         (args (append args `(,patch-file))))
+         (args (append args `(,localname))))
 
     (with-current-buffer (gpb-git:make-patch (member "-R" args))
       (let ((coding-system-for-write 'unix))
