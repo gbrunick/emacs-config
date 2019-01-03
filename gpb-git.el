@@ -635,7 +635,8 @@ keys described in the comments at the top of this file."
                                 (or (re-search-backward "^--- /dev/null" beg t)
                                     (re-search-backward "^new file" beg t)))
                     deletion (save-excursion
-                               (re-search-backward "^+++ /dev/null" beg t))
+                               (or (re-search-backward "^+++ /dev/null" beg t)
+                                   (re-search-backward "^deleted file" beg t)))
                     header (buffer-substring-no-properties beg end)
                     binary-info (save-excursion
                                   (when (re-search-backward "^Binary files"
@@ -742,7 +743,7 @@ keys described in the comments at the top of this file."
             ;; Remove the branch information; we show it in the unstaged
             ;; changes buffer.
             (delete-region (re-search-backward "^On branch")
-                           (progn (forward-line 2)
+                           (progn (forward-line 1)
                                   (skip-chars-forward " \t\n")
                                   (point)))
             (when (re-search-forward "^Changes not staged" nil t)
