@@ -1429,6 +1429,3 @@ marked."
     (find-file-other-window filename)
     (goto-line line-number)
     (set-window-point (selected-window) (point))))
-
-
-(global-set-key "\C-cs" 'gpb-git:stage-changes)

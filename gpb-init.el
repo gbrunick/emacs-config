@@ -110,6 +110,12 @@
 (global-set-key "\M-gl" 'goto-line)
 (global-set-key "\M-gd" 'gpb-lisp-goto-definition)
 
+;; Git integration bindings
+(global-set-key "\C-cs" 'gpb-git:stage-changes)
+(defalias 'commit 'gpb-git:commit)
+(autoload 'gpb-git:stage-changes "gpb-git" "Stage changes" t)
+(autoload 'gpb-git:commit "gpb-git" "Commit staged changes" t)
+
 ;; Remove useless printing options from menu
 (let ((file-menu (lookup-key global-map [menu-bar file])))
   (define-key file-menu [new-file] nil)
