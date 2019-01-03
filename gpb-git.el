@@ -734,33 +734,41 @@ keys described in the comments at the top of this file."
                     (if staged-changes-buffer "Staged" "Unstaged")
                     default-directory))
 
-    ;; Get a status overview
+    ;; Insert a status overview
     (process-file "git" nil t nil "-c" "advice.statusHints=false" "status")
     (save-excursion
-      (if staged-changes-buffer
-          ;; We are in the staged changes buffer.
-          (progn
-            ;; Remove the branch information; we show it in the unstaged
-            ;; changes buffer.
-            (delete-region (re-search-backward "^On branch")
-                           (progn (forward-line 1)
-                                  (skip-chars-forward " \t\n")
-                                  (point)))
-            (when (re-search-forward "^Changes not staged" nil t)
-              (delete-region (match-beginning 0)
-                             (progn
-                               (forward-line 1)
-                               (while (looking-at-p "^\t") (forward-line 1))
-                               (forward-line 1)
-                               (point))))
-            (when (re-search-forward "^Untracked" nil t)
-              (delete-region (match-beginning 0)
-                             (progn
-                               (forward-line 1)
-                               (while (looking-at-p "^\t") (forward-line 1))
-                               (forward-line 1)
-                               (point)))))
-        ;; We are in the unstaged changes buffer.
+      (cond
+       ;; If we are in the staged changes buffer...
+       (staged-changes-buffer
+        ;; Remove the branch information; we show it in the unstaged
+        ;; changes buffer.
+        (delete-region (re-search-backward "^On branch")
+                       (progn (forward-line 1)
+                              (skip-chars-forward " \t\n")
+                              (point)))
+        (when (re-search-forward "^Your branch is ahead of" nil t)
+          (delete-region (match-beginning 0)
+                         (progn
+                           (forward-line 1)
+                           (while (looking-at-p "^$") (forward-line 1))
+                           (point))))
+        (when (re-search-forward "^Changes not staged" nil t)
+          (delete-region (match-beginning 0)
+                         (progn
+                           (forward-line 1)
+                           (while (looking-at-p "^\t") (forward-line 1))
+                           (forward-line 1)
+                           (point))))
+        (when (re-search-forward "^Untracked" nil t)
+          (delete-region (match-beginning 0)
+                         (progn
+                           (forward-line 1)
+                           (while (looking-at-p "^\t") (forward-line 1))
+                           (forward-line 1)
+                           (point)))))
+
+       ;; If we are in the unstaged changes buffer...
+       (t
         (when (re-search-backward "^no changes added" nil t)
           (delete-region (match-beginning 0) (progn (forward-line 1) (point))))
         (when (re-search-backward "^Changes to" nil t)
@@ -769,8 +777,9 @@ keys described in the comments at the top of this file."
                            (forward-line 1)
                            (while (looking-at-p "^\t") (forward-line 1))
                            (skip-chars-forward " \t\n")
-                           (point))))))
+                           (point)))))))
 
+    ;; Insert the hunks
     (save-excursion
       (dolist (diff-hunk (gpb-git:compute-diff staged-changes-buffer))
         (let* ((filename1 (aget diff-hunk :filename1 t))
