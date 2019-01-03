@@ -794,24 +794,27 @@ keys described in the comments at the top of this file."
   (let ((patch-file (gpb-git--apply-hunks "apply" "--cached")))
     (delete-file patch-file)))
 
+
 (defun gpb-git:unstage-marked-hunks ()
   "Remove the marked hunks from the index."
   (interactive)
   (let ((patch-file (gpb-git--apply-hunks "apply" "--cached" "-R")))
     (delete-file patch-file)))
 
+
 (defun gpb-git:revert-marked-hunks ()
   "Revert the marked changes in the working directory.
+
 Prints a message giving the name of the patch file that was
 applied in reverse.  If you make a mistake and remove change you
 wanted from the working tree, you can revert this revert by
 applying this patch file to the working directory."
   (interactive)
-  (let ((patch-file (gpb-git--apply-hunks "apply" "-R")))
-    ;; This is a potentially destructive operation, so we leave the patch
-    ;; file intact and let the user know it exists.
-    (message "Successfully applied %s" patch-file)))
-
+  (when (y-or-n-p "Revert marked changes in the working directory? ")
+    (let ((patch-file (gpb-git--apply-hunks "apply" "-R")))
+      ;; This is a potentially destructive operation, so we leave the patch
+      ;; file intact and let the user know it exists.
+      (message "Successfully applied %s" patch-file))))
 
 
 (defun gpb-git--apply-hunks (&rest args)
