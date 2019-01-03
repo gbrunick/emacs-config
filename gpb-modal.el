@@ -250,6 +250,9 @@ The functions `gpb-modal--enter-command-mode' and
     (define-key map "\"" 'gpb-modal--quote-symbols-in-region)
     (define-key map "'" 'gpb-modal--quote-symbols-in-region)
 
+    ;; TODO: This should really only be bound in the ESS major modes.
+    (define-key map "C" 'gpb-modal--wrap-in-code)
+
     (fset 'gpb-modal--active-region-map map)
     map)
   "This keymap is added when the region is active.")
@@ -840,6 +843,18 @@ return nil."
        (t
         (while (re-search-forward "\\_<\\(:?\\sw\\|\\s_\\)+\\_>" end-marker t)
           (replace-match (concat quote-char (match-string 0) quote-char))))))))
+
+
+(defun gpb-modal--wrap-in-code (beg end &optional link)
+  "Wrap region in \\code{<region>}.
+With a prefix argument, wrap in \\code{\\{link{<region>}}."
+  (interactive "r\nP")
+  (let* ((end-marker (copy-marker end)))
+    (save-excursion
+      (goto-char end)
+      (if link (insert "}}") (insert "}"))
+      (goto-char beg)
+      (if link (insert "\\code{\\link{") (insert "\\code{")))))
 
 
 ;; interact nicely with edebug
