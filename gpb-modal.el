@@ -809,7 +809,7 @@ return nil."
                      (not (looking-at "[ \t]*$")))
             (user-error "Can't dedent region any further"))
           (forward-line))
-        (indent-rigidly beg (point) arg))))))
+        (indent-rigidly beg (point) arg)))))
 
 
 (defun gpb-modal--shift-region-left (beg end arg)
