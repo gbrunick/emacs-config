@@ -380,6 +380,10 @@ the keymap on this overlay."
     (gpb-modal--log-message "Created new overlay in %s" (current-buffer)))
 
   (let ((modal-map (gpb-modal--get-active-map)))
+    ;; Ensure that the overlay covers the entire buffer.
+    (save-restriction
+      (widen)
+      (move-overlay gpb-modal--keymap-overlay (point-min) (point-max)))
     (overlay-put gpb-modal--keymap-overlay 'keymap modal-map)
     (gpb-modal--log-forms 'gpb-modal--current-mode 'modal-map)))
 
