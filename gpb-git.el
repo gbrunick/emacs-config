@@ -4,7 +4,7 @@
 ;;  This package provides the command `gpb-git:stage-changes' which opens
 ;;  two side-by-side buffers for selecting unstaged changes that should be
 ;;  applied to the Git index, selecting staged changes to be removed, and
-;;  committed the currently staged changes.  This is essentially a GUI
+;;  committing the currently staged changes.  This is essentially a GUI
 ;;  interface to `git add --patch`, but the implementation makes no use of
 ;;  this command.
 ;;
@@ -20,9 +20,9 @@
 ;;  Due to a bug/missing feature in TRAMP, `magit' cannot commit hunks to a
 ;;  Git reposity on a remote machine over TRAMP from a Windows machine.
 ;;  This package works in this case because we write files rather than
-;;  trying to piping patchs into the stdin of a Git process.
-;;  See https://github.com/magit/magit/issues/3624 and
-;;      http://lists.gnu.org/archive/html/tramp-devel/2018-11/msg00020.html
+;;  trying to pipe patchs into the stdin of a Git process.  See
+;;  https://github.com/magit/magit/issues/3624 and
+;;  http://lists.gnu.org/archive/html/tramp-devel/2018-11/msg00020.html
 ;;
 ;;  Implementation overview:
 ;;
@@ -43,9 +43,9 @@
 ;;  index.  In this case, we create the patch, but apply it in reverse.
 ;;
 ;;  The primary complex data structure used is a hunk alist that contains
-;;  information from the Git diff output about a given unit of change.  The
-;;  function `gpb-git:compute-diff' returns a list of such alists.  These
-;;  alists have the following entries:
+;;  information from the Git diff output about a single unit of change.
+;;  The function `gpb-git:compute-diff' returns a list of such alists.
+;;  These alists have the following entries:
 ;;
 ;;    :filename1 A string giving the first filename in the diff header.
 ;;    :filename2 A string giving the second filename in the diff header.
@@ -87,12 +87,12 @@
 ;;
 ;;    :is-hunk t
 ;;    :marked This property is non-nil if the hunk is marked.  If the
-;;      entire hunk is marked, this property is t.  If only some lines are
-;;      marked, the value is a cons cell of the form
-;;      (:partial. line-is-marked) where line-is-marked is a bool vector
-;;      with one entry for each line in the hunk.  If a deleted file has
-;;      been marked as a rename (see `gpb-git:mark-as-rename'), the value
-;;      is a cons cell of the form (:rename . filename).
+;;        entire hunk is marked, this property is t.  If only some lines
+;;        are marked, the value is a cons cell of the form (:partial
+;;        . line-is-marked) where line-is-marked is a bool vector with one
+;;        entry for each line in the hunk.  If a deleted file has been
+;;        marked as a rename (see `gpb-git:mark-as-rename'), the value is a
+;;        cons cell of the form (:rename . filename).
 ;;
 
 (defvar gpb-git:unstaged-buffer-name "*unstaged changes*"
@@ -228,10 +228,10 @@
 
 (defvar gpb-git:unstaged-changes-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\t" 'gpb-git:forward-hunk-command)
-    (define-key map [(backtab)] 'gpb-git:backward-hunk-command)
-    (define-key map "p" 'gpb-git:backward-hunk-command)
-    (define-key map "n" 'gpb-git:forward-hunk-command)
+    (define-key map "\t" 'gpb-git:forward-command)
+    (define-key map [(backtab)] 'gpb-git:backward-command)
+    (define-key map "p" 'gpb-git:backward-command)
+    (define-key map "n" 'gpb-git:forward-command)
     (define-key map "x" 'gpb-git:stage-marked-hunks)
     (define-key map "d" 'gpb-git:revert-marked-hunks)
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
@@ -249,10 +249,10 @@
 
 (defvar gpb-git:staged-changes-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\t" 'gpb-git:forward-hunk-command)
-    (define-key map [(backtab)] 'gpb-git:backward-hunk-command)
-    (define-key map "p" 'gpb-git:backward-hunk-command)
-    (define-key map "n" 'gpb-git:forward-hunk-command)
+    (define-key map "\t" 'gpb-git:forward-command)
+    (define-key map [(backtab)] 'gpb-git:backward-command)
+    (define-key map "p" 'gpb-git:backward-command)
+    (define-key map "n" 'gpb-git:forward-command)
     (define-key map "x" 'gpb-git:unstage-marked-hunks)
     (define-key map "g" 'gpb-git:refresh-hunk-buffers)
     (define-key map "m" 'gpb-git:mark-hunk-command)
@@ -416,24 +416,25 @@ Looks for the .git directory rather than calling Git."
     (point))
 
 
-(defun gpb-git:forward-hunk-command ()
-  "Move forward to the next hunk and scroll window."
+(defun gpb-git:forward-command ()
+  "Move forward to the next hunk or button and scroll window."
   (interactive)
-  (gpb-git:forward-hunk)
-  (let ((ov (gpb-git:get-current-hunk))
-        (win (selected-window)))
-    (when (and ov (overlay-buffer ov) win)
-      (assert (eq (window-buffer win) (current-buffer)))
-      ;; Ensure that the full hunk is visible when possible.
-      (save-excursion
-        (save-match-data
-          (goto-char (overlay-end ov))
-          (when (looking-back "\n") (backward-char))
-          ;; Temporarily move the point and force redisplay to scroll the
-          ;; window.  We temporarily disable the cursor during this
-          ;; redisplay to avoid flicker.
-          (set-window-point win (point))
-          (let ((cursor-type nil)) (redisplay t)))))))
+  (unless (ignore-errors (forward-button 1))
+    (gpb-git:forward-hunk)
+    (let ((ov (gpb-git:get-current-hunk))
+          (win (selected-window)))
+      (when (and ov (overlay-buffer ov) win)
+        (assert (eq (window-buffer win) (current-buffer)))
+        ;; Ensure that the full hunk is visible when possible.
+        (save-excursion
+          (save-match-data
+            (goto-char (overlay-end ov))
+            (when (looking-back "\n") (backward-char))
+            ;; Temporarily move the point and force redisplay to scroll the
+            ;; window.  We temporarily disable the cursor during this
+            ;; redisplay to avoid flicker.
+            (set-window-point win (point))
+            (let ((cursor-type nil)) (redisplay t))))))))
 
 
 (defun gpb-git:backward-hunk ()
@@ -455,15 +456,11 @@ the start of the current hunk."
     (point)))
 
 
-(defun gpb-git:backward-hunk-command ()
-  "Move back to the start of the previous hunk and scroll window."
+(defun gpb-git:backward-command ()
+  "Move back to the start of the previous hunk or button."
   (interactive)
-  (gpb-git:backward-hunk)
-  ;; If we had to scroll the window to make the hunk visible and the hunk
-  ;; is the first hunk for a file, scroll to include the filename in the
-  ;; current window.
-  (let ((win (selected-window)))
-    (assert (eq (window-buffer win) (current-buffer)))))
+  (or (ignore-errors (gpb-git:backward-hunk))
+      (backward-button 1)))
 
 
 (defun gpb-git:post-command-hook ()
@@ -726,14 +723,18 @@ keys described in the comments at the top of this file."
 
 
 (defun gpb-git:update-hunks ()
-  "Insert the hunks in DIFF-INFO after the point."
+  "Update the hunks being displayed in the current buffer.
+
+This function should be called in a buffer that was constructed
+by calling `gpb-git:get-unstaged-changes-buffer' or
+`gpb-git:get-staged-changes-buffer'."
   (let* ((inhibit-read-only t) ov)
     (erase-buffer)
     (dolist (ov (gpb-git--get-hunk-overlays)) (delete-overlay ov))
     (insert (format "\n%s changes in %s\n\n"
                     (if staged-changes-buffer "Staged" "Unstaged")
                     default-directory))
-
+    (redisplay)
     ;; Insert a status overview
     (process-file "git" nil t nil "-c" "advice.statusHints=false" "status")
     (save-excursion
@@ -794,7 +795,25 @@ keys described in the comments at the top of this file."
             (overlay-put ov (car key-val) (cdr key-val)))
           (overlay-put ov :is-hunk t)
           (overlay-put ov :marked nil)
-          (gpb-git:decorate-hunk ov))))))
+          (gpb-git:decorate-hunk ov))))
+
+    ;; Add links in the status overlay.
+    (save-excursion
+      (let ((pt (copy-marker (point))))
+        (goto-char (point-min))
+        (while (re-search-forward "^\tmodified:" pt t)
+          (skip-chars-forward " \t")
+          (let* ((filename (buffer-substring-no-properties
+                            (point) (progn (end-of-line) (point))))
+                 (hunks (gpb-git--get-hunk-overlays filename))
+                 (button-text (cond
+                               ((= (length hunks) 1) "1 hunk")
+                               (t (format "%s hunks" (length hunks))))))
+            (insert " (")
+            (insert-text-button button-text
+                                'action 'gpb-git:jump-to-file-hunks
+                                'filename filename)
+            (insert ")")))))))
 
 
 (defun gpb-git:stage-marked-hunks ()
@@ -1104,7 +1123,7 @@ This function is an implemenation detail of `gpb-git:make-patch'."
   (interactive)
   (let ((region-active (region-active-p)))
     (gpb-git:mark-hunk)
-    (unless region-active (gpb-git:forward-hunk-command))))
+    (unless region-active (gpb-git:forward-command))))
 
 
 (defun gpb-git:mark-hunk (&optional unmark new-name)
@@ -1181,7 +1200,7 @@ If UNMARK is non-nil we unmark all hunks in the current file."
       (setq pt (max pt (point)))
       (gpb-git:mark-hunk unmark))
     (goto-char pt)
-    (gpb-git:forward-hunk-command)))
+    (gpb-git:forward-command)))
 
 
 (defun gpb-git:unmark-file-command ()
@@ -1215,7 +1234,7 @@ name."
   "Mark the current hunk."
   (interactive)
   (gpb-git:unmark-hunk)
-  (gpb-git:forward-hunk-command))
+  (gpb-git:forward-command))
 
 
 (defun gpb-git:list-unstaged-files (&optional dir)
@@ -1438,3 +1457,19 @@ marked."
     (find-file-other-window filename)
     (goto-line line-number)
     (set-window-point (selected-window) (point))))
+
+
+(defun gpb-git:jump-to-file-hunks (obj)
+  "Goto the first hunk associated with the given file.
+
+OBJ is a string giving a filename or a button with a filename
+property."
+  (setq obj (or (button-get obj 'filename) obj))
+  (let ((hunks (gpb-git--get-hunk-overlays obj)))
+    (push-mark)
+    ;; Scroll the end of the last hunk into the window.
+    (goto-char (overlay-end (car (last hunks))))
+    (forward-line -1)
+    (recenter -1)
+    ;; Then jump back to the start of the first hunk.
+    (goto-char (overlay-start (car hunks)))))
