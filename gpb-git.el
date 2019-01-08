@@ -389,10 +389,10 @@ file.  If FOCUSED is non-nil, we use alternative faces."
           (incf i))))))
 
 
-(defun gpb-git:find-repo-root ()
+(defun gpb-git:find-repo-root (&optional dir)
   "Find the root of the Git repository.
 Looks for the .git directory rather than calling Git."
-  (let ((dir default-directory))
+  (let ((dir (file-name-as-directory (or dir default-directory))))
     (while (and dir (not (file-exists-p (concat dir ".git"))))
       (setq dir (file-name-directory
                  (directory-file-name dir))))
