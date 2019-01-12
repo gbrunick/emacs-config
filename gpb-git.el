@@ -962,7 +962,11 @@ start of the reigon, if the region is active.
      ((overlay-get hunk :rename)
       (format "%s -> %s\n" filename1 filename2))
 
-     (t (error "Assertion error: unhandled hunk %S" hunk)))))
+     ((overlay-get hunk :binary-info)
+      (format "%s\n" filename1))
+
+     (t
+      (error "Assertion error: unhandled hunk %S" hunk)))))
 
 
 (defun gpb-git:make-patch (&optional reverse)
