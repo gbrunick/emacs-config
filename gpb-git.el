@@ -119,6 +119,13 @@
 (defvar gpb-git:commit-messages nil
   "We save all commit messages so they can be recovered.")
 
+(defvar gpb-git:status-script-cache nil
+  "An alist mapping from TRAMP remotes to filenames.
+
+Each entry has a key corresponding to the TRAMP prefix string as
+returned by `file-remote-p' and a value that is the local
+filename of a script for producing a status update.")
+
 ;;
 ;;  Faces
 ;;
@@ -226,6 +233,16 @@
 ;;  Keymaps
 ;;
 
+(defvar gpb-git:user-command-prefix-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map "s" 'gpb-git:stage-changes)
+    (define-key map "i" 'gpb-git:unstage-changes)
+    (define-key map "c" 'gpb-git:commit)
+    (fset 'gpb-git:user-command-prefix-keymap map)
+    map)
+  "The prefix keymap for user commands.")
+
+
 (defvar gpb-git:unstaged-changes-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'gpb-git:forward-command)
@@ -234,12 +251,14 @@
     (define-key map "n" 'gpb-git:forward-command)
     (define-key map "x" 'gpb-git:stage-marked-hunks)
     (define-key map "d" 'gpb-git:revert-marked-hunks)
-    (define-key map "g" 'gpb-git:refresh-hunk-buffers)
+    (define-key map "g" 'gpb-git:refresh-status)
     (define-key map "m" 'gpb-git:mark-hunk-command)
     (define-key map "M" 'gpb-git:mark-file-command)
     (define-key map "u" 'gpb-git:unmark-hunk-command)
     (define-key map "U" 'gpb-git:unmark-file-command)
     (define-key map "r" 'gpb-git:mark-as-rename)
+    (define-key map "v" 'gpb-git:display-staged-changes-buffer)
+    (define-key map "q" 'gpb-git:quit-staging-windows)
     (define-key map "\C-c\C-c" 'gpb-git:complete-commit)
     (define-key map (kbd "RET") 'gpb-git:goto-line)
     (fset 'gpb-git:unstaged-changes-mode-map map)
@@ -254,11 +273,13 @@
     (define-key map "p" 'gpb-git:backward-command)
     (define-key map "n" 'gpb-git:forward-command)
     (define-key map "x" 'gpb-git:unstage-marked-hunks)
-    (define-key map "g" 'gpb-git:refresh-hunk-buffers)
+    (define-key map "g" 'gpb-git:refresh-status)
     (define-key map "m" 'gpb-git:mark-hunk-command)
     (define-key map "M" 'gpb-git:mark-file-command)
     (define-key map "u" 'gpb-git:unmark-hunk-command)
     (define-key map "U" 'gpb-git:unmark-file-command)
+    (define-key map "v" 'gpb-git:display-unstaged-changes-buffer)
+    (define-key map "q" 'gpb-git:quit-staging-windows)
     (define-key map "\C-c\C-c" 'gpb-git:commit)
     (define-key map (kbd "RET") 'gpb-git:goto-line)
     (fset 'gpb-git:staged-changes-mode-map map)
@@ -297,22 +318,67 @@
 
 
 ;;
+;;  Primary user functions
+;;
+
+(defvar gpb-git:repo-dir-history nil
+  "This symbol is used to remember the history of repository roots.")
+
+(defun gpb-git:repo-root-p (dir)
+  (file-exists-p (concat (file-name-as-directory dir) ".git")))
+
+(defun gpb-git:read-repo-dir ()
+  "Prompt the user for a Git repository directory.
+
+Maintains a separate history list from `read-directory-name'."
+  (let* ((dir (or (gpb-git:find-repo-root default-directory)
+                  default-directory))
+         (file-name-history (copy-list gpb-git:repo-dir-history))
+         (repo-dir (read-directory-name "Repo root: " dir dir nil "")))
+    (unless (gpb-git:repo-root-p repo-dir)
+      (user-error "Invalid Git repo dir: %s" repo-dir))
+    (setq gpb-git:repo-dir-history file-name-history)
+    repo-dir))
+
+
+(defun gpb-git:stage-changes (&optional repo-root)
+  "Show a buffer for staging changes to the Git index."
+  (interactive (list (gpb-git:read-repo-dir)))
+  (gpb-git:refresh-status (or repo-root default-directory))
+  (gpb-git:switch-to-unstaged-changes-buffer)
+  (gpb-git:display-staged-changes-buffer))
+
+
+(defun gpb-git:unstage-changes (&optional repo-root)
+  "Show a buffer for removing changes from the Git index."
+  (interactive (list (gpb-git:read-repo-dir)))
+  (gpb-git:refresh-status (or repo-root default-directory))
+  (gpb-git:switch-to-staged-changes-buffer))
+
+
+;;
 ;;  Functions
 ;;
 
-(defun gpb-git:stage-changes (&optional repo-root)
-  "Show the user two buffers for staging and unstaging hunks selection."
+(defun gpb-git:switch-to-unstaged-changes-buffer ()
+  "Switch to the staged changes buffer."
   (interactive)
-  (let* ((dir (or repo-root (gpb-git:find-repo-root)))
-         (unstaged-buf (gpb-git:get-unstaged-changes-buffer dir))
-         (staged-buf (gpb-git:get-staged-changes-buffer dir)))
+  (switch-to-buffer gpb-git:unstaged-buffer-name))
 
-    ;; Show the buffers in two side-by-side windows in the current frame.
-    (setq gpb-git:saved-window-configuration (current-window-configuration))
-    (delete-other-windows)
-    (set-window-buffer (selected-window) unstaged-buf)
-    (let ((win2 (split-window-horizontally)))
-      (set-window-buffer win2 staged-buf))))
+(defun gpb-git:display-unstaged-changes-buffer ()
+  "Display the unstaged changes buffer in some window."
+  (interactive)
+  (display-buffer gpb-git:unstaged-buffer-name))
+
+(defun gpb-git:switch-to-staged-changes-buffer ()
+  "Switch to the unstaged changes buffer."
+  (interactive)
+  (switch-to-buffer gpb-git:staged-buffer-name))
+
+(defun gpb-git:display-staged-changes-buffer ()
+  "Display the staged changes buffer in some window."
+  (interactive)
+  (display-buffer gpb-git:staged-buffer-name))
 
 
 (defun gpb-git:decorate-hunk (hunk &optional focused)
@@ -392,10 +458,10 @@ file.  If FOCUSED is non-nil, we use alternative faces."
 (defun gpb-git:find-repo-root (&optional dir)
   "Find the root of the Git repository.
 Looks for the .git directory rather than calling Git."
-  (let ((dir (file-name-as-directory (or dir default-directory))))
+  (let ((dir (file-name-as-directory (or dir default-directory))) next)
     (while (and dir (not (file-exists-p (concat dir ".git"))))
-      (setq dir (file-name-directory
-                 (directory-file-name dir))))
+      (setq next (file-name-directory (directory-file-name dir))
+            dir (if (string= next dir) nil next)))
     dir))
 
 
@@ -552,156 +618,6 @@ previously highlighted hunk."
     (setq gpb-git:saved-window-configuration nil)))
 
 
-(defun gpb-git:compute-diff (&optional staged dir)
-  "Compute differences between working dir and index or index and HEAD.
-
-Returns a list of hunks, where each hunk is an alist with the
-keys described in the comments at the top of this file."
-  (let* ((dir (or dir default-directory))
-         (hunk-list (list :stub))
-         (args (if staged
-                   '("diff-index" "--cached" "--find-renames" "--patch" "HEAD")
-                 '("diff-files" "--patch" "--find-renames")))
-         (cmd-string (mapconcat 'identity (cons "git" args) " "))
-         (buf-name (concat "*" cmd-string "*"))
-         ;; Some hunks consist of a file header have no trailing diff
-         ;; sections (e.g., renames with 100% similarity and empty files
-         ;; staged with --intent-to-add).  We set add-diffless-hunk to t
-         ;; when we see a file header, and set it back to nil when we see
-         ;; the first diff section.  If we see a file header and
-         ;; add-diffless-hunk is t, we know that the previous file header
-         ;; had no diff sections.
-         (add-diffless-hunk nil)
-         beg end insertion deletion filename1 filename2 header binary-info)
-
-    (with-current-buffer (get-buffer-create buf-name)
-      (erase-buffer)
-      (setq default-directory dir)
-
-      (setq beg (point))
-      (unless (<= (apply 'process-file "git" nil t nil args) 1)
-        (error (buffer-substring beg (point))))
-
-      ;; Include unstaged files when computing the diff between working
-      ;; directory and the index.
-      (unless staged
-        (dolist (filename (gpb-git:list-unstaged-files))
-          (setq beg (point))
-          (unless (<= (process-file "git" nil t nil "diff" "--no-index"
-                                    "--" "/dev/null" filename)
-                      1)
-            (error (buffer-substring beg (point))))))
-
-      (save-excursion
-        (save-match-data
-          (goto-char (point-min))
-          (re-search-forward "^diff --git" nil t)
-          (goto-char (match-beginning 0))
-          (while (< (point) (point-max))
-            (cond
-             ((looking-at "^diff --git a/\\(.*\\) b/\\(.*\\)")
-              (when add-diffless-hunk
-                ;; The previous file header had no trailing diff sections,
-                ;; so we need to record it as a diff-less hunk.
-                (nconc hunk-list `(((:filename1 . ,filename1)
-                                    (:filename2 . ,filename2)
-                                    (:file1-start . 0)
-                                    (:file1-len . 0)
-                                    (:file2-start . 0)
-                                    (:file2-len . 0)
-                                    (:header . ,header)
-                                    (:insertion . ,(when insertion t))
-                                    (:deletion . ,(when deletion t))
-                                    (:binary-info . ,binary-info)
-                                    (:rename . ,(not (string= filename1
-                                                              filename2)))))))
-
-              (setq filename1 (substring-no-properties
-                               (or (match-string 1) (error "Assertion error")))
-                    filename2 (substring-no-properties
-                               (or (match-string 2) (error "Assertion error")))
-                    beg (point)
-                    end (progn
-                          (forward-line 1)
-                          (or (and
-                               (re-search-forward "^\\(@@\\|diff --git\\)" nil t)
-                               (goto-char (match-beginning 0)))
-                              (end-of-buffer))
-                          (point))
-                    insertion (save-excursion
-                                (or (re-search-backward "^--- /dev/null" beg t)
-                                    (re-search-backward "^new file" beg t)))
-                    deletion (save-excursion
-                               (or (re-search-backward "^+++ /dev/null" beg t)
-                                   (re-search-backward "^deleted file" beg t)))
-                    header (buffer-substring-no-properties beg end)
-                    binary-info (save-excursion
-                                  (when (re-search-backward "^Binary files"
-                                                            beg t)
-                                    (buffer-substring-no-properties
-                                     (point) (progn (forward-line 1) (point)))))
-                    add-diffless-hunk t))
-
-             ((looking-at "^@@ -\\([0-9,]+\\) \\+\\([0-9,]+\\) @@")
-              (let* ((range1 (save-match-data
-                               (split-string (match-string 1) ",")))
-                     (range2 (save-match-data
-                               (split-string (match-string 2) ",")))
-                     (file1-start (string-to-number (first range1)))
-                     (file1-len (string-to-number (or (second range1) "1")))
-                     (file2-start (string-to-number (first range2)))
-                     (file2-len (string-to-number (or (second range2) "1")))
-                     (diff (buffer-substring-no-properties
-                            (progn (forward-line 1) (point))
-                            (progn
-                              (or (and
-                                   (re-search-forward "^@@\\|^diff --git " nil t)
-                                   (goto-char (match-beginning 0)))
-                                  (goto-char (point-max)))
-                              (point)))))
-                (setq add-diffless-hunk nil)
-                (nconc hunk-list `(((:filename1 . ,filename1)
-                                    (:file1-start . ,file1-start)
-                                    (:file1-len . ,file1-len)
-                                    (:filename2 . ,filename2)
-                                    (:file2-start . ,file2-start)
-                                    (:file2-len . ,file2-len)
-                                    (:header . ,header)
-                                    (:insertion . ,(when insertion t))
-                                    (:deletion . ,(when deletion t))
-                                    (:rename . ,(not (string= filename1
-                                                              filename2)))
-                                    (:diff . ,diff))))))
-
-             (t (error "Assertion error")))))))
-
-    (when add-diffless-hunk
-      ;; The last file header had no trailing diff sections.
-      (nconc hunk-list `(((:filename1 . ,filename1)
-                          (:filename2 . ,filename2)
-                          (:file1-start . 0)
-                          (:file1-len . 0)
-                          (:file2-start . 0)
-                          (:file2-len . 0)
-                          (:header . ,header)
-                          (:insertion . ,(when insertion t))
-                          (:deletion . ,(when deletion t))
-                          (:binary-info . ,binary-info)
-                          (:rename . ,(not (string= filename1
-                                                    filename2)))))))
-
-    (setq hunk-list (sort (cdr hunk-list)
-                          (lambda (x y)
-                            (or (string< (aget x :filename1)
-                                         (aget y :filename1))
-                                (and (string= (aget x :filename1)
-                                              (aget y :filename1))
-                                     (< (aget x :file1-start)
-                                        (aget y :file1-start)))))))
-
-    hunk-list))
-
-
 (defun gpb-git:get-unstaged-changes-buffer (repo-dir)
   "A buffer that displaying unstaged changes."
   (let* ((buf (get-buffer-create gpb-git:unstaged-buffer-name)))
@@ -720,100 +636,6 @@ keys described in the comments at the top of this file."
       (setq default-directory repo-dir)
       (gpb-git:update-hunks))
     buf))
-
-
-(defun gpb-git:update-hunks ()
-  "Update the hunks being displayed in the current buffer.
-
-This function should be called in a buffer that was constructed
-by calling `gpb-git:get-unstaged-changes-buffer' or
-`gpb-git:get-staged-changes-buffer'."
-  (let* ((inhibit-read-only t) ov)
-    (erase-buffer)
-    (dolist (ov (gpb-git--get-hunk-overlays)) (delete-overlay ov))
-    (insert (format "\n%s changes in %s\n\n"
-                    (if staged-changes-buffer "Staged" "Unstaged")
-                    default-directory))
-    (redisplay)
-    ;; Insert a status overview
-    (process-file "git" nil t nil "-c" "advice.statusHints=false" "status")
-    (save-excursion
-      (cond
-       ;; If we are in the staged changes buffer...
-       (staged-changes-buffer
-        ;; Remove the branch information; we show it in the unstaged
-        ;; changes buffer.
-        (delete-region (re-search-backward "^On branch")
-                       (progn (forward-line 1)
-                              (skip-chars-forward " \t\n")
-                              (point)))
-        (when (re-search-forward "^Your branch is ahead of" nil t)
-          (delete-region (match-beginning 0)
-                         (progn
-                           (forward-line 1)
-                           (while (looking-at-p "^$") (forward-line 1))
-                           (point))))
-        (when (re-search-forward "^Changes not staged" nil t)
-          (delete-region (match-beginning 0)
-                         (progn
-                           (forward-line 1)
-                           (while (looking-at-p "^\t") (forward-line 1))
-                           (forward-line 1)
-                           (point))))
-        (when (re-search-forward "^Untracked" nil t)
-          (delete-region (match-beginning 0)
-                         (progn
-                           (forward-line 1)
-                           (while (looking-at-p "^\t") (forward-line 1))
-                           (forward-line 1)
-                           (point)))))
-
-       ;; If we are in the unstaged changes buffer...
-       (t
-        (when (re-search-backward "^no changes added" nil t)
-          (delete-region (match-beginning 0) (progn (forward-line 1) (point))))
-        (when (re-search-backward "^Changes to" nil t)
-          (delete-region (match-beginning 0)
-                         (progn
-                           (forward-line 1)
-                           (while (looking-at-p "^\t") (forward-line 1))
-                           (skip-chars-forward " \t\n")
-                           (point)))))))
-
-    ;; Insert the hunks
-    (save-excursion
-      (dolist (diff-hunk (gpb-git:compute-diff staged-changes-buffer))
-        (let* ((filename1 (aget diff-hunk :filename1 t))
-               (filename2 (aget diff-hunk :filename2 t)))
-          (setq ov (make-overlay (point)
-                                 (progn
-                                   (insert (or (aget diff-hunk :diff t)
-                                               (aget diff-hunk :binary-info t)
-                                               " No differences\n"))
-                                   (point))))
-          (dolist (key-val diff-hunk)
-            (overlay-put ov (car key-val) (cdr key-val)))
-          (overlay-put ov :is-hunk t)
-          (overlay-put ov :marked nil)
-          (gpb-git:decorate-hunk ov))))
-
-    ;; Add links in the status overlay.
-    (save-excursion
-      (let ((pt (copy-marker (point))))
-        (goto-char (point-min))
-        (while (re-search-forward "^\tmodified:" pt t)
-          (skip-chars-forward " \t")
-          (let* ((filename (buffer-substring-no-properties
-                            (point) (progn (end-of-line) (point))))
-                 (hunks (gpb-git--get-hunk-overlays filename))
-                 (button-text (cond
-                               ((= (length hunks) 1) "1 hunk")
-                               (t (format "%s hunks" (length hunks))))))
-            (insert " (")
-            (insert-text-button button-text
-                                'action 'gpb-git:jump-to-file-hunks
-                                'filename filename)
-            (insert ")")))))))
 
 
 (defun gpb-git:stage-marked-hunks ()
@@ -870,7 +692,7 @@ name of this file."
     (if (= retvalue 0)
         ;; We successfully applied the patch.
         (progn
-          (gpb-git:refresh-hunk-buffers)
+          (gpb-git:refresh-status)
           (pop-to-buffer gpb-git:staged-buffer-name))
 
       ;; If the application failed, we pop to the process output.
@@ -1241,19 +1063,6 @@ name."
   (gpb-git:forward-command))
 
 
-(defun gpb-git:list-unstaged-files (&optional dir)
-  "List unstaged, non-ignored, files in DIR.
-DIR defaults to `default-directory' if omitted."
-  (let ((dir (or dir default-directory)))
-    (with-temp-buffer
-      (setq default-directory dir)
-      (unless (= (process-file "git" nil t nil "ls-files"
-                               "--others" "--exclude-standard")
-                 0)
-        (error (buffer-substring (point-min) (point-max))))
-      (split-string (buffer-substring (point-min) (point-max)) "\n" t))))
-
-
 (defun gpb-git:get-marked-hunks (&optional buf)
   "Return the list of marked hunks in `buf'"
   (with-current-buffer (or buf (current-buffer))
@@ -1354,7 +1163,7 @@ With a prefix argument, prompt the user for the commit command."
         (kill-buffer gpb-git:commit-message-buffer-name))
       (goto-char (point-min)))
 
-    (gpb-git:refresh-hunk-buffers)
+    (gpb-git:refresh-status)
     (switch-to-buffer proc-buf)))
 
 
@@ -1444,6 +1253,55 @@ marked."
       (make-vector nlines nil)))))
 
 
+(defun gpb-git:exec-async (cmd dir callback &rest args)
+  "Execute an asyncronous command and then call CALLBACK.
+
+CMD is a list of strings that is passed through to
+`start-file-process' to execute an asynchronous command and the
+output is written into the new temporary buffer.
+
+CALLBACK is a function that will (eventually) be called in the
+buffer where this command was called when the asycnronous command
+finishes.  If that buffer is no longer alive when the subprocess
+exits, the CALLBACK will not be called.  The CALLBACK function is
+passed the buffer that contains the process output followed by
+any additional arguments in ARGS."
+  (gpb-git--trace-funcall #'gpb-git:exec-async `(,cmd ,dir ,callback ,@args))
+  (let ((buf (current-buffer)) proc)
+    (with-current-buffer (gpb-git--get-new-buffer "*exec-async" "*")
+      ;; Set variables for `gpb-git:exec-async--process-sentinel'.
+      (setq-local default-directory dir)
+      (setq-local callback-func callback)
+      (setq-local callback-args args)
+      (setq-local callback-buf buf)
+      (setq proc (apply 'start-file-process (car cmd) (current-buffer) cmd))
+      (set-process-sentinel proc 'gpb-git:exec-async--process-sentinel)
+      (message "Started process %S in %S" cmd (current-buffer)))))
+
+
+(defun gpb-git:exec-async--process-sentinel (proc change)
+  "Process sentinel used handle asyncronous Git commands."
+  (gpb-git--trace-funcall #'gpb-git:exec-async--process-sentinel
+                          `(,proc ,change))
+  (when (eq 'exit (process-status proc))
+    (let (func args buf)
+      (message "gpb-git:exec-async--process-sentinel(1) %S"
+               (process-buffer proc))
+      (with-current-buffer (process-buffer proc)
+        (setq func callback-func
+              args (cons (current-buffer) callback-args)
+              buf callback-buf))
+      ;; Evaluate `func' in the buffer where `gpb-git:exec-async' was
+      ;; initially called.
+      (message "gpb-git:exec-async--process-sentinel(2) %S" buf)
+      (with-current-buffer buf
+        (let ((debug-on-error t))
+          (gpb-git--trace-funcall func args)
+          (apply func args)))
+
+      (kill-buffer (process-buffer proc)))))
+
+
 (defun gpb-git:goto-line (&optional hunk)
   (interactive)
   (let* ((pt (point))
@@ -1477,3 +1335,511 @@ property."
     (recenter -1)
     ;; Then jump back to the start of the first hunk.
     (goto-char (overlay-start (car hunks)))))
+
+
+(defun gpb-git--get-new-buffer (prefix suffix)
+  "Get a new buffer whose name starts PREFIX with and ends with SUFFIX."
+  (if (null (get-buffer (concat prefix suffix)))
+      (get-buffer-create (concat prefix suffix))
+    (let ((i 2))
+      (while (get-buffer (concat prefix "<" (int-to-string i) ">" suffix))
+        (incf i))
+      (get-buffer-create (concat prefix "<" (int-to-string i) ">" suffix)))))
+
+
+(defmacro gpb-git--with-blocking-callback (callback-symbol &rest body)
+  "Run BLOCK and wait it for it to call CALLBACK-SYMBOL.
+
+This macro defines a lambda function with one parameter and binds
+it to CALLBACK-SYMBOL, executes BLOCK, and then performs a busy
+wait until CALLBACK-SYMBOL has been called.  The form produced
+returns the value passed to CALLBACK-SYMBOL.
+
+BLOCK should arrange for CALLBACK-SYMBOL to be called at some
+point in the future.
+
+Example:
+
+  (gpb-git--with-blocking-callback f
+    (run-at-time 2 nil f \"test\"))
+
+Notice that the function is stored in the variable slot of `f'."
+  (declare (indent 1) (debug t))
+  (let ((retval-symbol (gensym "retval-")))
+    `(let ((,retval-symbol nil)
+           (,callback-symbol (lambda (x)
+                                (setq ,retval-symbol (list x)))))
+       ,@body
+       (while (null ,retval-symbol)
+         (sit-for 0.3))
+       (car ,retval-symbol))))
+
+
+(defun gpb-git--trace-funcall (func args)
+  "Write tracing output to buffer."
+  (let ((buf (current-buffer))
+        (bufname "*trace gpb-git:exec-async*"))
+    (unless (get-buffer bufname)
+      (with-current-buffer (get-buffer-create bufname)
+        (setq truncate-lines t)))
+    (with-current-buffer (get-buffer bufname)
+      (let ((args-string (mapconcat (lambda (y)
+                                      (truncate-string-to-width
+                                       (prin1-to-string y) 1000 nil nil t))
+                                    args "\n  ")))
+        (save-excursion
+          (goto-char (point-max))
+          (unless (bobp) (insert "\n"))
+          (insert (format "%S in %S:\n  %s\n" func buf args-string)))))))
+
+
+(defun gpb-git:insert-spinner ()
+  "Insert spinner at current point."
+  (let ((m (copy-marker (point))))
+    (set-marker-insertion-type m nil)
+    (insert (propertize "|" 'spinner t 'sequence '("/" "-" "\\" "|")))
+    (set-marker-insertion-type m t)
+    (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m)))
+
+(defun gpb-git:insert-spinner--spin (m)
+  "Implementation detail of `gpb-git:insert-spinner'"
+  (with-current-buffer (marker-buffer m)
+    (when (ignore-errors (get-text-property m 'spinner))
+      (let* ((seq (get-text-property m 'sequence))
+             (next-seq (append (cdr seq) (list (car seq))))
+             (inhibit-read-only t)
+             props)
+        (save-excursion
+          (goto-char m)
+          (setq props (text-properties-at m))
+          (plist-put props 'sequence next-seq)
+          (set-marker-insertion-type m nil)
+          (insert (apply 'propertize (car seq) props))
+          (set-marker-insertion-type m t)
+          (delete-region (+ m 1) (+ m 2))))
+      (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m))))
+
+
+(defvar gpb-git:windows-status-script "
+
+@echo off
+
+git -c advice.statusHints=false status
+
+echo.
+echo ***unstaged changes***
+echo.
+
+git diff-files --patch --histogram --find-renames
+
+for /f \"delims=\" %%p in ('git ls-files --others --exclude-standard') do git diff --no-index --histogram -- /dev/null \"%%p\"
+
+echo.
+echo ***staged changes***
+echo.
+
+git diff-index --cached --find-renames --patch --histogram HEAD
+" "The status update script for use on Windows")
+
+
+(defvar gpb-git:bash-status-script "
+
+git -c advice.statusHints=false status
+
+echo
+echo \"***unstaged changes***\"
+echo
+
+git diff-files --patch --histogram --find-renames
+
+for i in $( git ls-files --others --exclude-standard ); do
+    git diff --no-index --histogram -- /dev/null $i
+done
+
+echo
+echo \"***staged changes***\"
+echo
+
+git diff-index --cached --find-renames --patch --histogram HEAD
+
+" "The status update script for use with bash")
+
+
+(defun gpb-git:use-windows-script-p (&optional repo-dir)
+  ;; Use the Windows script when working locally on a Windows machine.
+  (and (null (file-remote-p (or repo-dir default-directory)))
+       (eq system-type 'windows-nt)))
+
+
+(defun gpb-git:get-status-script (&optional where)
+  "Get the name of the script used for producing status updates."
+  (let* ((default-directory (or where default-directory))
+         (remote (file-remote-p default-directory))
+         (cache-val (cdr (assoc remote gpb-git:status-script-cache))))
+    (if cache-val
+        cache-val
+      (let* ((make-file (or (and (fboundp 'make-nearby-temp-file)
+                                 'make-nearby-temp-file)
+                            'make-temp-file))
+             (filename (cond
+                        ((gpb-git:use-windows-script-p)
+                         (funcall make-file "git-status-" nil ".cmd"))
+                        (t
+                         (funcall make-file "git-status-" nil ".bash")))))
+        (with-temp-file filename
+          (cond
+           ((gpb-git:use-windows-script-p)
+            (insert gpb-git:windows-status-script))
+           (t
+            (setq coding-system-for-write 'unix)
+            (insert gpb-git:bash-status-script)))
+          (goto-char (point-min))
+          (skip-chars-forward "\n ")
+          (delete-region (point-min) (point)))
+        (aput 'gpb-git:status-script-cache remote
+              (or (file-remote-p filename 'localname) filename))
+        filename))))
+
+
+(defun gpb-git--parse-diff (&optional beg end)
+  (let* ((region-beg (or beg (point-min)))
+         (region-end (or end (point-max)))
+         (hunk-list (list :stub))
+         ;; Some hunks consist of a file header have no trailing diff
+         ;; sections (e.g., renames with 100% similarity and empty files
+         ;; staged with --intent-to-add).  We set add-diffless-hunk to t
+         ;; when we see a file header, and set it back to nil when we see
+         ;; the first diff section.  If we see a file header and
+         ;; add-diffless-hunk is t, we know that the previous file header
+         ;; had no diff sections.
+         (add-diffless-hunk nil)
+         beg end insertion deletion filename1 filename2 header binary-info)
+    (save-restriction
+      (narrow-to-region region-beg region-end)
+      (save-excursion
+        (save-match-data
+          (goto-char region-beg)
+          (if (re-search-forward "^diff --git" nil t)
+              (goto-char (match-beginning 0))
+            (goto-char (point-max)))
+          (while (< (point) region-end)
+            (cond
+             ((looking-at "^diff --git a/\\(.*\\) b/\\(.*\\)")
+              (when add-diffless-hunk
+                ;; The previous file header had no trailing diff sections,
+                ;; so we need to record it as a diff-less hunk.
+                (nconc hunk-list `(((:filename1 . ,filename1)
+                                    (:filename2 . ,filename2)
+                                    (:file1-start . 0)
+                                    (:file1-len . 0)
+                                    (:file2-start . 0)
+                                    (:file2-len . 0)
+                                    (:header . ,header)
+                                    (:insertion . ,(when insertion t))
+                                    (:deletion . ,(when deletion t))
+                                    (:binary-info . ,binary-info)
+                                    (:rename . ,(not (string= filename1
+                                                              filename2)))))))
+
+              (setq filename1 (substring-no-properties
+                               (or (match-string 1) (error "Assertion error")))
+                    filename2 (substring-no-properties
+                               (or (match-string 2) (error "Assertion error")))
+                    beg (point)
+                    end (progn
+                          (forward-line 1)
+                          (or (and
+                               (re-search-forward "^\\(@@\\|diff --git\\)"
+                                                  nil t)
+                               (goto-char (match-beginning 0)))
+                              (end-of-buffer))
+                          (point))
+                    insertion (save-excursion
+                                (or (re-search-backward "^--- /dev/null" beg t)
+                                    (re-search-backward "^new file" beg t)))
+                    deletion (save-excursion
+                               (or (re-search-backward "^+++ /dev/null" beg t)
+                                   (re-search-backward "^deleted file" beg t)))
+                    header (buffer-substring-no-properties beg end)
+                    binary-info (save-excursion
+                                  (when (re-search-backward "^Binary files"
+                                                            beg t)
+                                    (buffer-substring-no-properties
+                                     (point) (progn (forward-line 1) (point)))))
+                    add-diffless-hunk t))
+
+             ((looking-at "^@@ -\\([0-9,]+\\) \\+\\([0-9,]+\\) @@")
+              (let* ((range1 (save-match-data
+                               (split-string (match-string 1) ",")))
+                     (range2 (save-match-data
+                               (split-string (match-string 2) ",")))
+                     (file1-start (string-to-number (first range1)))
+                     (file1-len (string-to-number (or (second range1) "1")))
+                     (file2-start (string-to-number (first range2)))
+                     (file2-len (string-to-number (or (second range2) "1")))
+                     (diff (buffer-substring-no-properties
+                            (progn (forward-line 1) (point))
+                            (progn
+                              (or (and
+                                   (re-search-forward "^@@\\|^diff --git " nil t)
+                                   (goto-char (match-beginning 0)))
+                                  (goto-char (point-max)))
+                              (point)))))
+                (setq add-diffless-hunk nil)
+                (nconc hunk-list `(((:filename1 . ,filename1)
+                                    (:file1-start . ,file1-start)
+                                    (:file1-len . ,file1-len)
+                                    (:filename2 . ,filename2)
+                                    (:file2-start . ,file2-start)
+                                    (:file2-len . ,file2-len)
+                                    (:header . ,header)
+                                    (:insertion . ,(when insertion t))
+                                    (:deletion . ,(when deletion t))
+                                    (:rename . ,(not (string= filename1
+                                                              filename2)))
+                                    (:diff . ,diff))))))
+
+             (t (error "Assertion error"))))))
+
+      (when add-diffless-hunk
+        ;; The last file header had no trailing diff sections.
+        (nconc hunk-list `(((:filename1 . ,filename1)
+                            (:filename2 . ,filename2)
+                            (:file1-start . 0)
+                            (:file1-len . 0)
+                            (:file2-start . 0)
+                            (:file2-len . 0)
+                            (:header . ,header)
+                            (:insertion . ,(when insertion t))
+                            (:deletion . ,(when deletion t))
+                            (:binary-info . ,binary-info)
+                            (:rename . ,(not (string= filename1
+                                                      filename2)))))))
+
+      (cdr hunk-list))))
+
+
+(defun gpb-git--insert-hunks (diff-hunks)
+  ;; Insert the hunks
+  (save-excursion
+    (let* ((inhibit-read-only t))
+      (dolist (diff-hunk diff-hunks)
+        (let* ((filename1 (aget diff-hunk :filename1 t))
+               (filename2 (aget diff-hunk :filename2 t)))
+          (setq ov (make-overlay (point)
+                                 (progn
+                                   (insert (or (aget diff-hunk :diff t)
+                                               (aget diff-hunk :binary-info t)
+                                               " No differences\n"))
+                                   (point))))
+          (dolist (key-val diff-hunk)
+            (overlay-put ov (car key-val) (cdr key-val)))
+          (overlay-put ov :is-hunk t)
+          (overlay-put ov :marked nil)
+          (gpb-git:decorate-hunk ov))))
+    (setq-local hunks-available t)))
+
+
+(defun gpb-git:refresh-status (&optional repo-dir)
+  "Refresh the buffers showing staged and unstaged changes.
+Updates the buffers `gpb-git:unstaged-buffer-name' and
+`gpb-git:staged-buffer-name'."
+  (interactive)
+  (let* ((repo-dir (or repo-dir default-directory))
+         (remote (file-remote-p repo-dir))
+         (filename (gpb-git:get-status-script repo-dir))
+         (unstaged-buf (get-buffer-create gpb-git:unstaged-buffer-name))
+         (staged-buf (get-buffer-create gpb-git:staged-buffer-name))
+         (cmd (if (gpb-git:use-windows-script-p repo-dir)
+                  `("cmd" "/c" ,filename) `("bash" ,filename)))
+         (inhibit-read-only t)
+         status-text)
+
+    (with-temp-buffer
+      (setq default-directory repo-dir)
+      (process-file "git" nil t nil "-c" "advice.statusHints=false" "status")
+      (goto-char (point-max))
+      (skip-chars-backward " \n")
+      (setq status-text (buffer-substring (point-min) (point))))
+
+    (with-current-buffer unstaged-buf
+      (erase-buffer)
+      (dolist (ov (gpb-git--get-hunk-overlays)) (delete-overlay ov))
+      (gpb-git:unstaged-changes-mode)
+      (setq default-directory repo-dir)
+      (save-excursion
+        (insert (format "\nUnstaged changes in %s\n\n" default-directory))
+        (insert status-text)
+        (insert "\n")
+        (add-text-properties
+         (point)
+         (save-excursion
+           (insert "Loading hunks ")
+           (gpb-git:insert-spinner)
+           (point))
+         '(face (background-color . "light gray")))
+        (insert "\n")
+        (goto-char (point-min))
+        (when (re-search-forward "^Changes to be committed:" nil t)
+          (delete-region (match-beginning 0)
+                         (progn
+                           (forward-line 1)
+                           (while (looking-at-p "^\t") (forward-line 1))
+                           (skip-chars-forward " \t\n")
+                           (point))))
+        ;; Delete the sections related to staged changes.
+        (when (re-search-forward "^no changes added" nil t)
+          (delete-region (match-beginning 0)
+                         (progn (forward-line 1) (point))))))
+
+
+    (with-current-buffer staged-buf
+      (erase-buffer)
+      (dolist (ov (gpb-git--get-hunk-overlays)) (delete-overlay ov))
+      (gpb-git:staged-changes-mode)
+      (setq default-directory repo-dir)
+      (save-excursion
+        (insert (format "\nStaged changes in %s\n\n" default-directory))
+        (insert status-text)
+        (insert "\n\n")
+        (unless (save-excursion
+                  (re-search-backward "^no changes added to commit" nil t))
+          (add-text-properties
+           (point)
+           (save-excursion
+             (insert "Loading hunks ")
+             (gpb-git:insert-spinner)
+             (point))
+           '(face (background-color . "light gray"))))
+        (goto-char (point-min))
+        (when (re-search-forward "^On branch")
+          (delete-region (match-beginning 0)
+                         (progn (forward-line 1)
+                                (skip-chars-forward " \t\n")
+                                (point))))
+        (when (re-search-forward "^Your branch is ahead of" nil t)
+          (delete-region (match-beginning 0)
+                         (progn
+                           (forward-line 1)
+                           (while (looking-at-p "^$") (forward-line 1))
+                           (point))))
+        (when (re-search-forward "^Changes not staged for commit:" nil t)
+          (delete-region (match-beginning 0)
+                         (progn
+                           (forward-line 1)
+                           (while (looking-at-p "^\t") (forward-line 1))
+                           (forward-line 1)
+                           (point))))
+        (when (re-search-forward "^Untracked files:$" nil t)
+          (delete-region (match-beginning 0)
+                         (progn
+                           (forward-line 1)
+                           (while (looking-at-p "^\t") (forward-line 1))
+                           (forward-line 1)
+                           (point))))))
+
+    (gpb-git:exec-async cmd repo-dir #'gpb-git:refresh-status-1)))
+
+
+(defun gpb-git:refresh-status-1 (buf)
+  (let ((repo-dir (gpb-git:find-repo-root))
+        (unstaged-buf (get-buffer-create gpb-git:unstaged-buffer-name))
+        (staged-buf (get-buffer-create gpb-git:staged-buffer-name))
+        (inhibit-read-only t)
+        status-text unstaged-hunks staged-hunks)
+
+    (with-current-buffer buf
+      (goto-char (point-min))
+      (setq status-text (buffer-substring
+                         (point-min)
+                         (progn (re-search-forward
+                                 "^\\*\\*\\*unstaged changes\\*\\*\\*$")
+                                (match-beginning 0))))
+      (forward-line 1)
+      (setq unstaged-hunks (gpb-git--parse-diff
+                            (point)
+                            (progn (re-search-forward
+                                    "^\\*\\*\\*staged changes\\*\\*\\*$")
+                                   (match-beginning 0))))
+      (forward-line 1)
+      (setq staged-hunks (gpb-git--parse-diff (point))))
+
+    (with-current-buffer unstaged-buf
+      (save-excursion
+        (goto-char (point-min))
+        (when (re-search-forward "Loading hunks" nil t)
+          (delete-region (match-beginning 0)
+                         (progn (forward-line 1) (point)))
+          (gpb-git--insert-hunks unstaged-hunks)
+          (gpb-git--add-unstaged-hunk-links))))
+
+    (with-current-buffer staged-buf
+      (save-excursion
+        (goto-char (point-min))
+        (when (re-search-forward "Loading hunks" nil t)
+          (delete-region (match-beginning 0) (progn (forward-line 1) (point)))
+          (gpb-git--insert-hunks staged-hunks)
+          (gpb-git--add-staged-hunk-links))))))
+
+
+(defun gpb-git--add-unstaged-hunk-links ()
+  (save-excursion
+    (goto-char (point-min))
+
+    ;; Add links from the modified files to the hunks
+    (while (re-search-forward "^\t\\(modified:\\|deleted:\\)" nil t)
+      (skip-chars-forward " \t")
+      (let* ((filename (buffer-substring-no-properties
+                        (point) (save-excursion (end-of-line) (point))))
+             (hunks (gpb-git--get-hunk-overlays filename))
+             (hunk-desc (cond
+                         ((= (length hunks) 1) "1 hunk")
+                         (t (format "%s hunks" (length hunks))))))
+        (make-text-button (point) (progn (end-of-line) (point))
+                          'action 'gpb-git:jump-to-file-hunks
+                          'filename filename)
+        (insert (format " (%s)" hunk-desc))))
+
+    ;; Add links from untracked files to the hunks.
+    (when (re-search-forward "^Untracked files:\n" nil t)
+      (while (looking-at "^\t[^\t]")
+        (skip-chars-forward "\t")
+        (let* ((filename (buffer-substring-no-properties
+                          (point) (save-excursion (end-of-line) (point)))))
+          (make-text-button (point) (progn (end-of-line) (point))
+                            'action 'gpb-git:jump-to-file-hunks
+                            'filename filename)
+          (forward-line 1))))))
+
+
+(defun gpb-git--add-staged-hunk-links ()
+  "Add links from \"Changes to be committed\" to hunk."
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward "^Changes to be committed:\n" nil t)
+      (while (looking-at "^\tmodified:")
+        (goto-char (match-end 0))
+        (skip-chars-forward " \t")
+        (let* ((filename (buffer-substring-no-properties
+                          (point) (save-excursion (end-of-line) (point))))
+               (hunks (gpb-git--get-hunk-overlays filename))
+               (hunk-desc (cond
+                           ((= (length hunks) 1) "1 hunk")
+                           (t (format "%s hunks" (length hunks))))))
+          (make-text-button (point) (progn (end-of-line) (point))
+                            'action 'gpb-git:jump-to-file-hunks
+                            'filename filename)
+          (insert (format " (%s)" hunk-desc)))))))
+
+
+(defun gpb-git:quit-staging-windows ()
+  (interactive)
+  (let ((win-list (append (get-buffer-window-list gpb-git:unstaged-buffer-name)
+                          (get-buffer-window-list gpb-git:staged-buffer-name))))
+    (while win-list
+      (dolist (win win-list)
+        (quit-window nil win)
+        (setq win-list
+              (append
+               (get-buffer-window-list gpb-git:unstaged-buffer-name)
+               (get-buffer-window-list gpb-git:staged-buffer-name)))))))
