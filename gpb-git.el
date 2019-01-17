@@ -1863,3 +1863,6 @@ Updates the buffers `gpb-git:unstaged-buffer-name' and
               (append
                (get-buffer-window-list gpb-git:unstaged-buffer-name)
                (get-buffer-window-list gpb-git:staged-buffer-name)))))))
+
+
+(provide 'gpb-git)
