@@ -1834,10 +1834,11 @@ Updates the buffers `gpb-git:unstaged-buffer-name' and
   (save-excursion
     (goto-char (point-min))
     (when (re-search-forward "^Changes to be committed:\n" nil t)
-      (while (looking-at "^\tmodified:")
+      (while (looking-at "^\t\\(modified\\|deleted\\|new file\\):")
         (goto-char (match-end 0))
         (skip-chars-forward " \t")
-        (let* ((filename (buffer-substring-no-properties
+        (let* ((match-string (match-string 1))
+               (filename (buffer-substring-no-properties
                           (point) (save-excursion (end-of-line) (point))))
                (hunks (gpb-git--get-hunk-overlays filename))
                (hunk-desc (cond
@@ -1846,7 +1847,9 @@ Updates the buffers `gpb-git:unstaged-buffer-name' and
           (make-text-button (point) (progn (end-of-line) (point))
                             'action 'gpb-git:jump-to-file-hunks
                             'filename filename)
-          (insert (format " (%s)" hunk-desc)))))))
+          (when (string= match-string "modified")
+            (insert (format " (%s)" hunk-desc)))
+          (forward-line 1))))))
 
 
 (defun gpb-git:quit-staging-windows ()
