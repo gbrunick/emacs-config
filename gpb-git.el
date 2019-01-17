@@ -1471,11 +1471,14 @@ git diff-index --cached --find-renames --patch --histogram HEAD
        (eq system-type 'windows-nt)))
 
 
-(defun gpb-git:get-status-script (&optional where)
-  "Get the name of the script used for producing status updates."
+(defun gpb-git:get-status-script (&optional where force)
+  "Get the name of the script used for producing status updates.
+
+If FORCE is non-nil, we always write a new file."
   (let* ((default-directory (or where default-directory))
          (remote (file-remote-p default-directory))
-         (cache-val (cdr (assoc remote gpb-git:status-script-cache))))
+         (cache-val (and (not force)
+                         (cdr (assoc remote gpb-git:status-script-cache)))))
     (if cache-val
         cache-val
       (let* ((make-file (or (and (fboundp 'make-nearby-temp-file)
@@ -1750,6 +1753,20 @@ Updates the buffers `gpb-git:unstaged-buffer-name' and
 
     (with-current-buffer buf
       (goto-char (point-min))
+      (when (re-search-forward "No such file or directory"
+                               (save-excursion (forward-line 1) (point)) nil t)
+        (let ((filename (gpb-git:get-status-script)))
+          (if (null (file-exists-p (concat (or (file-remote-p default-directory) "")
+                                           filename)))
+              (progn
+                ;; The remote status script has been deleted, so we write a
+                ;; new remote status script and try again.
+                (gpb-git:get-status-script nil t)
+                (gpb-git:refresh-status)
+                (error "Remote script was missing."))
+            (pop-to-buffer buf)
+            (error "Error running status script."))))
+
       (setq status-text (buffer-substring
                          (point-min)
                          (progn (re-search-forward
