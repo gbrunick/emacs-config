@@ -193,7 +193,9 @@
       ring-bell-function                'ignore
       bm-highlight-style                'bm-highlight-only-fringe
       bm-cycle-all-buffers              t
-      apropos-do-all                    t)
+      apropos-do-all                    t
+      backup-by-copying t)
+
 
 (setq frame-title-format '(:eval (or (buffer-file-name) "emacs"))
       ;; Show the point in the mode line
@@ -202,9 +204,6 @@
 
 (setq-default indent-tabs-mode nil
               fill-column      75)
-
-(when (string-equal system-type "windows-nt")
-  (setq backup-directory-alist '(("." . ".emacs-backups"))))
 
 ;; Setup ansi
 (require 'ansi-color)
