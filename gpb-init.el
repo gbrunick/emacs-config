@@ -628,19 +628,19 @@
 (setenv "PAGER" "cat")
 (setenv "PYTHONUNBUFFERED" "1")
 
-(defun gpb:kill-path-segment-backwards ()
+(defun gpb:delete-path-segment-backwards ()
   (interactive)
-  (kill-region (point)
-               (save-excursion
-                 (save-match-data
-                   (when (looking-back "[/\\]") (backward-char))
-                   (if (re-search-backward "[/\\]" nil t)
-                       (forward-char)
-                     (move-beginning-of-line nil))
-                   (point)))))
+  (delete-region (point)
+                 (save-excursion
+                   (save-match-data
+                     (when (looking-back "[/\\]") (backward-char))
+                     (if (re-search-backward "[/\\]" nil t)
+                         (forward-char)
+                       (move-beginning-of-line nil))
+                     (point)))))
 
 (define-key minibuffer-local-filename-completion-map "\M-h"
-  'gpb:kill-path-segment-backwards)
+  'gpb:delete-path-segment-backwards)
 
 (eval-after-load 'magit-mode
   '(progn
