@@ -1,5 +1,5 @@
 ;;
-;;  Customizaiton related to the ESS package
+;;  Customization related to the ESS package
 ;;
 ;;  See: https://ess.r-project.org/
 ;;
@@ -22,6 +22,7 @@ code.")
 
 (add-hook 'R-mode-hook 'gpb:R-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
+(add-hook 'ess-r-post-run-hook 'gpb:ess-post-run-hook)
 
 
 (defvar gpb:ess-last-eval-region nil
@@ -36,6 +37,8 @@ Contains a cons of two markers.")
 
   (local-set-key "\C-cb" 'gpb:ess-insert-browser)
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
+  (local-set-key "\C-c\C-c" 'ess-r-devtools-load-package)
+
   ;; Override the help function
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
 
@@ -44,14 +47,17 @@ Contains a cons of two markers.")
   (adelete 'ess-imenu-S-generic-expression "Data")
   ;; Only match top-level function definitions.
   (setcdr (assoc "Functions" ess-imenu-S-generic-expression)
-          '("^\\([^ \t]+\\)[ 	\n]*<-[ 	\n]*function[ ]*(" 1))
+          '("^\\([^ \t]+\\)[ \t\n]*\\(?:<-\\|=\\)[ \t\n]*function[ ]*(" 1))
   (adelete 'ess-imenu-S-generic-expression "Data")
 
   (gpb:ess-sniff-out-two-space-indentation)
+  ;; (setq ess-indent-offset 2)
+
+  ;; Allow movement within camel-case identifiers.
+  (subword-mode 1)
 
   ;; Use etags rather than ESS's custom xref implementation.
   (xref-etags-mode 1)
-  ;; (add-hook 'xref-backend-functions #'etags--xref-backend t)
 
   (let ((package-item (or (assoc "Package" ess-imenu-S-generic-expression)
                           (assoc "Packages" ess-imenu-S-generic-expression))))
@@ -83,6 +89,12 @@ Contains a cons of two markers.")
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
 
+  ;; Allow movement within camel-case identifiers.
+  (subword-mode 1)
+
+  ;; Use etags rather than ESS's custom xref implementation.
+  (xref-etags-mode 1)
+
   (setq-local comint-input-filter 'gpb:ess-comint-input-filter)
 
   ;; Correct some syntax assignments.
@@ -112,6 +124,13 @@ Contains a cons of two markers.")
 
   (when (require 'gpb-text-objects nil t)
     (gpb-modal--define-command-key "g" 'gpb:ess-goto-line t)))
+
+
+(defun gpb:ess-post-run-hook ()
+  ;; Do some custom R process configuration
+  ;; Disable magical handling of help.
+  (setq comint-input-sender 'inferior-ess-input-sender)
+  (ess-string-command gpb-ess:define-traceback-function nil 1))
 
 
 (defun gpb:ess-goto-line (arg)
@@ -335,7 +354,7 @@ an ESS inferior buffer."
 
 (defun gpb:ess-send-traceback-command ()
   (interactive)
-  (ess-send-string (get-buffer-process (current-buffer)) "traceback()" t))
+  (ess-send-string (get-buffer-process (current-buffer)) ".essrTraceback()" t))
 
 
 (defun gpb:ess-send-quit-command ()
@@ -837,6 +856,40 @@ displayed."
 
 (advice-add 'ess-r-package-eval-linewise :around
             'ess-r-package-eval-linewise:remove-tramp-prefix)
+
+
+(defvar gpb-ess:define-traceback-function
+  "local({
+       assign('.essrTraceback',
+              function() {
+                  if (!exists('.Traceback', envir = baseenv())) {
+                      cat(gettext('No traceback available'), '\\n')
+                      return(invisible(NULL))
+                  }
+                  x <- get('.Traceback', envir = baseenv())
+                  n <- length(x)
+                  if (n == 0L) cat(gettext('No traceback available'), '\n')
+                  if (n > 0L) {
+                      for (i in n:1L) {
+                          nLines <- length(x[[i]])
+                          code <- paste0(trimws(x[[i]]), collapse = ' ')
+                          if (nchar(code) > 80) {
+                              code <- substring(code, 1, 77)
+                              if (nchar(gsub('[^\"]', '', code)) %% 2)
+                                  code <- paste0(code, '\"')
+                              code <- paste0(code, ' ...')
+                          }
+                          cat(paste0(n - i + 1L, ': ', code, '\n'))
+                          if (!is.null(srcref <- attr(x[[i]], 'srcref'))) {
+                              srcfile <- attr(srcref, 'srcfile')
+                              cat(paste0('   at ', srcfile$filename, '#', srcref[1L], '\n'))
+                          }
+                      }
+                  }
+              },
+              'ESSR')
+   })\n"
+  "The code for a modified traceback function.")
 
 
 (defun gpb-ess:symbol-at-point ()
