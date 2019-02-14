@@ -36,6 +36,9 @@ Contains a cons of two markers.")
 
   (local-set-key "\C-cb" 'gpb:ess-insert-browser)
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
+  ;; Override the help function
+  (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
+
   (setq-local ess-indent-with-fancy-comments nil)
   ;; The Data section of the imenu entries is pretty useless.
   (adelete 'ess-imenu-S-generic-expression "Data")
@@ -73,6 +76,9 @@ Contains a cons of two markers.")
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
   (local-set-key [?\t] 'gpb:inferior-ess-tab-command)
   (local-set-key [(backtab)] 'gpb:inferior-ess-previous-traceback)
+
+  ;; Override the help function
+  (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
 
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
@@ -831,3 +837,71 @@ displayed."
 
 (advice-add 'ess-r-package-eval-linewise :around
             'ess-r-package-eval-linewise:remove-tramp-prefix)
+
+
+(defun gpb-ess:symbol-at-point ()
+  (let ((symbol-name (or (thing-at-point 'symbol) "")))
+    (when symbol-name
+      (set-text-properties 0 (length symbol-name) nil symbol-name)
+      symbol-name)))
+
+
+(defun gpb-ess:show-help (object-name)
+  "Show help on OBJECT-NAME.
+
+This function doesn't not attempt to provided symbol completion,
+so it can be faster then calling `ess-display-help-on-object'
+interactively."
+  (interactive (list (read-string "R Object: " (gpb-ess:symbol-at-point))))
+  (ess-force-buffer-current "Process: " nil t nil)
+
+  (let* ((command (format "help(\"%s\", try.all.packages = FALSE)"
+                          object-name))
+         (help-buf (get-buffer-create "*R Help*"))
+         (proc (get-process ess-local-process-name))
+         (proc-buf (process-buffer proc))
+         (inhibit-read-only t))
+    (setq-local comint-redirect-hook '(gpb-ess:show-help--comint-redirect-hook))
+    (setq comint-redirect-filter-functions nil)
+    (with-current-buffer help-buf
+      (erase-buffer)
+      (help-mode)
+      (read-only-mode 1)
+      (setq comint-redirect-subvert-readonly t))
+    (with-current-buffer proc-buf
+      (comint-redirect-send-command command help-buf nil t)
+      (setq comint-redirect-finished-regexp "^\\(>\\|Selection:\\)"
+            comint-redirect-insert-matching-regexp t))))
+
+
+(defun gpb-ess:show-help--comint-redirect-hook ()
+  (let* ((proc-buf (current-buffer))
+         (help-buf (get-buffer "*R Help*"))
+         (prompt-p (with-current-buffer help-buf
+                     (looking-back "^Selection: *")))
+         (inhibit-read-only t))
+    (message "proc-buf: %S" proc-buf)
+    (pop-to-buffer help-buf)
+    (cond
+     ;; There are multiple matches, so we prompt the user to choose one.
+     (prompt-p
+      (let ((selection (or (with-local-quit
+                             (prin1-to-string (read-number "Selection: " 1)))
+                           "1")))
+        (with-current-buffer help-buf (erase-buffer))
+        (with-current-buffer proc-buf
+          (comint-redirect-send-command selection help-buf nil))))
+
+     ;; The help buffer now contains the help text.
+     (t
+      (with-current-buffer help-buf
+        (goto-char (point-max))
+        (when (re-search-backward "^> *" nil t) (replace-match ""))
+        (skip-chars-backward " \n")
+        (forward-line 1)
+        (delete-region (point) (point-max))
+        (goto-char (point-min))
+        (when (looking-at-p "^Rendering development")
+          (forward-line 1)
+          (delete-region (point-min) (point)))
+        (ess-help-underline))))))
