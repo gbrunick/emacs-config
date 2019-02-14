@@ -1294,10 +1294,11 @@ any additional arguments in ARGS."
       ;; Evaluate `func' in the buffer where `gpb-git:exec-async' was
       ;; initially called.
       (message "gpb-git:exec-async--process-sentinel(2) %S" buf)
-      (with-current-buffer buf
-        (let ((debug-on-error t))
-          (gpb-git--trace-funcall func args)
-          (apply func args)))
+      (when (buffer-live-p buf)
+        (with-current-buffer buf
+          (let ((debug-on-error t))
+            (gpb-git--trace-funcall func args)
+            (apply func args))))
 
       (kill-buffer (process-buffer proc)))))
 
@@ -1754,7 +1755,7 @@ Updates the buffers `gpb-git:unstaged-buffer-name' and
     (with-current-buffer buf
       (goto-char (point-min))
       (when (re-search-forward "No such file or directory"
-                               (save-excursion (forward-line 1) (point)) nil t)
+                               (save-excursion (forward-line 1) (point)) t)
         (let ((filename (gpb-git:get-status-script)))
           (if (null (file-exists-p (concat (or (file-remote-p default-directory) "")
                                            filename)))
