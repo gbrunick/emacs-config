@@ -377,7 +377,7 @@ This code is taken from fx-misc.el by Dave Love"
   (interactive)
   (let ((filename (ffap-prompter)))
     (cond
-     ((and (string-match ".html$" filename)
+     ((and (string-match "\\.html$" filename)
            (y-or-n-p "View in browser?"))
       (when (file-remote-p filename)
         (unless (file-exists-p gpb-view-file-cache)
@@ -392,6 +392,24 @@ This code is taken from fx-misc.el by Dave Love"
             (copy-file filename local-file nil t))
           (setq filename local-file)))
       (browse-url-of-file filename))
+
+     ;; View Excel files
+     ((and (string-match "\\.\\(xlsx\\|pdf\\)$" filename)
+           (y-or-n-p "View locally?"))
+      (when (file-remote-p filename)
+        (unless (file-exists-p gpb-view-file-cache)
+          (make-directory gpb-view-file-cache))
+        (let* ((prefix (concat gpb-view-file-cache
+                               (file-name-base filename) "_"))
+               (ext (concat "." (file-name-extension filename)))
+               (local-file (make-temp-file prefix nil ext)))
+          (copy-file filename local-file t t)
+          (setq filename local-file)))
+      (let ((default-directory gpb-view-file-cache)
+            (cmd (format "cmd /C \"start %s\"" filename)))
+        (message "cmd: %S" cmd)
+        (shell-command cmd)))
+
      (t
       (find-file-at-point filename)))))
 
