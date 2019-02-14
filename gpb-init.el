@@ -68,7 +68,6 @@
 (global-set-key "\C-c$" 'gpb-ispell)
 (global-set-key "\C-cg" 'gpb-grep)
 (global-set-key "\C-cr" 'recentf-open-files)
-(global-set-key "\C-cv" 'magit-status)
 
 ;; The next binding does nothing because escape is now remapped to C-g
 ;; at the input-decode level
@@ -111,10 +110,10 @@
 (global-set-key "\M-gd" 'gpb-lisp-goto-definition)
 
 ;; Git integration bindings
-(global-set-key "\C-cs" 'gpb-git:stage-changes)
-(defalias 'commit 'gpb-git:commit)
-(autoload 'gpb-git:stage-changes "gpb-git" "Stage changes" t)
-(autoload 'gpb-git:commit "gpb-git" "Commit staged changes" t)
+(autoload 'gpb-git:user-command-prefix-keymap "gpb-git" nil nil 'keymap)
+(global-set-key "\C-cv" 'gpb-git:user-command-prefix-keymap)
+(eval-after-load 'gpb-git '(global-set-key "\C-cvm" 'magit-status))
+
 
 ;; Remove useless printing options from menu
 (let ((file-menu (lookup-key global-map [menu-bar file])))
