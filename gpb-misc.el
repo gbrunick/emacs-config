@@ -825,11 +825,11 @@ Returns t on success and nil on failure."
 
 (defun gpb-yank (arg)
   (interactive "*P")
-  (if (> (prefix-numeric-value arg) 4)
+  (if (and arg (require 'browse-kill-ring nil t))
       (browse-kill-ring)
     (when (use-region-p)
       (delete-region (region-beginning) (region-end)))
-    (yank arg)))
+    (yank)))
 
 (defun gpb-today ()
   (require 'calendar)
