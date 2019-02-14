@@ -1672,7 +1672,8 @@ Updates the buffers `gpb-git:unstaged-buffer-name' and
       (gpb-git:unstaged-changes-mode)
       (setq default-directory repo-dir)
       (save-excursion
-        (insert (format "\nUnstaged changes in %s\n\n" default-directory))
+        (insert (format "\nUnstaged changes in %s\n\n"
+                        (gpb-git:abbreviate-file-name default-directory)))
         (insert status-text)
         (insert "\n")
         (add-text-properties
@@ -1703,7 +1704,8 @@ Updates the buffers `gpb-git:unstaged-buffer-name' and
       (gpb-git:staged-changes-mode)
       (setq default-directory repo-dir)
       (save-excursion
-        (insert (format "\nStaged changes in %s\n\n" default-directory))
+        (insert (format "\nStaged changes in %s\n\n"
+                        (gpb-git:abbreviate-file-name default-directory)))
         (insert status-text)
         (insert "\n\n")
         (unless (save-excursion
@@ -1864,6 +1866,23 @@ Updates the buffers `gpb-git:unstaged-buffer-name' and
               (append
                (get-buffer-window-list gpb-git:unstaged-buffer-name)
                (get-buffer-window-list gpb-git:staged-buffer-name)))))))
+
+
+(defcustom gpb-git:remote-home-dirs nil
+  "A list of strings giving remote directory paths.
+
+Each directory should have TRAMP-prefix."
+  :type '(repeat directory))
+
+
+(defun gpb-git:abbreviate-file-name (dir)
+  (dolist (remote-dir gpb-git:remote-home-dirs)
+    (when (string-prefix-p remote-dir dir)
+      (assert (file-remote-p remote-dir))
+      (setq dir (replace-regexp-in-string (regexp-quote remote-dir)
+                                          (file-remote-p remote-dir)
+                                          dir))))
+  dir)
 
 
 (provide 'gpb-git)
