@@ -580,8 +580,8 @@
 (require 'gpb-filtered-list)
 
 ;; These should probably be an auto load ...
-(ignore-errors (load-safe "gpb-lisp"))
-(ignore-errors (load-safe "gpb-xml"))
+(load-safe "gpb-lisp")
+(load-safe "gpb-xml")
 
 (require 'gpb-comint)
 (add-hook 'comint-mode-hook 'gpb-comint:enable-bold-prompt-mode t)
