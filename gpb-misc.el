@@ -452,34 +452,47 @@ This code is taken from fx-misc.el by Dave Love"
 (defun gpb-graphical-frame-p (frame)
   (member (framep frame) '(x w32 ns)))
 
-(defun gpb-grep ()
-  (interactive)
-  (unless (boundp 'gpb-grep-history) (setq gpb-grep-history nil))
-  (let ((compilation-ask-about-save nil))
-    (grep (read-from-minibuffer
-           "Grep command: "
-           (let ((s (case (window-system)
-                      (w32
-                       (concat "grep -RinHI "
-                               "--exclude=\".git\" "
-                               "--exclude=*~ "
-                               "--exclude=.#* "
-                               "--exclude=*\\.ipynb "
-                               "--line-buffered -E \"\" ."))
-                      (otherwise
-                       (concat "grep -RinH "
-                               "--exclude=\".git\" "
-                               "--exclude=\"#*#\" "
-                               "--exclude=\"\\.#*\" "
-                               "--exclude=\"*~\" "
-                               "-E \"\" .")))))
-             (cons s (- (length s) 2)))
-           (let ((map (make-keymap)))
-             (set-keymap-parent map minibuffer-local-map)
-             (define-key map [(control w)] 'gpb-grep-add-next-word)
-             (define-key map [(control s)] 'gpb-grep-add-next-symbol)
-             map)
-           nil 'gpb-grep-history))))
+
+(defvar gpb-grep-history nil
+  "Used to record previously entered GREP regular expressions.")
+
+(defcustom gpb-grep-exclude-dirs nil
+  "A list of directories to exclude."
+  :type '(repeat string))
+
+(defcustom gpb-grep-exclude-files nil
+  "List of regular expressions used to exclude files."
+  :type '(repeat string))
+
+(defun gpb-grep (dir regex)
+  (interactive (list (read-directory-name "Directory: ")
+                     (read-from-minibuffer "Regex: "
+                                           nil nil nil
+                                           'gpb-grep-history)))
+  (let* ((compilation-ask-about-save nil)
+         (default-directory dir)
+         (exclude-dirs (mapconcat (lambda (x)
+                                    (format "--exclude-dir=\"%s\" " x))
+                                  gpb-grep-exclude-dirs
+                                  ""))
+         (exclude-files (mapconcat (lambda (x)
+                                    (format "--exclude=\"%s\" " x))
+                                  gpb-grep-exclude-files
+                                  ""))
+         (cmd (case (window-system)
+                (w32
+                 (concat "grep -RinHI "
+                         exclude-dirs
+                         exclude-files
+                         "--line-buffered -E "
+                         (format "\"%s\" ." regex)))
+                (otherwise
+                 (concat "grep -RinH "
+                         exclude-dirs
+                         exclude-files
+                         (format "-E \"%s\" ." regex))))))
+    (grep cmd)))
+
 
 (defun gpb-remap-esc-in-terminal (map)
   "See `gpb-setup-frame-input-maps'"
