@@ -238,6 +238,7 @@ filename of a script for producing a status update.")
     (define-key map "s" 'gpb-git:stage-changes)
     (define-key map "i" 'gpb-git:unstage-changes)
     (define-key map "c" 'gpb-git:commit)
+    (define-key map "g" 'gpb-git:show-commit-graph)
     (fset 'gpb-git:user-command-prefix-keymap map)
     map)
   "The prefix keymap for user commands.")
@@ -1878,6 +1879,27 @@ Each directory should have TRAMP-prefix."
                                           (file-remote-p remote-dir)
                                           dir))))
   dir)
+
+
+
+(defun gpb-git:show-commit-graph (&optional repo-root)
+  (interactive (list (gpb-git:read-repo-dir)))
+  (let ((buf (gpb-git--get-new-buffer "*git graph" "*"))
+        (marker1 (make-marker))
+        (marker2 (make-marker)))
+    (switch-to-buffer buf)
+    (with-current-buffer buf
+      (insert (format "Repo: %s\n\n" repo-root))
+      (set-marker marker1 (point))
+      (insert "Loading commit history...\n")
+      (set-marker marker2 (point))
+      (goto-char (point-min))
+      (redisplay)
+      (goto-char marker2)
+      (process-file "git" nil buf nil "log" "--graph" "--oneline" "--decorate" "--color")
+      (ansi-color-apply-on-region marker2 (point-max))
+      (delete-region marker1 marker2)
+      (goto-char (point-min)))))
 
 
 (provide 'gpb-git)
