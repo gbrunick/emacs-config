@@ -494,13 +494,8 @@ Looks for the .git directory rather than calling Git."
         ;; Ensure that the full hunk is visible when possible.
         (save-excursion
           (save-match-data
-            (goto-char (overlay-end ov))
-            (when (looking-back "\n") (backward-char))
-            ;; Temporarily move the point and force redisplay to scroll the
-            ;; window.  We temporarily disable the cursor during this
-            ;; redisplay to avoid flicker.
-            (set-window-point win (point))
-            (let ((cursor-type nil)) (redisplay t))))))))
+            (goto-char (overlay-start ov))
+            (recenter 0)))))))
 
 
 (defun gpb-git:backward-hunk ()
