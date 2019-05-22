@@ -1046,4 +1046,22 @@ so forms must be quoted to prevent premature evaluation."
 (gpb-modal:define-key 'rectangle-mark-mode " " 'clear-rectangle)
 
 
+;; Polymode integration --------------------------------------------------
+
+(defun gpb-modal--polymode-after-switch-buffer-hook (prebuf postbuf)
+  "Hook for integration with polymode.
+
+Polymode copies all the overlays from PREBUF to POSTBUF before
+calling this hook.  This causes problems because we end up with
+two conflicting modal keymap overlays in POSTBUF, so we delete
+the overlay that came from PREBUF below."
+  (with-current-buffer prebuf
+    (unless (null gpb-modal--keymap-overlay)
+      (delete-overlay gpb-modal--keymap-overlay)
+      (setq gpb-modal--keymap-overlay nil))))
+
+(add-hook 'polymode-after-switch-buffer-hook
+          'gpb-modal--polymode-after-switch-buffer-hook)
+
+
 (provide 'gpb-modal)
