@@ -110,9 +110,9 @@
 (global-set-key "\M-gd" 'gpb-lisp-goto-definition)
 
 ;; Git integration bindings
-(autoload 'gpb-git:user-command-prefix-keymap "gpb-git" nil nil 'keymap)
+(autoload 'gpb-git:user-command-prefix-keymap "gitmodes" nil nil 'keymap)
 (global-set-key "\C-cv" 'gpb-git:user-command-prefix-keymap)
-(eval-after-load 'gpb-git '(global-set-key "\C-cvm" 'magit-status))
+(eval-after-load 'gitmodes '(global-set-key "\C-cvm" 'magit-status))
 
 
 ;; Remove useless printing options from menu
@@ -654,7 +654,7 @@
              (run-at-time 0.1 nil 'recenter)))))
 
 
-(eval-after-load 'gpb-git
+(eval-after-load 'gitmodes
   '(progn
      (gpb-modal:define-key
       'gpb-git:show-status-mode "m" 'gpb-git:show-status--mark-file)

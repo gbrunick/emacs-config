@@ -250,7 +250,6 @@ status output."
         (repo-dir default-directory))
     (assert repo-dir)
     (with-current-buffer buf
-      (setq-local current-command nil)
       (gpb-git--show-staged-changes repo-dir))
     (pop-to-buffer buf)))
 
@@ -260,7 +259,6 @@ status output."
         (repo-dir default-directory))
     (assert repo-dir)
     (with-current-buffer buf
-      (setq-local current-command nil)
       (gpb-git--show-unstaged-changes repo-dir))
     (pop-to-buffer buf)))
 

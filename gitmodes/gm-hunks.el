@@ -1,3 +1,7 @@
+;;
+;;  Hunk and diff related functions and modes.
+;;
+
 (require 'gm-util)
 
 (defvar gpb-git:hunk-view-mode-map
@@ -8,11 +12,6 @@
     (define-key map "P" 'gpb-git:backward-file-command)
     (define-key map "n" 'gpb-git:forward-command)
     (define-key map "N" 'gpb-git:forward-file-command)
-    (define-key map "m" 'gpb-git:mark-hunk-command)
-    (define-key map "M" 'gpb-git:mark-file-command)
-    (define-key map "u" 'gpb-git:unmark-hunk-command)
-    (define-key map "U" 'gpb-git:unmark-file-command)
-    (define-key map "r" 'gpb-git:mark-as-rename)
     (define-key map (kbd "RET") 'gpb-git:goto-line)
     (define-key map "g" 'gpb-git:refresh-buffer)
     (fset 'gpb-git:hunk-view-mode-map map)
@@ -21,6 +20,11 @@
 
 (defvar gpb-git:hunk-selection-mode-map
   (let ((map (make-sparse-keymap)))
+    (define-key map "m" 'gpb-git:mark-hunk-command)
+    (define-key map "M" 'gpb-git:mark-file-command)
+    (define-key map "r" 'gpb-git:mark-as-rename)
+    (define-key map "u" 'gpb-git:unmark-hunk-command)
+    (define-key map "U" 'gpb-git:unmark-file-command)
     (set-keymap-parent map 'gpb-git:hunk-view-mode-map)
     (fset 'gpb-git:hunk-selection-mode-map map)
     map)
@@ -118,11 +122,11 @@ Overwrites the current buffer and sets the mode to
     (gpb-git:unstaged-changes-mode)
     (goto-char (point-min))
     (insert (format "\nUnstaged changes in %s\n\n"
-                    (gpb-git:abbreviate-file-name default-directory)))
+                    (gpb-git--abbreviate-file-name default-directory)))
     (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
     (goto-char (point-min))
     ;; This didn't seem to stick until I moved it here?
-    (setq-local refresh-cmd `(gpb-git--show-unstaged-changes
+    (setq-local refresh-cmd `(gpb-git--refresh-unstaged-changes
                               ,default-directory ',cmd))))
 
 
@@ -138,7 +142,7 @@ Overwrites the current buffer and sets the mode to
     (gpb-git:staged-changes-mode)
     (goto-char (point-min))
     (insert (format "\nStaged changes in %s\n\n"
-                    (gpb-git:abbreviate-file-name default-directory)))
+                    (gpb-git--abbreviate-file-name default-directory)))
     (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
     (setq-local refresh-cmd `(gpb-git--show-staged-changes
                               ,default-directory ',cmd))

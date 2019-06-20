@@ -240,7 +240,7 @@ names in the UI."
 
 (defvar gpb-git:user-command-prefix-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map "s" 'gpb-git:refresh-status)
+    (define-key map "s" 'gpb-git:show-status)
     (define-key map "c" 'gpb-git:commit)
     (define-key map "g" 'gpb-git:show-commit-graph)
     (fset 'gpb-git:user-command-prefix-keymap map)
@@ -474,4 +474,4 @@ User-facing; attempts to preserve window position."
 
 
 
-(provide 'gpb-git)
+(provide 'gitmodes)
