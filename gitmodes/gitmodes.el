@@ -307,7 +307,7 @@ Bind to this to a prefix of your choosing (e.g., \"\C-cv\")")
 
 (defun gpb-git--post-command-hook ()
   "Updates hunk highlighting after each user command."
-  (when (derived-mode-p 'gpb-git:hunk-selection-mode)
+  (when (derived-mode-p 'gpb-git:hunk-view-mode)
     ;; If the mark will be deactivated before the next command, we want to
     ;; consider it to already be deactivated when we compute the highlights
     ;; to avoid flicker.
