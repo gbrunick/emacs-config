@@ -111,8 +111,8 @@
       (gpb-git--refresh-commit-diff hash1 hash2 repo-dir)
       ;; For `gpb-git:refresh-buffer'
       (setq-local refresh-cmd `(gpb-git--refresh-commit-diff
-                                ,hash1 ,hash2 ,default-directory))))
-    (switch-to-buffer buf))
+                                ,hash1 ,hash2 ,default-directory))
+      (switch-to-buffer buf))))
 
 
 (defun gpb-git--refresh-unstaged-changes (&optional repo-dir cmd callback)
