@@ -87,8 +87,9 @@
   (interactive (list (gpb-git--read-repo-dir)))
   (let ((buf (get-buffer-create gpb-git:unstaged-buffer-name)))
     (with-current-buffer buf
-      (gpb-git--show-unstaged-changes repo-dir)
-      (setq-local refresh-cmd `(gpb-git--show-unstaged-changes
+      (gpb-git--refresh-unstaged-changes repo-dir)
+      ;; For `gpb-git:refresh-buffer'
+      (setq-local refresh-cmd `(gpb-git--refresh-unstaged-changes
                                 ,default-directory)))
     (switch-to-buffer buf)))
 
@@ -97,8 +98,9 @@
   (interactive (list (gpb-git--read-repo-dir)))
   (let ((buf (get-buffer-create gpb-git:staged-buffer-name)))
     (with-current-buffer buf
-      (gpb-git--show-staged-changes repo-dir)
-      (setq-local refresh-cmd `(gpb-git--show-staged-changes
+      (gpb-git--refresh-staged-changes repo-dir)
+      ;; For `gpb-git:refresh-buffer'
+      (setq-local refresh-cmd `(gpb-git--refresh-staged-changes
                                 ,default-directory)))
     (switch-to-buffer buf)))
 
@@ -106,11 +108,14 @@
 (defun gpb-git:show-commit-diff (hash1 hash2 &optional repo-dir)
   (let ((buf (get-buffer-create (format "*%s...%s*" hash1 hash2))))
     (with-current-buffer buf
-      (gpb-git--show-commit-diff hash1 hash2 repo-dir))
-    (switch-to-buffer buf)))
+      (gpb-git--refresh-commit-diff hash1 hash2 repo-dir)
+      ;; For `gpb-git:refresh-buffer'
+      (setq-local refresh-cmd `(gpb-git--refresh-commit-diff
+                                ,hash1 ,hash2 ,default-directory))))
+    (switch-to-buffer buf))
 
 
-(defun gpb-git--show-unstaged-changes (&optional repo-dir cmd callback)
+(defun gpb-git--refresh-unstaged-changes (&optional repo-dir cmd callback)
   "Display the differences between the index and HEAD.
 
 Overwrites the current buffer and sets the mode to
@@ -118,7 +123,7 @@ Overwrites the current buffer and sets the mode to
   (interactive)
   (let ((cmd (or cmd '("git" "diff" "--histogram" "--find-renames")))
         (inhibit-read-only t))
-    (gpb-git--show-changes cmd repo-dir callback)
+    (gpb-git--refresh-changes cmd repo-dir callback)
     (gpb-git:unstaged-changes-mode)
     (goto-char (point-min))
     (insert (format "\nUnstaged changes in %s\n\n"
@@ -130,7 +135,7 @@ Overwrites the current buffer and sets the mode to
                               ,default-directory ',cmd))))
 
 
-(defun gpb-git--show-staged-changes (&optional repo-dir cmd callback)
+(defun gpb-git--refresh-staged-changes (&optional repo-dir cmd callback)
   "Display the differences between the index and HEAD.
 
 Overwrites the current buffer and sets the mode to
@@ -138,18 +143,18 @@ Overwrites the current buffer and sets the mode to
   (interactive)
   (let ((cmd (or cmd '("git" "diff" "--cached" "--histogram" "--find-renames")))
         (inhibit-read-only t))
-    (gpb-git--show-changes cmd repo-dir callback)
+    (gpb-git--refresh-changes cmd repo-dir callback)
     (gpb-git:staged-changes-mode)
     (goto-char (point-min))
     (insert (format "\nStaged changes in %s\n\n"
                     (gpb-git--abbreviate-file-name default-directory)))
     (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
-    (setq-local refresh-cmd `(gpb-git--show-staged-changes
+    (setq-local refresh-cmd `(gpb-git--refresh-staged-changes
                               ,default-directory ',cmd))
     (goto-char (point-min))))
 
 
-(defun gpb-git--show-commit-diff (hash1 hash2 &optional repo-dir callback)
+(defun gpb-git--refresh-commit-diff (hash1 hash2 &optional repo-dir callback)
   "Display the differences between the index and HEAD.
 
 Overwrites the current buffer and sets the mode to
@@ -159,17 +164,18 @@ Overwrites the current buffer and sets the mode to
                ,hash1 ,hash2 "--"))
         (inhibit-read-only t)
         (repo-dir (or repo-dir default-directory)))
-    (gpb-git--show-changes cmd repo-dir callback)
+    (gpb-git--refresh-changes cmd repo-dir callback)
     (gpb-git:hunk-view-mode)
     (goto-char (point-min))
     (insert (format "\nChanges from %s to %s\n\n" hash1 hash2))
     (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
-    (setq-local refresh-cmd `(gpb-git--show-commit-diff ,hash1 ,hash2 ,repo-dir))
+    (setq-local refresh-cmd `(gpb-git--refresh-commit-diff
+                              ,hash1 ,hash2 ,repo-dir))
     (goto-char (point-min))))
 
 
-(defun gpb-git--show-changes (cmd &optional repo-dir callback)
-  "Display diff hunks in a buffer.
+(defun gpb-git--refresh-changes (cmd &optional repo-dir callback)
+  "Update the diff hunks in a buffer.
 
 Executes `cmd', parses the result, erases the current buffer,
 sets the major mode to `major-mode', writes the parsed hunks into
@@ -186,11 +192,11 @@ been updated (i.e., asyncronously)."
     ;; We save the command for `gpb-git--refresh-changes'.
     (setq current-command cmd)
     (gpb-git:insert-placeholder "Loading hunks ")
-  (gpb-git:exec-async cmd repo-dir #'gpb-git--show-changes-1 callback))
+  (gpb-git:exec-async cmd repo-dir #'gpb-git--refresh-changes-1 callback)))
 
 
-(defun gpb-git--show-changes-1 (buf callback)
-"Implementation detail of `gpb-git--show-changes'."
+(defun gpb-git--refresh-changes-1 (buf callback)
+"Implementation detail of `gpb-git--refresh-changes'."
   (let ((hunks (with-current-buffer buf (gpb-git--parse-diff)))
         (inhibit-read-only t))
     (goto-char (point-min))
@@ -625,10 +631,21 @@ previously highlighted hunk."
   "Remove some hunks from the index."
   (interactive)
   (when (region-active-p) (gpb-git:mark-hunk))
-  (let ((patch-file (gpb-git--apply-hunks "apply" "--cached" "-R")))
-    (delete-file patch-file))
-  (gpb-git:refresh-status)
-  (quit-window t))
+  (let ((marked-hunks (or (gpb-git:get-marked-hunks)
+                          ;; If nothing is marked, mark the current hunk
+                          ;; and proceed.
+                          (progn (gpb-git:mark-hunk)
+                                 (gpb-git:get-marked-hunks)))))
+
+    (let ((patch-file (gpb-git--apply-hunks marked-hunks
+                                            "apply" "--cached" "-R")))
+      (delete-file patch-file))
+    (gpb-git:refresh-status)
+    (cond
+     ((> (length marked-hunks) 1)
+      (quit-window t))
+     (t
+      (gpb-git--refresh-unstaged-changes)))))
 
 
 (defun gpb-git:revert-marked-hunks ()

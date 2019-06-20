@@ -259,7 +259,7 @@ status output."
         (repo-dir default-directory))
     (assert repo-dir)
     (with-current-buffer buf
-      (gpb-git--show-unstaged-changes repo-dir))
+      (gpb-git--refresh-unstaged-changes repo-dir))
     (pop-to-buffer buf)))
 
 
@@ -303,7 +303,7 @@ status output."
       (with-current-buffer buf
         (if staged
             (gpb-git--show-staged-changes repo-dir cmd)
-          (gpb-git--show-unstaged-changes repo-dir cmd))
+          (gpb-git--refresh-unstaged-changes repo-dir cmd))
         (pop-to-buffer buf)))))
 
 
