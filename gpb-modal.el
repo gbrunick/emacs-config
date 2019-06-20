@@ -261,15 +261,13 @@ The functions `gpb-modal--enter-command-mode' and
 (defvar gpb-modal--command-mode-keymap-alist nil
   "An alist of conditional command mode keymaps.
 
-Each car is a symbol that is evaluated to determine if the keymap
-in the cdr should be included in the current command mode
-map (see `gpb-modal--get-active-map').  The primary use case for
-this variable is enabling additional keybindings when a given
-minor mode is enabled.")
+Don't set this variable directly; use `gpb-model:define-key'.
+Each car is a symbol giving a major or minor mode name.  The map
+is activated in command mode when the mode is active.")
 
 
 (defvar-local gpb-modal--local-command-mode-map nil
-  "The buffer local keymap for insert mode.
+  "The buffer local keymap for command mode.
 
 Don't modify this variable directly; use `gpb-modal:define-key'")
 
@@ -290,9 +288,11 @@ buffer."
        (let* ((local-map gpb-modal--local-command-mode-map)
               (region-map (when (region-active-p)
                             'gpb-modal--active-region-map))
-              (cond-maps (mapcar (lambda (x) (when (and (boundp (car x))
-                                                        (symbol-value (car x)))
-                                               (cdr x)))
+              (cond-maps (mapcar (lambda (x)
+                                   (when (or (and (boundp (car x))
+                                                  (symbol-value (car x)))
+                                             (derived-mode-p (car x)))
+                                     (cdr x)))
                                  gpb-modal--command-mode-keymap-alist))
               ;; The overlay keymap will override any other overlay or text
               ;; properties, so we find the keymap we are covering and put it

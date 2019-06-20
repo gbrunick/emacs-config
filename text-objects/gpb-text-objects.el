@@ -284,14 +284,17 @@ points.  Used by `execute-text-object'.")
    "Execute the text object as python code."
    (when (null execute-text-object-function)
      (error "execute-text-object-function is not defined in this buffer"))
-   (let* ((number-of-args (length (cadr (symbol-function execute-text-object-function))))
+   (let* ((number-of-args (length (cadr (symbol-function
+                                         execute-text-object-function))))
           (args (cond
                  ((= number-of-args 3) (list obj beg end))
                  ((= number-of-args 2)
-                  (warn "Deprecated call signature: %s" execute-text-object-function)
+                  (warn "Deprecated call signature: %s"
+                        execute-text-object-function)
                   (list beg end))
                  (t
-                  (error "Function %S should accept 3 arguments." execute-text-object-function)))))
+                  (error "Function %S should accept 3 arguments."
+                         execute-text-object-function)))))
      (gpb-tobj--flash-region beg end)
      (apply execute-text-object-function args)
      (setq deactivate-mark t)))
@@ -451,7 +454,7 @@ This is a modified version of the function from thing-at-pt."
 
 (defun gpb-tobj--forward-symbol (arg)
   (interactive "p")
-  (let ((in-string (gpb-tobj--in-string-p)))
+  (let ((in-string (ignore-errors (gpb-tobj--in-string-p))))
     (while (> arg 0)
       (re-search-forward "\\sw\\|\\s_")
       (skip-syntax-forward "w_")

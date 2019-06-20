@@ -6,6 +6,7 @@
 
 (require 'cl-lib)
 (require 'ffap)
+(require 'tramp)
 
 ;; For `string-trim'.
 (require 'subr-x)
