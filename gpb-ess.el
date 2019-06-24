@@ -38,7 +38,7 @@ Contains a cons of two markers.")
 
   (local-set-key "\C-cb" 'gpb:ess-insert-browser)
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
-  (local-set-key "\C-c\C-c" 'ess-r-devtools-load-package)
+  (local-set-key "\C-c\C-c" 'gpb-ess:save-and-load-command)
 
   ;; Override the help function
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
@@ -959,3 +959,33 @@ interactively."
           (forward-line 1)
           (delete-region (point-min) (point)))
         (ess-help-underline))))))
+
+
+(defun gpb-ess:save-and-load-command (arg)
+  "Save the current buffer and then source it or reload the package."
+  (interactive "P")
+  (let* ((filename (buffer-file-name))
+         (localname (or (file-remote-p filename 'localname) filename))
+         (ess-proc (ess-get-process))
+         dir cmd)
+    ;; Get the name of the directory that contains filename.
+    (setq dir (directory-file-name
+               (file-name-directory localname)))
+    (save-buffer)
+    (cond
+     ((string-suffix-p ".Rmd" localname t)
+      (let ((build-cmd
+             (or (and (null arg) (boundp 'gpb-ess:build-cmd) gpb-ess:build-cmd)
+                 (read-string "Build command: "
+                              (format "rmarkdown::render('%s')" localname)))))
+        (setq-local gpb-ess:build-cmd build-cmd)
+        (ess-send-string ess-proc build-cmd)))
+     ((string-equal (file-name-base dir) "R")
+      (gpb:ess-save-package)
+      (setq cmd (format "devtools::load_all('%s', export_all = FALSE)"
+                        (directory-file-name (file-name-directory dir))))
+      (ess-send-string ess-proc cmd t))
+     (t
+      (save-restriction
+        (widen)
+        (gpb:ess-eval-region (point-min) (point-max)))))))
