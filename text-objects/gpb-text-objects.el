@@ -416,11 +416,18 @@ See `gpb-tobj--define-text-object' for more info."
 ;;   :key-binding (next "w")
 ;;   :key-binding (next "W" :backwards t))
 
+;; (defun gpb-tobj--forward-word (arg)
+;;   (interactive "p")
+;;   (case arg
+;;     (1 (re-search-forward "\\w\\b"))
+;;     (-1 (re-search-backward "\\b\\w"))
+;;     (t (error "Runtime error"))))
+
 (defun gpb-tobj--forward-word (arg)
   (interactive "p")
   (case arg
-    (1 (re-search-forward "\\w\\b"))
-    (-1 (re-search-backward "\\b\\w"))
+    (1 (forward-word 1))
+    (-1 (forward-word -1))
     (t (error "Runtime error"))))
 
 
@@ -449,7 +456,8 @@ This is a modified version of the function from thing-at-pt."
   (let ((orig (point)))
     (save-excursion
       (end-of-line)
-      (beginning-of-defun)
+      (or (ignore-errors (beginning-of-defun))
+          (backward-paragraph))
       (nth 3 (parse-partial-sexp (point) orig)))))
 
 (defun gpb-tobj--forward-symbol (arg)
@@ -540,7 +548,12 @@ This is a modified version of the function from thing-at-pt."
 
 
 (gpb-tobj--define-text-object line (pos &rest modifiers)
-  "A line of text"
+  "A line of text
+
+inner: from the first non-whitespace character to last character
+regular: the full line excluding the trailing newline, but
+  excluding any prompts in a comint buffer.
+outer: the full line including and prompt and the trailing newline."
   :key-binding (root "l")
   :key-binding (root "L" :backwards t)
   (save-excursion
@@ -564,9 +577,12 @@ This is a modified version of the function from thing-at-pt."
                      (point))))
        ((and backwards)
         (list (save-excursion (move-beginning-of-line (+ 2 (- count)))
+                              (when (derived-mode-p 'comint-mode 'inferior-ess-mode)
+                                (move-end-of-line 1)
+                                (comint-bol))
                               (point))
               (progn (forward-line 1)
-                     ;; (move-end-of-line nil)
+                     (skip-chars-backward "\n")
                      (point))))
        ((and inner)
         (list (save-excursion (back-to-indentation)
@@ -582,10 +598,11 @@ This is a modified version of the function from thing-at-pt."
                      (point))))
        (t
         (list (save-excursion (move-beginning-of-line 1)
+                              (when (derived-mode-p 'comint-mode 'inferior-ess-mode)
+                                (move-end-of-line 1)
+                                (comint-bol))
                               (point))
               (progn (forward-line count)
-                     ;; (forward-line (1- count))
-                     ;; (move-end-of-line nil)
                      (point))))))))
 
 
