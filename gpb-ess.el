@@ -1297,3 +1297,35 @@ interactively."
       (save-restriction
         (widen)
         (gpb:ess-eval-region (point-min) (point-max)))))))
+
+
+(defun gpb:ess-behind-block-paren-p ()
+  "Are we looking at a parenthesis that starts a block?
+
+Unlike the default implementation, we only consider a parenthesis
+to be the start of a block if the parenthesis is the last thing
+on the line.  This gets us indentation that looks like:
+
+x <- (f()
+      %>% g
+      %>% h)
+and
+
+rather than
+
+x <- (f()
+  %>% g
+  %>% h)
+
+but doesn't not change
+
+x <- (
+  f()
+  %>% g
+  %>% h)
+
+"
+  (and (looking-at "( *$")
+       (not (ess-ahead-attached-name-p))))
+
+(advice-add 'ess-behind-block-paren-p :override 'gpb:ess-behind-block-paren-p)
