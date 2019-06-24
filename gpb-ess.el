@@ -250,7 +250,8 @@ an ESS inferior buffer."
       (save-excursion
         (goto-char initial-pmark)
         (insert (concat r-object "?"))
-        (comint-add-to-input-history (concat r-object "?")))
+        (comint-add-to-input-history (concat r-object "?"))
+        (setq comint-input-ring-index nil))
 
       (let ((obj-class (ess-string-command (format "class(%s)\n" r-object)))
             (dt-command (format "print(%%s, %s)"
