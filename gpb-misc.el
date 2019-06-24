@@ -676,13 +676,13 @@ argument is given."
         (setq bufs (append (cdr bufs) (list (car bufs))))
         (mapcar* (lambda (w b) (set-window-buffer w b))
                  wins bufs)))
-  (other-window 1)
+  (other-window 1 t)
   (when (memq (window-system) '(x w32 ns))
     (x-focus-frame (selected-frame))))
 
 (defun gpb-previous-window ()
   (interactive)
-  (other-window -1)
+  (other-window -1 t)
   (when (memq (window-system) '(x w32 ns))
     (x-focus-frame (selected-frame))))
 
