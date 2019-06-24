@@ -653,7 +653,6 @@
              (message "selected window: %s" (selected-window))
              (run-at-time 0.1 nil 'recenter)))))
 
-
 (eval-after-load 'gitmodes
   '(progn
      (gpb-modal:define-key
@@ -693,5 +692,9 @@
       'gpb-git:commit-graph-mode "m" 'gpb-git:mark-line)
      (gpb-modal:define-key
       'gpb-git:commit-graph-mode "d" 'gpb-git--commit-graph-mode--show-diff)))
+
+(eval-after-load 'poly-markdown
+  '(oset poly-markdown-root-innermode :adjust-face 5))
+
 
 (setq debug-on-quit nil)
