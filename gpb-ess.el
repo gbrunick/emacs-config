@@ -931,6 +931,242 @@ displayed."
 
 
 
+(defun gpb:ess-download-package-source (url dir &optional tag-dirs-file)
+  "Download the package from URL to DIR/<pkgname>_<ver>/<pkgname>.
+If TAG-DIRS-FILE is non-nil, we add the downloaded package's R
+directory to the list of directories in that file and call
+`gpb:ess-update-tags' to refresh the TAGS file.
+
+When called interactively, we prompt the user for the name of an
+installed package, and attempt to download the version that is
+currently installed."
+  (interactive
+   (list
+    ;; url
+    (let ((pkg-ver (gpb:ess-choose-installed-package)))
+      (gpb:ess-find-package-source (car pkg-ver) (cdr pkg-ver)))
+    ;; dir
+    (read-directory-name "Download source to: ")
+    ;; tag-dirs-file
+    (and (y-or-n-p "Add to TAG_DIRS? ")
+         (let ((file (or (gpb:ess-find-tag-dirs-file)
+                         tag-dirs-file)))
+           (read-file-name
+            (if file "Tags file (default TAG_DIRS): " "Tags file: ")
+            (file-name-directory file)
+            file)))))
+
+  (assert (string-match ".tar.gz$" url))
+  (let* ((package-file (file-name-nondirectory url))
+         (package-name (car (split-string package-file "_")))
+         (package-name-as-dir (file-name-as-directory package-name))
+         ;; package-dir is <dir>/<pkgname>_<ver>/
+         (package-dir (file-name-as-directory
+                       (concat dir (replace-regexp-in-string
+                                    ".tar.gz$" "" package-file))))
+         (process-buf (with-current-buffer
+                          (get-buffer-create "*R package download output*")
+                        (erase-buffer)
+                        (current-buffer))))
+
+    (when (not (file-directory-p package-dir)) (make-directory package-dir))
+
+    ;; Download the archive file into `package-dir'
+    (unless
+        (or (zerop (let ((default-directory package-dir))
+                     (process-file "wget" nil process-buf nil
+                                   "--no-check-certificate"
+                                   "--timestamping" url)))
+            (and (display-buffer process-buf)
+                 (y-or-n-p (concat "Couldn't download package.  "
+                                   "Would you like to try the CRAN archive? "))
+                 (let ((url (format (concat "https://cran.r-project.org"
+                                            "/src/contrib/Archive/%s/%s")
+                                    package-name package-file)))
+                   (zerop (let ((default-directory package-dir))
+                            (process-file "wget" nil process-buf nil
+                                          "--no-check-certificate"
+                                          "--timestamping" url))))))
+      (pop-to-buffer process-buf)
+      (error "Download failed"))
+    (with-current-buffer process-buf (erase-buffer))
+
+    ;; Now extract the contents of the archive file.  This will create a
+    ;; further subdirectory in `package-dir' giving the directory structure
+    ;; <dir>/<pkgname>_<ver>/<pkgname>/.
+    (unless (zerop (let ((default-directory package-dir))
+                     (process-file "tar" nil process-buf nil
+                                   "-zxvf" package-file)))
+      (pop-to-buffer process-buf)
+      (error "Package extraction failed"))
+    (kill-buffer process-buf)
+    (message "Wrote %s" package-dir)
+
+    (when tag-dirs-file
+      (let* ((subdir (file-name-as-directory package-name))
+             (source-dir (concat package-dir subdir "R"))
+             (base-dir (file-name-directory tag-dirs-file))
+             ;;(local-dir (or (file-remote-p source-dir 'localname) source-dir))
+             ;; The path relative to the TAG_DIRS file.
+             (relative-dir (file-relative-name source-dir base-dir)))
+        (with-temp-buffer
+          (insert-file-contents tag-dirs-file)
+          (goto-char (point-max))
+          (skip-chars-backward " \n\t")
+          (insert (concat "\n" relative-dir "\n"))
+          (write-region (point-min) (point) tag-dirs-file))))
+    package-dir))
+
+
+(defun gpb:ess-choose-installed-package (&optional buf)
+  "Prompt the user the name of an installed package.
+Returns (package-name . version) cons cell."
+  (with-current-buffer (or buf (current-buffer))
+    (message "Loading package info...")
+    (let* ((cmd (concat
+                 ;; Prints Lisp alist from package name to version.
+                 "local({"
+                 "    pkgs <- installed.packages();"
+                 "    cat(paste0('(', "
+                 "           paste0('(\"', pkgs[, 'Package'], '\" . \"', "
+                 "                  pkgs[, 'Version'], '\")', collapse = ' '), "
+                 "           ')'), '\\n');"
+                 "})\n"))
+           (result (ess-string-command cmd))
+           (installed-pkgs (car (read-from-string result)))
+           (package (completing-read "Package: " (mapcar 'car installed-pkgs)
+                                     nil t)))
+      (assoc package installed-pkgs))))
+
+
+(defun gpb:ess-find-package-source (package version &optional refresh buf)
+  "Find URL with the source code for the given version of PACKAGE."
+  (with-current-buffer (or buf (current-buffer))
+    (let* ((cmd2 (concat
+                  ;; Prints Lisp alist from package name to base repository
+                  ;; url.  It appears that available.packages() only
+                  ;; advertises the most recent version, so we ignore the
+                  ;; version information that is returned and munge the URL
+                  ;; ourselves to find the source for the version that is
+                  ;; currently installed.
+                  "local({"
+                  "    pkgs <- available.packages();"
+                  "    cat(paste0('(', "
+                  "           paste0('(\"', pkgs[, 'Package'], '\" . \"', "
+                  "                  pkgs[, 'Repository'], '\")', "
+                  "                  collapse = ' '), "
+                  "           ')'), '\\n');"
+                  "})\n"))
+           (base-url-alist (or (and (not refresh)
+                                    (boundp 'gpb-ess:find-package-source:cache)
+                                    gpb-ess:find-package-source:cache)
+                               (progn
+                                 (message "Loading repo info...")
+                                 (car (read-from-string
+                                       (ess-string-command cmd2))))))
+           (base-url (cdr (assoc package base-url-alist))))
+      (setq-local gpb-ess:find-package-source:cache base-url-alist)
+      (unless base-url (error "Could not find package: %s" package))
+      (format "%s/%s_%s.tar.gz" base-url package version))))
+
+
+(defmacro gpb:ess-with-working-dir (dir &rest body)
+  "Evaluate BODY with the inferior process working directory set to DIR."
+  (declare (indent 1) (debug t))
+  (let ((saved-dir-symbol (gensym "saved-dir-"))
+        (cmd-symbol (gensym "cmd-")))
+    `(let ((,saved-dir-symbol (ess-string-command
+                               "cat(paste0(getwd(), '\\n'))\n"))
+           (,cmd-symbol (format "setwd('%s')\n"
+                                (directory-file-name
+                                 (or (file-remote-p ,dir 'localname) ,dir)))))
+       (ess-command ,cmd-symbol)
+       (unwind-protect
+           ,@body
+         (ess-command (format "setwd('%s')\n" ,saved-dir-symbol))))))
+
+
+(defun gpb:ess-find-tag-dirs-file (&optional dir)
+  "Find TAG_DIRS file in DIR or one of its parents.
+DIR defaults to `default-directory'."
+  (let* ((init-dir (file-name-as-directory (or dir default-directory)))
+         (basename "TAG_DIRS")
+         (file (concat init-dir basename)))
+    (catch 'no-file
+      (while (not (file-exists-p file))
+        ;; Apparently moving up to the parent directory requires three steps:
+        ;; 1. Get the directory of file
+        ;; 2. Remove trailing slash of of directory in 1.
+        ;; 3. Get the directory of 2.
+        (setq file (let ((next (concat (file-name-directory
+                                        (directory-file-name
+                                         (file-name-directory file)))
+                                       basename)))
+                     (when (string= file next)
+                       (throw 'no-file nil))
+                     next)))
+      file)))
+
+
+(defun gpb:ess-update-tags (&optional tags-dirs-file)
+  "Update TAGS file using directories in `tags-dirs-file'.
+`tags-dirs-file' is usually a file named TAG_DIRS that sits next to TAGS."
+  (interactive
+   (list (or (let* ((file-name (buffer-file-name))
+                    (base-name (ignore-errors
+                                 (file-name-nondirectory file-name))))
+               (when (string= base-name "TAG_DIRS") file-name))
+             (gpb:ess-find-tag-dirs-file)
+             (read-file-name "Tags dirs file: "))))
+  (let* ((working-dir (file-name-directory tags-dirs-file))
+         (ess-buf (current-buffer))
+         (tags-file (concat working-dir "TAGS"))
+         (cmd-template (concat "rtags('%s', recursive = TRUE, "
+                               "      pattern = '\\\\.[Rr]$', verbose = FALSE, "
+                               "      ofile = 'TAGS', append = TRUE)\n"))
+         source-dir cmd)
+    (with-current-buffer (find-file-noselect tags-dirs-file)
+      ;; Delete the current content of the TAGS file.
+      (delete-file tags-file)
+      (save-excursion
+        ;; Now iterate through the lines in TAG_DIRS
+        (goto-char (point-min))
+        (while (< (point) (point-max))
+          (setq source-dir (buffer-substring-no-properties
+                            (point)
+                            ;; Don't include the newline.
+                            (progn (forward-line 1) (1- (point)))))
+          (message "Reading %s ..." source-dir)
+          ;; Ignore blank lines and lines starting with '#'.
+          (when (not (string-match "^\\(#\\| *$\\)" source-dir))
+            (setq cmd (format cmd-template source-dir))
+            (with-current-buffer ess-buf
+              ;; `expand-file-name' behaves in way that breaks
+              ;; `etags-file-of-tag' on Windows with a remote
+              ;; `default-directory' and an absolute path so we need to use
+              ;; relative paths in our TAGS file.  We set the R working
+              ;; directory before we call rtags to get relative paths.
+              ;;
+              ;; (expand-file-name  "/home/user/src/DT_0.5/DT/R/shiny.R"
+              ;;                    "/plinkx:SESSION:/home/user/")
+              ;; => "c:/home/user/src/DT_0.5/DT/R/shiny.R"
+              ;;
+              (gpb:ess-with-working-dir working-dir
+                (ess-command cmd)))))))
+
+    ;; Now fix up the TAGS file.  The rtags command only keeps the first
+    ;; letter of each identifier in the first field of the tag.  This makes
+    ;; some Emacs interactions unpleasant, so we copy the value from the
+    ;; second field into the first field.  The special characters  and 
+    ;; are the field delimiters in the tag file.
+    (with-temp-buffer
+      (insert-file-contents tags-file)
+      (goto-char (point-min))
+      (while (re-search-forward "^\\([^\n]*\\)\\([^\n]*\\)" nil t)
+        (replace-match (match-string 2) t nil nil 1))
+      (write-region (point-min) (point-max) tags-file))))
+
+
 (defvar gpb-ess:define-traceback-function
   "local({
        assign('.essrTraceback',
