@@ -394,7 +394,7 @@ This code is taken from fx-misc.el by Dave Love"
       (browse-url-of-file filename))
 
      ;; View Excel files
-     ((and (string-match "\\.\\(xlsx\\|pdf\\)$" filename)
+     ((and (string-match "\\.\\(csv\\|xlsx\\|pdf\\)$" filename)
            (y-or-n-p "View locally?"))
       (when (file-remote-p filename)
         (unless (file-exists-p gpb-view-file-cache)
