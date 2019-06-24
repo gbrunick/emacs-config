@@ -280,6 +280,40 @@ an ESS inferior buffer."
       (setq-local gpb:output-buffer buffer)
       (comint-redirect-send-command command buffer nil)))
 
+
+   ;; If the input looks like "[Evaluate lines 11-22 in scratch.R]"
+   ;; evaluate the region.
+   ((and (comint-after-pmark-p)
+         (save-excursion
+           (beginning-of-line)
+           (looking-at-p "^> *\\[Evaluate lines [0-9]+-[0-9]+ in .*\\]")))
+    (save-excursion
+      (beginning-of-line)
+      (save-match-data
+        (re-search-forward
+         "^> *\\[Evaluate lines \\([0-9]+\\)-\\([0-9]+\\) in \\(.*\\)\\]")
+        (let* ((proc (get-buffer-process (current-buffer)))
+               (pmark (process-mark proc))
+               (initial-pmark (marker-position pmark))
+               (line1 (string-to-number (match-string 1)))
+               (line2 (string-to-number (match-string 2)))
+               (buf-name (match-string 3))
+               beg end)
+          (delete-region initial-pmark (save-excursion (end-of-line) (point)))
+          (with-current-buffer buf-name
+            (goto-line line1)
+            (setq beg (point))
+            (goto-line line2)
+            (end-of-line)
+            (setq end (point))
+            (gpb:ess-eval-region beg end))))))
+
+   ((get-text-property (point) :region-beg)
+    (let ((beg (get-text-property (point) :region-beg))
+          (end (get-text-property (point) :region-end)))
+      (with-current-buffer (marker-buffer beg)
+        (gpb:ess-eval-region beg end))))
+
    ((comint-after-pmark-p)
     (inferior-ess-send-input))
    (t
@@ -474,10 +508,17 @@ temporary file that is produced."
      (t
       (let* ((filename (gpb:ess-make-region-file beg end proc-default-directory))
              (local-filename (or (file-remote-p filename 'localname) filename))
-             (cmd (format "source(%s)" (prin1-to-string local-filename))))
+             (cmd (format "source(%s)" (prin1-to-string local-filename)))
+             (text (format "[Evaluate lines %s-%s in %s]" line1 line2 (buffer-name))))
         (gpb:exit-all-browsers)
-        (ess-send-string ess-proc cmd (format "[Evaluate lines %s-%s in %s]"
-                                              line1 line2 (buffer-name))))))))
+        (ess-send-string ess-proc cmd text)
+        (with-current-buffer (process-buffer ess-proc)
+          (comint-add-to-input-history text)
+          (setq comint-input-ring-index nil)))))
+
+    (display-buffer (process-buffer ess-proc))
+    (with-current-buffer (process-buffer ess-proc)
+      (goto-char (point-max)))))
 
 
 (defun gpb:ess-save-package ()
