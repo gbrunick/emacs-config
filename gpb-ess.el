@@ -53,8 +53,9 @@ Contains a cons of two markers.")
   (nconc ess-imenu-S-generic-expression
         '(("Tests" "^test_that([\"']\\(.*\\)[\"'], *{" 1)))
 
-  (gpb:ess-sniff-out-two-space-indentation)
-  ;; (setq ess-indent-offset 2)
+  ;;(gpb:ess-sniff-out-two-space-indentation)
+  (setq ess-indent-offset 2)
+  (setcdr (assoc 'ess-indent-offset (assoc 'RRR ess-style-alist)) 2)
 
   ;; Allow movement within camel-case identifiers.
   (subword-mode 1)
