@@ -883,7 +883,20 @@ displayed."
 
 (defun gpb:inferior-ess-previous-traceback ()
   (interactive)
-  (compilation-next-error -1 nil (point)))
+  ;; (compilation-next-error -1 nil (point)) seems to be very slow.
+  (let ((new-pt nil))
+    (save-excursion
+      (when (get-text-property (point) 'compilation-message)
+        ;; We are in a link, get out back.
+        (goto-char (previous-single-property-change (point) 'compilation-message)))
+      ;; Move back to end of previous link.
+      (goto-char (previous-single-property-change (point) 'compilation-message))
+      ;; Move to start of previous link.
+      (unless (get-text-property (point) 'compilation-message)
+        (goto-char (previous-single-property-change (point) 'compilation-message)))
+      (when (> (point) (point-min))
+        (setq new-pt (point))))
+    (when new-pt (goto-char new-pt))))
 
 
 (advice-add 'ess-quit :before 'ess-quit:confirm-quit)
