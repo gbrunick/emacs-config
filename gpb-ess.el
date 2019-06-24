@@ -525,9 +525,7 @@ temporary file that is produced."
   "Save all files in the current package that have been edited."
   (interactive)
   (when (car (ess-r-package-project))
-    (let* ((local-pkg-dir (cdr (ess-r-package-project)))
-           (code-dir (concat (file-remote-p default-directory)
-                             (file-name-as-directory local-pkg-dir)))
+    (let* ((code-dir (cdr (ess-r-package-project)))
            (is-pkg-buf-p (lambda (buf)
                            (string-prefix-p code-dir (buffer-file-name buf))))
            (bufs-visiting-pkg-code (cl-remove-if-not
