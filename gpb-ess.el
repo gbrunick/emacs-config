@@ -48,8 +48,10 @@ Contains a cons of two markers.")
   (adelete 'ess-imenu-S-generic-expression "Data")
   ;; Only match top-level function definitions.
   (setcdr (assoc "Functions" ess-imenu-S-generic-expression)
-          '("^\\([^ \t]+\\)[ \t\n]*\\(?:<-\\|=\\)[ \t\n]*function[ ]*(" 1))
-  (adelete 'ess-imenu-S-generic-expression "Data")
+          '("^\\([^ \t\n]+\\)[ \t\n]*\\(?:<-\\|=\\)[ \t\n]*function[ ]*(" 1))
+  (adelete 'ess-imenu-S-generic-expression "Tests")
+  (nconc ess-imenu-S-generic-expression
+        '(("Tests" "^test_that([\"']\\(.*\\)[\"'], *{" 1)))
 
   (gpb:ess-sniff-out-two-space-indentation)
   ;; (setq ess-indent-offset 2)
