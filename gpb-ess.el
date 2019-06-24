@@ -63,6 +63,9 @@ Contains a cons of two markers.")
   ;; Use etags rather than ESS's custom xref implementation.
   (xref-etags-mode 1)
 
+  ;; Enable tab completion of R object names.
+  ;; (setq ess-tab-complete-in-script t)
+
   (let ((package-item (or (assoc "Package" ess-imenu-S-generic-expression)
                           (assoc "Packages" ess-imenu-S-generic-expression))))
     (setcar package-item "Packages")
