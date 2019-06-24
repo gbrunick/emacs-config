@@ -52,19 +52,20 @@
          (inhibit-read-only t)
          pt)
 
-    (with-current-buffer buf
-      (setq pt (point))
-      (dolist (ov (gpb-git:show-status--get-overlays 'filename))
-        (delete-overlay ov))
-      (erase-buffer)
-      (save-excursion
-        (insert (format "Repo: %s\n\n%s\n\n"
-                        (gpb-git--abbreviate-file-name default-directory)
-                        (mapconcat 'identity cmd " ")))
-        (setq-local original-point pt)
-        (setq-local put-status-here (point))
-        (gpb-git:exec-async cmd default-directory
-                            #'gpb-git:show-status--refresh-1)))))
+    (when buf
+      (with-current-buffer buf
+        (setq pt (point))
+        (dolist (ov (gpb-git:show-status--get-overlays 'filename))
+          (delete-overlay ov))
+        (erase-buffer)
+        (save-excursion
+          (insert (format "Repo: %s\n\n%s\n\n"
+                          (gpb-git--abbreviate-file-name default-directory)
+                          (mapconcat 'identity cmd " ")))
+          (setq-local original-point pt)
+          (setq-local put-status-here (point))
+          (gpb-git:exec-async cmd default-directory
+                              #'gpb-git:show-status--refresh-1))))))
 
 
 (defun gpb-git:show-status--refresh-1 (output-buffer)
