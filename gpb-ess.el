@@ -920,6 +920,17 @@ displayed."
 ;;                'ess-r-package-eval-linewise:remove-tramp-prefix)
 
 
+(defun gpb:ess-indent-one-space-advice (f)
+  (let ((ess-indent-offset 1)) (funcall f)))
+
+(advice-add 'ess-roxy-maybe-indent-line :around
+            'gpb:ess-indent-one-space-advice)
+
+(advice-add 'ess-roxy-adaptive-fill-function :around
+            'gpb:ess-indent-one-space-advice)
+
+
+
 (defvar gpb-ess:define-traceback-function
   "local({
        assign('.essrTraceback',
