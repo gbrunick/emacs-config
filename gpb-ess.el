@@ -852,12 +852,14 @@ displayed."
 
 
 (defun gpb:ess-sniff-out-two-space-indentation ()
-  (let ((two-space-count 0))
+  (let ((two-space-count 0) (prev-indent 0))
     ;; Count the number of lines with two space indentation.
     (save-excursion
       (goto-char (point-min))
       (while (not (eobp))
-        (when (= (current-indentation) 2) (incf two-space-count))
+        (when (= (- (current-indentation) prev-indent) 2)
+          (incf two-space-count))
+        (setq prev-indent (current-indentation))
         (forward-line 1)))
 
     ;; Now check against some arbitrary threshold.
