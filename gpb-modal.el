@@ -249,6 +249,7 @@ The functions `gpb-modal--enter-command-mode' and
 
     (define-key map "\"" 'gpb-modal--quote-symbols-in-region)
     (define-key map "'" 'gpb-modal--quote-symbols-in-region)
+    (define-key map "`" 'gpb-modal--quote-symbols-in-region)
 
     ;; TODO: This should really only be bound in the ESS major modes.
     (define-key map "C" 'gpb-modal--wrap-in-code)
@@ -835,7 +836,10 @@ return nil."
 
 (defun gpb-modal--quote-symbols-in-region (beg end &optional unquote)
   (interactive "r\nP")
-  (let* ((quote-char (if (string-equal (this-command-keys) "'") "'" "\""))
+  (let* ((quote-char (cond
+                      ((string-equal (this-command-keys) "`") "`")
+                      ((string-equal (this-command-keys) "'") "'")
+                      (t "\"")))
          (end-marker (copy-marker end)))
     (message "this-command-keys: %S" (this-command-keys))
     (save-excursion
