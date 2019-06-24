@@ -164,7 +164,7 @@ The functions `gpb-modal--enter-command-mode' and
     (define-key map "%" 'gpb-modal--to-matching-delimiter)
     (define-key map "J" 'scroll-up-command)
     (define-key map "K" 'scroll-down-command)
-    (define-key map "$" 'end-of-line)
+    (define-key map "$" 'ispell-word)
 
     (define-key map "m" 'mark-text-object)
     ;; (define-key map "M" 'gpb-reg-reselect-region)
@@ -326,12 +326,15 @@ buffer."
 (defun gpb-modal:define-key (where key def)
   "Bind KEY to DEF.
 
-The argument WHERE is a symbol: :insert writes to the global
-insert mode map: :command writes to the global command mode map,
-:local writes to the buffer local command mode map.  Any other
-symbol writes to the conditional command mode map and creates a
-binding that is active when the symbol is true.  This allows for
-command mode bindings that become active when a minor mode is
+The argument WHERE is a symbol:
+* :insert writes to the global insert mode map
+* :command writes to the global command mode map
+* :local writes to the buffer local command mode map.
+* Any other symbol writes to the conditional command mode map and
+  creates a binding that is active when the symbol is true.
+
+In particular, if where is a the symbol associated with a minor
+mode, the binding becomes active when that minor mode is
 activated."
   (let ((map (cond ((eq where :insert) gpb-modal--insert-mode-map)
                    ((eq where :command) gpb-modal--global-command-mode-map)
@@ -352,7 +355,6 @@ activated."
                     (error (concat "WHERE must be a :insert, :command, "
                                    ":local or a minor mode symbol."))))))
     (define-key map key def)))
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
