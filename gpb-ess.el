@@ -96,9 +96,6 @@ Contains a cons of two markers.")
   ;; Allow movement within camel-case identifiers.
   (subword-mode 1)
 
-  ;; Use etags rather than ESS's custom xref implementation.
-  (xref-etags-mode 1)
-
   (setq-local comint-input-filter 'gpb:ess-comint-input-filter)
 
   ;; Correct some syntax assignments.
@@ -134,7 +131,10 @@ Contains a cons of two markers.")
   ;; Do some custom R process configuration
   ;; Disable magical handling of help.
   (setq comint-input-sender 'inferior-ess-input-sender)
-  (ess-string-command gpb-ess:define-traceback-function nil 1))
+  (ess-string-command gpb-ess:define-traceback-function nil 1)
+
+  ;; Use etags rather than ESS's custom xref implementation.
+  (xref-etags-mode 1))
 
 
 (defun gpb:ess-goto-line (arg)
