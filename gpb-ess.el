@@ -541,12 +541,13 @@ temporary file that is produced."
     (let* ((procname (car procname-props))
            (proc (get-process procname))
            (buf (process-buffer proc)))
-      (with-current-buffer buf
-        (save-excursion
-          (goto-char (marker-position (process-mark proc)))
-          (beginning-of-line)
-          (when (looking-at-p "^Browse\\[[0-9]+\\]> *")
-            (ess-send-string (ess-get-process) "Q" t)))))))
+      (when (buffer-live-p buf)
+        (with-current-buffer buf
+          (save-excursion
+            (goto-char (marker-position (process-mark proc)))
+            (beginning-of-line)
+            (when (looking-at-p "^Browse\\[[0-9]+\\]> *")
+              (ess-send-string (ess-get-process) "Q" t))))))))
 
 
 (when (fboundp 'advice-add)
