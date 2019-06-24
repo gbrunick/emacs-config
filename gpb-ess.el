@@ -987,7 +987,6 @@ interactively."
          (proc (get-process ess-local-process-name))
          (proc-buf (process-buffer proc))
          (inhibit-read-only t))
-    (setq-local comint-redirect-hook '(gpb-ess:show-help--comint-redirect-hook))
     (setq comint-redirect-filter-functions nil)
     (with-current-buffer help-buf
       (erase-buffer)
@@ -995,6 +994,7 @@ interactively."
       (read-only-mode 1)
       (setq comint-redirect-subvert-readonly t))
     (with-current-buffer proc-buf
+      (setq-local comint-redirect-hook '(gpb-ess:show-help--comint-redirect-hook))
       (comint-redirect-send-command command help-buf nil t)
       (setq comint-redirect-finished-regexp "^\\(>\\|Selection:\\)"
             comint-redirect-insert-matching-regexp t))))
