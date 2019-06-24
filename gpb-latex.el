@@ -582,7 +582,7 @@ If an environment appears in both lists, it is excluded.
   ;; synctex support Needs auctex version >= .86
   ;; see http://www.bleedingmind.com/index.php/2010/06/17/synctex-on-linux-and-mac-os-x-with-emacs/
   ;;(setq)
-  (TeX-source-correlate-mode 1)
+  ;; (TeX-source-correlate-mode 1)
   (gpb-latex-process-local-style-files)
 
   (setq gpb-goto-beginning--function
