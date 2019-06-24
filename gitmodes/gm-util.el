@@ -86,6 +86,7 @@ Maintains a separate history list from `read-directory-name'."
    (point)
    (progn
      (insert text)
+     (insert " ")
      (gpb-git:insert-spinner)
      (point))
    '(face (background-color . "light gray"))))

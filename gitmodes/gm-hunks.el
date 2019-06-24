@@ -619,7 +619,7 @@ previously highlighted hunk."
                                             "apply" "--cached")))
       (delete-file patch-file))
 
-    (gpb-git:refresh-status)
+    (gpb-git:show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
       (quit-window t))
@@ -640,7 +640,7 @@ previously highlighted hunk."
     (let ((patch-file (gpb-git--apply-hunks marked-hunks
                                             "apply" "--cached" "-R")))
       (delete-file patch-file))
-    (gpb-git:refresh-status)
+    (gpb-git:show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
       (quit-window t))

@@ -78,7 +78,7 @@
 ;;    :rename bool which is true when the hunk correspond to a file
 ;;        rename.
 ;;
-;;  The function `gpb-git:refresh-status' calls `gpb-git--parse-diff' to
+;;  The function `gpb-git--refresh-changes' calls `gpb-git--parse-diff' to
 ;;  produce a list of changes and inserts these changes into a buffer,
 ;;  placing an overlay on the section of the buffer that correponds to each
 ;;  hunk.  These overlays have all of the properties listed above as well

@@ -250,7 +250,7 @@ status output."
         (repo-dir default-directory))
     (assert repo-dir)
     (with-current-buffer buf
-      (gpb-git--show-staged-changes repo-dir))
+      (gpb-git--refresh-staged-changes repo-dir))
     (pop-to-buffer buf)))
 
 
@@ -302,15 +302,35 @@ status output."
 
       (with-current-buffer buf
         (if staged
-            (gpb-git--show-staged-changes repo-dir cmd)
+            (gpb-git--refresh-staged-changes repo-dir cmd)
           (gpb-git--refresh-unstaged-changes repo-dir cmd))
         (pop-to-buffer buf)))))
+
+
+(defun gpb-git:show-status--show-unstaged-file-diff (button)
+  (let* ((filename (button-get button 'filename))
+         (cmd `("git" "diff" "--" ,filename))
+         (buf (get-buffer-create (format "*staged: %s*" filename)))
+         (repo-dir default-directory))
+    (with-current-buffer buf
+      (gpb-git--refresh-unstaged-changes repo-dir cmd))
+    (pop-to-buffer buf)))
+
+
+(defun gpb-git:show-status--show-staged-file-diff (button)
+  (let* ((filename (button-get button 'filename))
+         (cmd `("git" "diff" "--cached" "--" ,filename))
+         (buf (get-buffer-create (format "*staged: %s*" filename)))
+         (repo-dir default-directory))
+    (with-current-buffer buf
+      (gpb-git--refresh-staged-changes repo-dir cmd))
+    (pop-to-buffer buf)))
 
 
 (defun gpb-git:shell-command ()
   (interactive)
   (call-interactively 'shell-command)
-  (gpb-git:refresh-status))
+  (gpb-git:show-status--refresh))
 
 
 (provide 'gm-status)
