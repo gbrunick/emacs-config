@@ -1022,6 +1022,13 @@ are identified by `imenu-create-index-function'."
                                   (gpb:jump-to-index-item :other-no-switch)))
       (use-local-map keymap)
       (setq buffer-read-only t))
+
+    (with-current-buffer buf
+      (setq-local gpb:index-buffer (get-buffer bufname))
+      (add-hook 'kill-buffer-hook
+                'gpb:create-imenu-index-buffer--kill-buffer-hook
+                nil t))
+
     (unless (string= (buffer-name) bufname)
       (if arg (switch-to-buffer-other-window bufname)
         (switch-to-buffer bufname))
@@ -1029,6 +1036,12 @@ are identified by `imenu-create-index-function'."
         (goto-char initial-pt)
         (forward-button 1))
       (recenter))))
+
+
+(defun gpb:create-imenu-index-buffer--kill-buffer-hook ()
+  (when gpb:index-buffer
+    (kill-buffer gpb:index-buffer)))
+
 
 (defun gpb:create-imenu-index-buffer-other-window ()
   (interactive)
