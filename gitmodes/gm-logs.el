@@ -3,6 +3,8 @@
     (define-key map "m" 'gpb-git:mark-line)
     (define-key map "d" 'gpb-git--commit-graph-mode--show-diff)
     (define-key map "g" 'gpb-git:refresh-buffer)
+    (define-key map (kbd "RET") 'gpb-git:show-commit-graph--show-commit)
+    (define-key map "!" 'gpb-git:shell-command)
     map)
   "The keymap used when viewing the commit graph.")
 
@@ -17,37 +19,42 @@
 
 (defun gpb-git:show-commit-graph (&optional repo-root)
   (interactive (list (gpb-git--read-repo-dir)))
-  (let* ((buf (gpb-git--get-new-buffer "*git graph" "*"))
+  (let* ((buf (get-buffer-create "*git log*"))
          (marker1 (make-marker))
          (marker2 (make-marker))
          (cmd '("git" "log" "--graph" "--oneline" "--decorate" "--color"))
-         (repo-root (or repo-root default-directory))
-         (inhibit-read-only t))
-    (switch-to-buffer buf)
+         (repo-root (or repo-root default-directory)))
     (with-current-buffer buf
       (setq default-directory repo-root)
       (gpb-git--refresh-commit-graph)
-      (setq-local refresh-cmd `(gpb-git--refresh-commit-graph)))))
+      (setq-local refresh-cmd `(gpb-git--refresh-commit-graph)))
+    (switch-to-buffer buf)))
 
 
 (defun gpb-git--refresh-commit-graph (&optional callback)
-  (let ((cmd '("git" "log" "--graph" "--oneline" "--decorate" "--color"))
+  (let ((cmd '("git" "log" "--graph" "--oneline" "--decorate"
+               "--color" "--all"))
         (inhibit-read-only t))
     (read-only-mode 1)
     (erase-buffer)
     (gpb-git:commit-graph-mode)
     (insert (format "Repo: %s\n\n" default-directory))
     (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
-    (gpb-git:insert-placeholder "Loading commits")
+    (save-excursion (gpb-git:insert-placeholder "Loading commits"))
     (gpb-git:exec-async cmd default-directory #'gpb-git--refresh-commit-graph-1
                         callback)))
 
 (defun gpb-git--refresh-commit-graph-1 (buf callback)
   (let ((inhibit-read-only t))
     (gpb-git:delete-placeholder "Loading commits")
-    (insert (with-current-buffer buf (buffer-string)))
-    (ansi-color-apply-on-region (point-min) (point-max))
-    (goto-char (point-min))
+    (save-excursion
+      (insert (with-current-buffer buf (buffer-string)))
+      (ansi-color-apply-on-region (point-min) (point-max))
+      (goto-char (point-min))
+      (while (re-search-forward "^[* \\|/]+ \\([a-f0-9]+\\) " nil t)
+        (add-text-properties (progn (forward-line 0) (point))
+                             (progn (forward-line 1) (point))
+                             `(:commit-hash ,(match-string 1)))))
     (setq-local refresh-cmd `(gpb-git--refresh-commit-graph))
     (when callback (funcall callback))))
 
@@ -90,6 +97,17 @@
   (let ((new-ov (make-overlay (point-min) (point-min))))
     (overlay-put new-ov 'face 'gpb-git:marked-line-face)
     (setq-local marked-line-overlay new-ov)))
+
+
+(defun gpb-git:show-commit-graph--show-commit ()
+  (interactive)
+  (let ((hash (get-text-property (point) :commit-hash))
+        buf)
+    (unless hash (error "No commit on line"))
+    (setq buf (get-buffer-create (format "*commit: %s*" hash)))
+    (with-current-buffer buf
+      (gpb-git--show-commit hash))
+    (pop-to-buffer buf)))
 
 
 

@@ -5,8 +5,8 @@
     (define-key map "g" 'gpb-git:show-status--refresh)
     (define-key map "m" 'gpb-git:show-status--mark-file)
     (define-key map "u" 'gpb-git:show-status--unmark-file)
-    (define-key map "a" 'gpb-git:show-status--stage-marked-files)
-    (define-key map "r" 'gpb-git:show-status--unstage-marked-files)
+    (define-key map "a" 'gpb-git:show-status--stage-files)
+    (define-key map "r" 'gpb-git:show-status--unstage-files)
     (define-key map "d" 'gpb-git:show-status--show-diff)
     (define-key map "!" 'gpb-git:shell-command)
     map)
@@ -89,7 +89,8 @@ status output."
         (forward-line 1)
 
         (while (looking-at "^\t[^\t]")
-          (let* ((regex (concat "^\t\\(deleted:\\|modified:\\|new file:\\)?"
+          (let* ((regex (concat "^\t\\(deleted:\\|modified:"
+                                "\\|new file:\\|renamed:\\)?"
                                 " *\\(.*\\)$"))
                  (ov (make-overlay (point)
                                    (progn (re-search-forward regex)
@@ -328,10 +329,19 @@ status output."
     (pop-to-buffer buf)))
 
 
-(defun gpb-git:shell-command ()
-  (interactive)
-  (call-interactively 'shell-command)
-  (gpb-git:show-status--refresh))
+(defun gpb-git:shell-command (cmd)
+  (interactive (list (read-shell-command "Shell command: " nil nil)))
+  (let ((dir default-directory)
+        (buf (get-buffer-create "*Shell Command Output*"))
+        (inhibit-read-only t))
+  (with-current-buffer buf
+    (erase-buffer)
+    (setq default-directory dir)
+    (process-file-shell-command cmd nil t)
+    (comint-carriage-motion (point-min) (point-max))
+    (view-mode)
+    (gpb-git:show-status--refresh))
+  (pop-to-buffer buf)))
 
 
 (provide 'gm-status)
