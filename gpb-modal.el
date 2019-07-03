@@ -165,6 +165,8 @@ The functions `gpb-modal--enter-command-mode' and
     (define-key map "J" 'scroll-up-command)
     (define-key map "K" 'scroll-down-command)
     (define-key map "$" 'ispell-word)
+    (define-key map "!" 'shell-command)
+    (define-key map "&" 'async-shell-command)
 
     (define-key map "m" 'mark-text-object)
     ;; (define-key map "M" 'gpb-reg-reselect-region)
