@@ -5,6 +5,7 @@
     (define-key map "g" 'gpb-git:refresh-buffer)
     (define-key map (kbd "RET") 'gpb-git:show-commit-graph--show-commit)
     (define-key map "!" 'gpb-git:shell-command)
+    (define-key map "f" 'gpb-git:show-commit-graph--show-files)
     map)
   "The keymap used when viewing the commit graph.")
 
@@ -15,6 +16,20 @@
 
 \\{gpb-git:commit-graph-mode-map}\n"
   (gpb-git--init-marked-line-overlay))
+
+
+(defvar gpb-git:show-commit-files-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "RET") 'gpb-git:show-commit-graph--show-file-version)
+    map)
+  "The keymap used when viewing the commit graph.")
+
+
+(define-derived-mode gpb-git:show-commit-files-mode special-mode
+  "File List"
+  "\nMode for buffers displaying the files in a Git commit.
+
+\\{gpb-git:show-commit-files-mode-map}\n")
 
 
 (defun gpb-git:show-commit-graph (&optional repo-root)
@@ -109,6 +124,42 @@
       (gpb-git--show-commit hash))
     (pop-to-buffer buf)))
 
+
+(defun gpb-git:show-commit-graph--show-files ()
+  (interactive)
+  (let* ((hash (get-text-property (point) :commit-hash))
+         (cmd `("git" "ls-tree" "--name-only" "-r" ,hash))
+         (inhibit-read-only t)
+         buf)
+    (unless hash (error "No commit on line"))
+    (setq buf (get-buffer-create (format "*ls-tree: %s*" hash)))
+    (with-current-buffer buf
+      (erase-buffer)
+      (gpb-git:show-commit-files-mode)
+      (setq-local git-commit-hash hash)
+      (save-excursion
+        (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
+        (apply 'start-file-process "*git ls-tree*" buf cmd)))
+    (pop-to-buffer buf)))
+
+
+(defun gpb-git:show-commit-graph--show-file-version ()
+  (interactive)
+  (let* ((filename (buffer-substring
+                    (save-excursion (forward-line 0) (point))
+                    (save-excursion (forward-line 1) (1- (point)))))
+         (cmd `("git" "show" ,(format "%s:%s" git-commit-hash filename)))
+         buf)
+    (unless filename (error "No file on line"))
+    (setq buf (get-buffer-create (format "*%s: %s*" git-commit-hash filename)))
+    (with-current-buffer buf
+      (erase-buffer)
+      (save-excursion
+        (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
+        (apply 'start-file-process "*git show*" buf cmd))
+      (read-only-mode 1)
+      (view-mode))
+    (pop-to-buffer buf)))
 
 
 (provide 'gm-logs)
