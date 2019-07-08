@@ -89,7 +89,8 @@ status output."
         (forward-line 1)
 
         (while (looking-at "^\t[^\t]")
-          (let* ((regex (concat "^\t\\(deleted:\\|modified:\\|new file:\\)?"
+          (let* ((regex (concat "^\t\\(deleted:\\|modified:"
+                                "\\|new file:\\|renamed:\\)?"
                                 " *\\(.*\\)$"))
                  (ov (make-overlay (point)
                                    (progn (re-search-forward regex)

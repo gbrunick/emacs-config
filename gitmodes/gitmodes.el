@@ -462,7 +462,7 @@ User-facing; attempts to preserve window position."
          (window-buf (window-buffer window))
          (ws (window-start))
          (pt (point))
-         (reset-window `(lambda ()
+         (reset-window `(lambda (&rest args)
                           (goto-char (min ,pt (point-max)))
                           (set-window-start ,window
                                             (min ,ws (point-max)))

@@ -196,7 +196,7 @@ been updated (i.e., asyncronously)."
 
 
 (defun gpb-git--refresh-changes-1 (buf callback)
-"Implementation detail of `gpb-git--refresh-changes'."
+  "Implementation detail of `gpb-git--refresh-changes'."
   (let ((hunks (with-current-buffer buf (gpb-git--parse-diff)))
         (inhibit-read-only t))
     (goto-char (point-min))
@@ -230,7 +230,7 @@ been updated (i.e., asyncronously)."
      (t
       (insert "No changes")))
     (goto-char (point-min))
-    (when callback (funcall callback))))
+    (when callback (funcall callback buf))))
 
 
 (defun gpb-git--decorate-hunk (hunk &optional focused)
@@ -592,7 +592,7 @@ previously highlighted hunk."
          (format "hunk %s/%s in %s  (file %s/%s, hunk %s/%s)"
                  (length file-hunks-before-pt)
                  (length file-hunk-overlays)
-                 current-file
+                 (file-name-nondirectory current-file)
                  (length files-before-pt)
                  (length files)
                  (length hunks-before-pt)
