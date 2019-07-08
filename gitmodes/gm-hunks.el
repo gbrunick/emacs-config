@@ -536,10 +536,19 @@ name."
 (defun gpb-git:get-marked-hunks (&optional buf)
   "Return the list of marked hunks in `buf'"
   (with-current-buffer (or buf (current-buffer))
-    (sort
-     (remove-if-not 'gpb-git--marked-p
-                    (overlays-in (point-min) (point-max)))
-     (lambda (ov1 ov2) (< (overlay-start ov1) (overlay-start ov2))))))
+    (when (region-active-p) (gpb-git:mark-hunk))
+    (let ((hunks (or
+                  (remove-if-not 'gpb-git--marked-p
+                                 (overlays-in (point-min) (point-max)))
+                  (progn
+                    ;; If nothing was marked, mark the current hunk and try
+                    ;; again.
+                    (gpb-git:mark-hunk)
+                    (remove-if-not 'gpb-git--marked-p
+                                   (overlays-in (point-min) (point-max))))))
+          (pred (lambda (ov1 ov2) (< (overlay-start ov1) (overlay-start ov2)))))
+      (when hunks
+        (sort hunks pred)))))
 
 
 (defun gpb-git--update-highlights (&optional buf)
@@ -608,17 +617,9 @@ previously highlighted hunk."
 (defun gpb-git:stage-hunks ()
   "Apply some hunks to the index."
   (interactive)
-  (when (region-active-p) (gpb-git:mark-hunk))
-  (let ((marked-hunks (or (gpb-git:get-marked-hunks)
-                          ;; If nothing is marked, mark the current hunk
-                          ;; and proceed.
-                          (progn (gpb-git:mark-hunk)
-                                 (gpb-git:get-marked-hunks)))))
-
-    (let ((patch-file (gpb-git--apply-hunks marked-hunks
-                                            "apply" "--cached")))
-      (delete-file patch-file))
-
+  (let* ((marked-hunks (gpb-git:get-marked-hunks))
+         (patch-file (gpb-git--apply-hunks marked-hunks "apply" "--cached")))
+    (delete-file patch-file)
     (gpb-git:show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
@@ -630,22 +631,16 @@ previously highlighted hunk."
 (defun gpb-git:unstage-hunks ()
   "Remove some hunks from the index."
   (interactive)
-  (when (region-active-p) (gpb-git:mark-hunk))
-  (let ((marked-hunks (or (gpb-git:get-marked-hunks)
-                          ;; If nothing is marked, mark the current hunk
-                          ;; and proceed.
-                          (progn (gpb-git:mark-hunk)
-                                 (gpb-git:get-marked-hunks)))))
-
-    (let ((patch-file (gpb-git--apply-hunks marked-hunks
-                                            "apply" "--cached" "-R")))
-      (delete-file patch-file))
+  (let* ((marked-hunks (gpb-git:get-marked-hunks))
+         (patch-file (gpb-git--apply-hunks marked-hunks
+                                           "apply" "--cached" "-R")))
+    (delete-file patch-file)
     (gpb-git:show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
       (quit-window t))
      (t
-      (gpb-git--refresh-unstaged-changes)))))
+      (gpb-git--refresh-staged-changes)))))
 
 
 (defun gpb-git:revert-marked-hunks ()
@@ -657,9 +652,11 @@ wanted from the working tree, you can revert this revert by
 applying this patch file to the working directory."
   (interactive)
   (when (y-or-n-p "Revert marked changes in the working directory? ")
-    (let ((patch-file (gpb-git--apply-hunks "apply" "-R")))
+    (let* ((marked-hunks (gpb-git:get-marked-hunks))
+           (patch-file (gpb-git--apply-hunks marked-hunks "apply" "-R")))
       ;; This is a potentially destructive operation, so we leave the patch
       ;; file intact and let the user know it exists.
+      (gpb-git--refresh-unstaged-changes)
       (message "Successfully applied %s" patch-file))))
 
 
@@ -958,15 +955,16 @@ marked."
   "Goto the first hunk associated with the given file.
 
 OBJ is a string giving a filename or a button with a filename
-property."
-  (setq obj (or (button-get obj 'filename) obj))
-  (let ((hunks (gpb-git--get-hunk-overlays obj)))
+property.  If `after' is non-nil, we move to the first hunk
+associated with the given file that lies after the button."
+  (let* ((filename (or (button-get obj 'filename) obj))
+         (dir (or (button-get obj 'direction) 'none))
+         (hunks (gpb-git--get-hunk-overlays filename)))
     (push-mark)
-    ;; Scroll the end of the last hunk into the window.
-    (goto-char (overlay-end (car (last hunks))))
-    (forward-line -1)
-    (recenter -1)
-    ;; Then jump back to the start of the first hunk.
+    (while (and (eq dir 'forward)
+                hunks
+                (< (overlay-end (car hunks)) (button-start obj)))
+      (setq hunks (cdr hunks)))
     (goto-char (overlay-start (car hunks)))))
 
 
