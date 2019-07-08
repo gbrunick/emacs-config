@@ -1184,5 +1184,45 @@ the file for the structure of these alists."
       (cdr hunk-list))))
 
 
+(defun gpb-git--show-commit (hash &optional repo-dir callback)
+  "Write information about the given commmit into the current buffer.
+
+Overwrites the current buffer and sets the mode to
+`gpb-git:hunk-view-mode'."
+  (let ((cmd `("git" "show" ,hash "--"))
+        (inhibit-read-only t)
+        (f (lambda (buf) )))
+
+    (gpb-git--refresh-changes cmd repo-dir #'gpb-git--show-commit-1)
+    (gpb-git:hunk-view-mode)
+    (setq-local refresh-cmd `(gpb-git--refresh-changes
+                              ,cmd ,repo-dir ,#'gpb-git--show-commit-1))
+    (setq-local buffer-header (format "%s\n\n" (mapconcat 'identity cmd " ")))
+    (goto-char (point-min))))
+
+
+(defun gpb-git--show-commit-1 (buf)
+  (let ((info-text
+         (with-current-buffer buf
+           (goto-char (point-min))
+           (buffer-substring (point-min)
+                             (progn
+                               ;; Look for "diff --git"; if we don't see
+                               ;; it, use the full buffer.
+                               (or (and (re-search-forward "diff --git" nil t)
+                                        (progn
+                                          (forward-line 0)
+                                          (point)))
+                                   (point-max)))))))
+    (save-excursion
+      (goto-char (point-min))
+      (insert buffer-header)
+      (insert info-text))
+
+    ;; This is a bit a of a kludge.
+    (save-excursion
+      (when (re-search-forward "^No changes" nil t)
+        (delete-region (match-beginning 0) (match-end 0))))))
+
 
 (provide 'gm-hunks)
