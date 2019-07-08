@@ -4,6 +4,7 @@
     (define-key map "d" 'gpb-git--commit-graph-mode--show-diff)
     (define-key map "g" 'gpb-git:refresh-buffer)
     (define-key map (kbd "RET") 'gpb-git:show-commit-graph--show-commit)
+    (define-key map "!" 'gpb-git:shell-command)
     (define-key map "f" 'gpb-git:show-commit-graph--show-files)
     map)
   "The keymap used when viewing the commit graph.")

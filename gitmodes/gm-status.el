@@ -329,10 +329,19 @@ status output."
     (pop-to-buffer buf)))
 
 
-(defun gpb-git:shell-command ()
-  (interactive)
-  (call-interactively 'shell-command)
-  (gpb-git:show-status--refresh))
+(defun gpb-git:shell-command (cmd)
+  (interactive (list (read-shell-command "Shell command: " nil nil)))
+  (let ((dir default-directory)
+        (buf (get-buffer-create "*Shell Command Output*"))
+        (inhibit-read-only t))
+  (with-current-buffer buf
+    (erase-buffer)
+    (setq default-directory dir)
+    (process-file-shell-command cmd nil t)
+    (comint-carriage-motion (point-min) (point-max))
+    (view-mode)
+    (gpb-git:show-status--refresh))
+  (pop-to-buffer buf)))
 
 
 (provide 'gm-status)
