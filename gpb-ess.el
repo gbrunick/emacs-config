@@ -906,6 +906,17 @@ displayed."
 (advice-add 'ess-quit :before 'ess-quit:confirm-quit)
 
 
+(defun ess-r-package-info:remove-tramp-prefix (f &optional dir)
+  (let* ((pkg-info (funcall f dir))
+         (root (plist-get pkg-info :root))
+         (local-path (and root (file-remote-p root 'localname))))
+    (when local-path
+      (plist-put pkg-info :root local-path))
+    pkg-info))
+
+(advice-add 'ess-r-package-info :around
+            'ess-r-package-info:remove-tramp-prefix)
+
 ;; (defun ess-r-package-eval-linewise:remove-tramp-prefix
 ;;     (f command &optional msg p actions pkg-path)
 ;;   "Remove the TRAMP prefix from the package path."
