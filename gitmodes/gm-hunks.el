@@ -1225,4 +1225,28 @@ Overwrites the current buffer and sets the mode to
         (delete-region (match-beginning 0) (match-end 0))))))
 
 
+(defun gpb-git:refine-region (&optional beg end)
+  (interactive "r")
+  (let ((beg (or beg (point-min)))
+        (end (or end (point-max)))
+        (props-c '((face diff-refine-changed)))
+        (props-r '((face diff-refine-removed)))
+        (props-a '((face diff-refine-added))))
+    (save-excursion
+      (goto-char beg)
+      (while (re-search-forward "^-" end t)
+        (let ((beg-del (progn (beginning-of-line) (point)))
+              beg-add end-add)
+          (when (and (diff--forward-while-leading-char ?- end)
+                     ;; Allow for "\ No newline at end of file".
+                     (progn (diff--forward-while-leading-char ?\\ end)
+                            (setq beg-add (point)))
+                     (diff--forward-while-leading-char ?+ end)
+                     (progn (diff--forward-while-leading-char ?\\ end)
+                            (setq end-add (point))))
+            (smerge-refine-regions beg-del beg-add beg-add end-add
+                                   nil 'diff-refine-preproc
+                                   props-r props-a)))))))
+
+
 (provide 'gm-hunks)
