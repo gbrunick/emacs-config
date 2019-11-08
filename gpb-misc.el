@@ -53,13 +53,16 @@
   (let ((file (buffer-file-name)))
     (set-file-modes file (read-file-modes nil file))))
 
-(defun copy-buffer-file-name ()
-  "Copy the full path of the current buffer to the kill ring"
-  (interactive)
+(defun copy-buffer-file-name (arg)
+  "Copy the full path of the current buffer to the kill ring
+With an argument, copies the TRAMP prefix for a remote file.
+"
+  (interactive "P")
   (let ((file-name (buffer-file-name)))
     (if file-name
         (progn
           (setq file-name (expand-file-name file-name))
+          (unless arg (setq file-name (file-local-name file-name)))
           (kill-new file-name)
           (message "Copied \"%s\" to kill ring" file-name))
 
