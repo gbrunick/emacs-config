@@ -224,7 +224,7 @@ been updated (i.e., asyncronously)."
                                 (length file-hunks))))))
           (insert "\n       ")))
       (forward-line 0)
-      (kill-line)
+      (delete-region (point) (line-end-position))
       (insert "\n\n")
       (gpb-git--insert-hunks hunks))
      (t
@@ -1185,7 +1185,7 @@ the file for the structure of these alists."
 
 
 (defun gpb-git--show-commit (hash &optional repo-dir callback)
-  "Write information about the given commmit into the current buffer.
+  "Write information about the given commit into the current buffer.
 
 Overwrites the current buffer and sets the mode to
 `gpb-git:hunk-view-mode'."
@@ -1209,7 +1209,7 @@ Overwrites the current buffer and sets the mode to
                              (progn
                                ;; Look for "diff --git"; if we don't see
                                ;; it, use the full buffer.
-                               (or (and (re-search-forward "diff --git" nil t)
+                               (or (and (re-search-forward "^diff --" nil t)
                                         (progn
                                           (forward-line 0)
                                           (point)))

@@ -312,7 +312,7 @@ status output."
 (defun gpb-git:show-status--show-unstaged-file-diff (button)
   (let* ((filename (button-get button 'filename))
          (cmd `("git" "diff" "--" ,filename))
-         (buf (get-buffer-create (format "*staged: %s*" filename)))
+         (buf (get-buffer-create (format "*unstaged: %s*" filename)))
          (repo-dir default-directory))
     (with-current-buffer buf
       (gpb-git--refresh-unstaged-changes repo-dir cmd))
