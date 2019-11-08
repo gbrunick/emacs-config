@@ -1075,5 +1075,26 @@ buffer."
 (advice-add 'push-mark :after 'push-mark:set-global-mark-ring-pos)
 
 
+(defun calendar ()
+  (interactive)
+  (let ((buf (get-buffer-create "*calendar*"))
+        (inhibit-read-only t))
+    (with-current-buffer buf
+      (erase-buffer)
+      (read-only-mode 1)
+      (view-mode)
+      (switch-to-buffer buf)
+      (call-process "cal" nil t nil "--year" "2013")
+      (call-process "cal" nil t nil "--year" "2014")
+      (call-process "cal" nil t nil "--year" "2015")
+      (call-process "cal" nil t nil "--year" "2016")
+      (call-process "cal" nil t nil "--year" "2017")
+      (call-process "cal" nil t nil "--year" "2018")
+      (save-excursion
+        (call-process "cal" nil t nil "--year" "2019")
+        (call-process "cal" nil t nil "--year" "2020"))
+      (recenter 10))))
+
+
 (provide 'gpb-misc)
 
