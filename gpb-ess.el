@@ -39,6 +39,7 @@ Contains a cons of two markers.")
   (local-set-key "\C-cb" 'gpb:ess-insert-browser)
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
   (local-set-key "\C-c\C-c" 'gpb-ess:save-and-load-command)
+  (local-set-key "\C-co" 'gpb:ess-view-data-frame)
 
   ;; Override the help function
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
@@ -89,6 +90,7 @@ Contains a cons of two markers.")
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
   (local-set-key [?\t] 'gpb:inferior-ess-tab-command)
   (local-set-key [(backtab)] 'gpb:inferior-ess-previous-traceback)
+  (local-set-key "\C-co" 'gpb:ess-view-data-frame)
 
   ;; Override the help function
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
@@ -1312,6 +1314,31 @@ interactively."
       (save-restriction
         (widen)
         (gpb:ess-eval-region (point-min) (point-max)))))))
+
+
+(defun gpb:ess-view-data-frame ()
+  (interactive)
+  (let* ((r-expr (funcall comint-get-old-input))
+         (tramp-prefix (or (file-remote-p default-directory) ""))
+         (cmd (format (concat "filename <- tempfile(fileext = \".xlsx\"); "
+                              "openxlsx::write.xlsx(%s, filename); "
+                              "cat(sprintf(\"Excel File: %%s\n\", filename))")
+                      r-expr))
+         (proc (get-buffer-process (current-buffer)))
+         file)
+    (message "cmd: %S" cmd)
+    (ess-send-string proc cmd)
+    (accept-process-output proc)
+    (save-excursion
+      (goto-char (point-max))
+      (re-search-backward "Excel File: \\(.*\\)$")
+      (setq file (concat tramp-prefix (match-string 1)))
+      (setq file (or (file-local-copy file) file))
+      (delete-region (match-beginning 0) (match-end 0))
+      (when (looking-back "\n> \\+ > $")
+        (delete-region (match-beginning 0) (match-end 0)))
+      (let ((default-directory ""))
+        (shell-command (format "cmd /C \"start %s\"" file))))))
 
 
 (defun gpb:ess-behind-block-paren-p ()
