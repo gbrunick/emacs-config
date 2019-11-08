@@ -139,7 +139,11 @@ Contains a cons of two markers.")
   (ess-string-command gpb-ess:define-traceback-function nil 1)
 
   ;; Use etags rather than ESS's custom xref implementation.
-  (xref-etags-mode 1))
+  (xref-etags-mode 1)
+
+  ;; Not sure what is wrong here, but currently `comint-prompt-regexp'
+  ;; doesn't handle the browse prompt correctly.
+  (setq-local comint-prompt-regexp inferior-ess-prompt))
 
 
 (defun gpb:ess-goto-line (arg)
@@ -1371,3 +1375,11 @@ x <- (
        (not (ess-ahead-attached-name-p))))
 
 (advice-add 'ess-behind-block-paren-p :override 'gpb:ess-behind-block-paren-p)
+
+;; This matches R Markdown build failures like:
+;;     Quitting from lines 257-329 (report.Rmd)
+(aput 'compilation-error-regexp-alist-alist
+      'R-markdown '("Quitting from lines \\(\\([0-9]+\\)-[0-9]+ (\\(.*\\))\\)" 3 2 nil 1))
+
+(add-to-list 'ess-r-error-regexp-alist 'R-markdown)
+
