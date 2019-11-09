@@ -95,29 +95,37 @@ additional arguments in ARGS."
   "Process sentinel used handle asyncronous Git commands."
   (gpb-git--trace-funcall #'gpb-git:exec-async2--process-filter
                           `(,proc ,string))
-  ;;(setq string (replace-regexp-in-string "" "" string))
   (when (buffer-live-p (process-buffer proc))
     (with-current-buffer (process-buffer proc)
-      (let ((moving (= (point) (process-mark proc))))
-        (save-excursion
-          ;; Insert the text, advancing the process marker.
-          (goto-char (process-mark proc))
-          (insert string)
-          (set-marker (process-mark proc) (point)))
-        (if moving (goto-char (process-mark proc))))
+      (save-excursion
+        ;; Insert the text, advancing the process marker.
+        (goto-char (process-mark proc))
+        (insert string)
+        (set-marker (process-mark proc) (point)))
 
-      ;; Delete anything found prior to the `gpb-git:output-start` marker.
-      (when (re-search-backward (format "%s *\n" gpb-git:output-start) nil t)
-        (delete-region (point-min) (match-end 0)))
-
-      ;; Now look for the prompt
-      (when (looking-back (format "^?\n%s?\n" gpb-git:worker-prompt))
-        (gpb-git:exec-async2--handle-callback)))))
+      (let ((start-regex (format "%s *\n" gpb-git:output-start))
+            (end-regex (format "^?\n%s?\n" gpb-git:worker-prompt)))
+        (when (save-excursion
+                (goto-char (point-max))
+                (and (re-search-backward end-regex nil t)
+                     (re-search-backward start-regex nil t)))
+          (gpb-git:exec-async2--handle-callback))))))
 
 (defun gpb-git:exec-async2--handle-callback ()
+  "Implementation detail of `gpb-git:exec-async2--process-filter`.
+
+This function was split out for easier debugging."
   (gpb-git--trace-funcall #'gpb-git:exec-async2--handle-callback nil)
+
+  ;; Delete everything in front of the `gpb-git:output-start` marker.
+  (delete-region (point-min) (match-end 0))
+
+  ;; Delete the BASH prompt.
+  (re-search-forward end-regex)
   (delete-region (match-beginning 0) (match-end 0))
+
   (goto-char (point-min))
+
   ;; We bind the values from the current buffer local variables
   ;; before we switch back to `callback-buf'.
   (let ((func callback-func)
@@ -129,4 +137,8 @@ additional arguments in ARGS."
         (apply func args)))
 
     ;; Add the bash process back to the worker pool.
-    (push (cons default-directory (current-buffer)) gpb-git:worker-pool)))
+    (setq gpb-git:worker-pool (nreverse
+                               (cons (cons default-directory (current-buffer))
+                                     (nreverse gpb-git:worker-pool))))))
+
+(provide 'gm-exec-async2)

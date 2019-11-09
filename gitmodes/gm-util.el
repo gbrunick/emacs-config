@@ -30,18 +30,22 @@ Looks for the .git directory rather than calling Git."
             dir (if (string= next dir) nil next)))
     dir))
 
-(defun gpb-git--read-repo-dir ()
+(defun gpb-git--read-repo-dir (&optional force)
   "Prompt the user for a Git repository directory.
 
-Maintains a separate history list from `read-directory-name'."
-  (let* ((dir (or (gpb-git--find-repo-root default-directory)
-                  default-directory))
-         (file-name-history (copy-list gpb-git--repo-dir-history))
-         (repo-dir (read-directory-name "Repo root: " dir dir nil "")))
-    (unless (gpb-git--repo-root-p repo-dir)
-      (user-error "Invalid Git repo dir: %s" repo-dir))
-    (setq gpb-git--repo-dir-history file-name-history)
-    repo-dir))
+Maintains a separate history list from `read-directory-name'.
+When FORCE is true, , we always prompt the user for the root
+directory."
+  (let ((repo-root (gpb-git--find-repo-root default-directory)))
+    (if (and repo-root (not force))
+        repo-root
+      (let* ((file-name-history (copy-list gpb-git--repo-dir-history))
+             (repo-dir (read-directory-name "Repo root: " default-directory
+                                            default-directory nil "")))
+        (unless (gpb-git--repo-root-p repo-dir)
+          (user-error "Invalid Git repo dir: %s" repo-dir))
+        (setq gpb-git--repo-dir-history file-name-history)
+        repo-dir))))
 
 
 (defun gpb-git--center-string (txt)
@@ -105,6 +109,21 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
 
 
 
+(defvar gpb-git:temporary-dirs nil
+  "One temporary directory per remote")
+
+(defun gpb-git:get-temporary-dir (path)
+  (let* ((default-directory (file-name-directory path))
+         (remote (or (file-remote-p path) 'local))
+         (key-value (assoc remote gpb-git:temporary-dirs))
+         (tmpdir (cdr key-value)))
+    (unless tmpdir
+      (setq tmpdir (file-name-as-directory (make-nearby-temp-file nil t)))
+      (aput 'gpb-git:temporary-dirs remote tmpdir))
+    tmpdir))
+
+(defun gpb-git:get-temporary-file (name)
+  (concat (gpb-git:get-temporary-dir default-directory) name))
 
 (provide 'gm-util)
 
