@@ -192,7 +192,7 @@ been updated (i.e., asyncronously)."
     ;; We save the command for `gpb-git--refresh-changes'.
     (setq current-command cmd)
     (gpb-git:insert-placeholder "Loading hunks ")
-  (gpb-git:exec-async cmd repo-dir #'gpb-git--refresh-changes-1 callback)))
+  (gpb-git:exec-async2 cmd repo-dir #'gpb-git--refresh-changes-1 callback)))
 
 
 (defun gpb-git--refresh-changes-1 (buf callback)

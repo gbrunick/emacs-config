@@ -64,8 +64,8 @@
                           (mapconcat 'identity cmd " ")))
           (setq-local original-point pt)
           (setq-local put-status-here (point))
-          (gpb-git:exec-async cmd default-directory
-                              #'gpb-git:show-status--refresh-1))))))
+          (gpb-git:exec-async2 cmd default-directory
+                               #'gpb-git:show-status--refresh-1))))))
 
 
 (defun gpb-git:show-status--refresh-1 (output-buffer)

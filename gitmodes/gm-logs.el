@@ -35,9 +35,6 @@
 (defun gpb-git:show-commit-graph (&optional repo-root)
   (interactive (list (gpb-git--read-repo-dir)))
   (let* ((buf (get-buffer-create "*git log*"))
-         (marker1 (make-marker))
-         (marker2 (make-marker))
-         (cmd '("git" "log" "--graph" "--oneline" "--decorate" "--color"))
          (repo-root (or repo-root default-directory)))
     (with-current-buffer buf
       (setq default-directory repo-root)
@@ -48,7 +45,7 @@
 
 (defun gpb-git--refresh-commit-graph (&optional callback)
   (let ((cmd '("git" "log" "--graph" "--oneline" "--decorate"
-               "--color" "--all"))
+               "--color" "--all" "-n" "100"))
         (inhibit-read-only t))
     (read-only-mode 1)
     (erase-buffer)
@@ -56,8 +53,8 @@
     (insert (format "Repo: %s\n\n" default-directory))
     (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
     (save-excursion (gpb-git:insert-placeholder "Loading commits"))
-    (gpb-git:exec-async cmd default-directory #'gpb-git--refresh-commit-graph-1
-                        callback)))
+    (gpb-git:exec-async2 cmd default-directory #'gpb-git--refresh-commit-graph-1
+                         callback)))
 
 (defun gpb-git--refresh-commit-graph-1 (buf callback)
   (let ((inhibit-read-only t))

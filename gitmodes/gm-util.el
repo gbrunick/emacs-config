@@ -1,3 +1,11 @@
+(defvar gpb-git--show-tracing-info t
+  "When true, we write tracing info into a tracing buffer.
+
+See also `gpb-git--tracing-buffer-name'")
+
+(defvar gpb-git--tracing-buffer-name "*trace gpb-git:exec-async*"
+  "The name of the buffer used to hold tracing information.")
+
 (defun gpb-git--blend-colors (c1 c2 &optional alpha1 alpha2)
   "Blend the two colors C1 and C2 with ALPHA."
   (let ((alpha1 (or alpha1 0.5))
@@ -6,7 +14,6 @@
            (cl-mapcar (lambda (x y) (* 256 (+ (* alpha1 x) (* alpha2 y))))
                       (color-name-to-rgb c1)
                       (color-name-to-rgb c2)))))
-
 
 (defvar gpb-git--repo-dir-history nil
   "This symbol is used to remember the history of repository roots.")
@@ -44,13 +51,13 @@ Maintains a separate history list from `read-directory-name'."
 
 
 (defun gpb-git--get-new-buffer (prefix suffix)
-  "Get a new buffer whose name starts PREFIX with and ends with SUFFIX."
-  (if (null (get-buffer (concat prefix suffix)))
-      (get-buffer-create (concat prefix suffix))
-    (let ((i 2))
-      (while (get-buffer (concat prefix "<" (int-to-string i) ">" suffix))
-        (incf i))
-      (get-buffer-create (concat prefix "<" (int-to-string i) ">" suffix)))))
+  "Get a new buffer whose name starts with and PREFIX ends with SUFFIX.
+
+Returns buffers with names of the form PREFIX<i>SUFFIX."
+  (let ((i 1))
+    (while (get-buffer (concat prefix "<" (int-to-string i) ">" suffix))
+      (incf i))
+    (get-buffer-create (concat prefix "<" (int-to-string i) ">" suffix))))
 
 
 (defun gpb-git--abbreviate-file-name (dir)
@@ -65,20 +72,19 @@ Maintains a separate history list from `read-directory-name'."
 
 (defun gpb-git--trace-funcall (func args)
   "Write tracing output to buffer."
-  (let ((buf (current-buffer))
-        (bufname "*trace gpb-git:exec-async*"))
-    (unless (get-buffer bufname)
+  (when gpb-git--show-tracing-info
+    (let ((buf (current-buffer))
+          (bufname gpb-git--tracing-buffer-name))
       (with-current-buffer (get-buffer-create bufname)
-        (setq truncate-lines t)))
-    (with-current-buffer (get-buffer bufname)
-      (let ((args-string (mapconcat (lambda (y)
-                                      (truncate-string-to-width
-                                       (prin1-to-string y) 1000 nil nil t))
-                                    args "\n  ")))
-        (save-excursion
-          (goto-char (point-max))
-          (unless (bobp) (insert "\n"))
-          (insert (format "%S in %S:\n  %s\n" func buf args-string)))))))
+        (setq truncate-lines t)
+        (let ((args-string (mapconcat (lambda (y)
+                                        (truncate-string-to-width
+                                         (prin1-to-string y) 1000 nil nil t))
+                                      args "\n  ")))
+          (save-excursion
+            (goto-char (point-max))
+            (unless (bobp) (insert "\n"))
+            (insert (format "%S in %S:\n  %s\n" func buf args-string))))))))
 
 
 (defun gpb-git:insert-placeholder (text)
