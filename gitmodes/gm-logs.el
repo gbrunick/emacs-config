@@ -15,7 +15,8 @@
   "\nMode for buffers displaying the Git commit graph.
 
 \\{gpb-git:commit-graph-mode-map}\n"
-  (gpb-git--init-marked-line-overlay))
+  (gpb-git--init-marked-line-overlay)
+  (setq truncate-lines t))
 
 
 (defvar gpb-git:show-commit-files-mode-map
