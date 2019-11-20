@@ -38,7 +38,7 @@
         (with-temp-file tmpfile-name (insert-file-contents script-file))
         ;; Set the permissions so the owner can read, write and execute.
         ;; 448 = 7 * 8 * 8
-        (set-file-modes tmpfile 448)
+        (set-file-modes tmpfile-name 448)
         (push (format "GIT_EDITOR=bash %s" (file-local-name tmpfile-name))
               process-environment)
         (push (format "GIT_SEQUENCE_EDITOR=bash %s"
