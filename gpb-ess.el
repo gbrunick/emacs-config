@@ -40,6 +40,7 @@ Contains a cons of two markers.")
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
   (local-set-key "\C-c\C-c" 'gpb-ess:save-and-load-command)
   (local-set-key "\C-co" 'gpb:ess-view-data-frame)
+  (local-set-key "\C-ct" 'gpb:ess-test-package)
 
   ;; Override the help function
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
@@ -344,10 +345,10 @@ an ESS inferior buffer."
   ;; involved.  See `ess-request-a-process'."
 
   ;; edebug doesn't like this.  Are we using it correctly?
-  (cl-letf (((symbol-function 'ess-start-process-specific)
-             (lambda (&rest) (error (concat "No interpreter process is "
-                                            "associated with this buffer.")))))
-    (ess-force-buffer-current "Process: " nil t nil))
+  ;; (cl-letf (((symbol-function 'ess-start-process-specific)
+  ;;            (lambda (&rest) (error (concat "No interpreter process is "
+  ;;                                           "associated with this buffer.")))))
+  ;;   (ess-force-buffer-current "Process: " nil t nil))
 
   (cond
    ((eq obj 'ess-last-eval-region)
@@ -357,6 +358,8 @@ an ESS inferior buffer."
            (buf (marker-buffer beg))
            (end (cdr gpb:ess-last-eval-region)))
       (with-current-buffer buf (gpb:ess-eval-region beg end))))
+   ((eq obj 'ess-test-func)
+    (gpb:ess-eval-region start end "RLSBacktest" default-directory))
    (t
     (gpb:ess-eval-region start end))))
 
@@ -434,12 +437,17 @@ an ESS inferior buffer."
     filename))
 
 
-(defun gpb:ess-make-region-file (beg end &optional where)
+(defun gpb:ess-make-region-file (beg end &optional where package working-dir)
   "Create an R source file containing a region of code.
 
 We jump through some hoops to ensure that the R source code
 references refer to the current buffer, rather than to the
-temporary file that is produced."
+temporary file that is produced.
+
+If PACKAGE is provided, the code is evaluated with the package
+namespace.  Otherwise, it is evaluated in the global environment.
+If WORKING-DIR, the code is evaluate with the given directory set
+to be the working directory."
   (interactive "r")
   (let* ((line-number (line-number-at-pos beg))
          (text (buffer-substring-no-properties
@@ -474,15 +482,20 @@ temporary file that is produced."
       (insert "    src <- srcfilecopy(srcFile, readLines(regionFile),\n")
       (insert "                       timestamp = Sys.time(), isFile = TRUE)\n")
       (insert "    expr <- parse(text = readLines(regionFile), srcfile = src)\n")
+      (when working-dir
+        (insert (format "wd <- setwd('%s')\n" (file-local-name working-dir)))
+        (insert "on.exit(setwd(wd))\n"))
       ;; Eval outside of the local() wrapper, so the code being evaluated
       ;; can change the global environment.
-      (insert "    eval.parent(expr, 2)\n")
+      (if package
+          (insert (format "    eval(expr, asNamespace('%s'))\n" package))
+        (insert "    eval.parent(expr, 2)\n"))
       (insert (format "})\n")))
     (message "Wrote %s" wrapper-filename)
     wrapper-filename))
 
 
-(defun gpb:ess-eval-region (beg end)
+(defun gpb:ess-eval-region (beg end &optional package working-dir)
   (interactive "r")
   (let* ((whole-buffer-p (save-restriction (widen) (and (= beg (point-min))
                                                         (= end (point-max)))))
@@ -502,11 +515,11 @@ temporary file that is produced."
     (cond
      ;; If the regions is a single line, just send it directly to the
      ;; inferior process.
-     ((= line1 line2)
+     ((and (= line1 line2) (null package) (null working-dir))
       (ess-send-string ess-proc (buffer-substring-no-properties beg end) t))
      ;; If the file is up to date and the region is whole file, just source
      ;; the file.
-     ((and whole-buffer-p (not (buffer-modified-p)))
+     ((and whole-buffer-p (not (buffer-modified-p)) (null package) (null working-dir))
       (let* ((filename (buffer-file-name))
              (working-dir (ess-string-command "cat(sprintf(\"%s\\n\", getwd()))\n"))
              (localname (or (file-remote-p filename 'localname) filename))
@@ -516,7 +529,8 @@ temporary file that is produced."
      ;; Otherwise, write temp files (we actually use two files for this see
      ;; `gpb:ess-make-region-file') and source the appropriate temp file.
      (t
-      (let* ((filename (gpb:ess-make-region-file beg end proc-default-directory))
+      (let* ((filename (gpb:ess-make-region-file beg end proc-default-directory
+                                                 package working-dir))
              (local-filename (or (file-remote-p filename 'localname) filename))
              (cmd (format "source(%s)" (prin1-to-string local-filename)))
              (text (format "[Evaluate lines %s-%s in %s]" line1 line2 (buffer-name))))
@@ -912,16 +926,16 @@ displayed."
 (advice-add 'ess-quit :before 'ess-quit:confirm-quit)
 
 
-(defun ess-r-package-info:remove-tramp-prefix (f &optional dir)
-  (let* ((pkg-info (funcall f dir))
-         (root (plist-get pkg-info :root))
-         (local-path (and root (file-remote-p root 'localname))))
-    (when local-path
-      (plist-put pkg-info :root local-path))
-    pkg-info))
+;; (defun ess-r-package-info:remove-tramp-prefix (f &optional dir)
+;;   (let* ((pkg-info (funcall f dir))
+;;          (root (plist-get pkg-info :root))
+;;          (local-path (and root (file-remote-p root 'localname))))
+;;     (when local-path
+;;       (plist-put pkg-info :root local-path))
+;;     pkg-info))
 
-(advice-add 'ess-r-package-info :around
-            'ess-r-package-info:remove-tramp-prefix)
+;; (advice-add 'ess-r-package-info :around
+;;             'ess-r-package-info:remove-tramp-prefix)
 
 ;; (defun ess-r-package-eval-linewise:remove-tramp-prefix
 ;;     (f command &optional msg p actions pkg-path)
@@ -1294,7 +1308,7 @@ interactively."
   "Save the current buffer and then source it or reload the package."
   (interactive "P")
   (let* ((filename (buffer-file-name))
-         (localname (or (file-remote-p filename 'localname) filename))
+         (localname (file-local-name filename))
          (ess-proc (ess-get-process))
          dir cmd)
     ;; Get the name of the directory that contains filename.
@@ -1309,11 +1323,25 @@ interactively."
                               (format "rmarkdown::render('%s')" localname)))))
         (setq-local gpb-ess:build-cmd build-cmd)
         (ess-send-string ess-proc build-cmd)))
+
+     ;; If we are in a package, reload the package.
      ((string-equal (file-name-base dir) "R")
       (gpb:ess-save-package)
       (setq cmd (format "devtools::load_all('%s', export_all = FALSE)"
                         (directory-file-name (file-name-directory dir))))
       (ess-send-string ess-proc cmd t))
+
+     ;; If we are in a test file, source the file but evaluate in the
+     ;; current package namespace with the current directory as the working
+     ;; directory.
+     ((string-equal (file-name-base dir) "testthat")
+      (let* ((cmd (format "cat(pkgload::pkg_name('%s'), fill = TRUE)\n"
+                          (file-local-name (buffer-file-name))))
+             (package-name (ess-string-command cmd nil 1)))
+        (gpb:ess-eval-region (point-min) (point-max) package-name dir)))
+
+     ;; Otherwise, just evaluate the buffer contents in the global
+     ;; environment.
      (t
       (save-restriction
         (widen)
@@ -1383,3 +1411,17 @@ x <- (
 
 (add-to-list 'ess-r-error-regexp-alist 'R-markdown)
 
+
+(defun gpb:ess-test-package ()
+  (interactive)
+  (let* ((localname (file-local-name (buffer-file-name)))
+         (cmd1 (format "cat(pkgload::pkg_name('%s'), fill = TRUE)\n" localname))
+         (package-name (ess-string-command cmd1 nil 0.2))
+         (cmd2 (format "pkgload::load_all('%s', export_all = FALSE)" package-name))
+         (cmd3 (format "testthat::test_package('%s', reporter = default_reporter())"
+                       package-name)))
+
+    (ess-switch-to-end-of-ESS)
+    (ess-send-string (ess-get-process) cmd2 t)
+    (ess-wait-for-process)
+    (ess-send-string (ess-get-process) cmd3 t)))
