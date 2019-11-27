@@ -388,7 +388,7 @@ an ESS inferior buffer."
         (let* ((tramp-prefix (file-remote-p default-directory))
                (filename (match-string 1))
                (line-number (string-to-number (match-string 2)))
-               (buf (or (let ((path (concat default-directory filename)))
+               (buf (or (let ((path (concat (file-name-as-directory default-directory) filename)))
                           (and (file-exists-p path) (find-file-noselect path)))
                         (let ((path (concat tramp-prefix filename)))
                           (and (file-exists-p path) (find-file-noselect path)))
@@ -1322,7 +1322,7 @@ interactively."
                  (read-string "Build command: "
                               (format "rmarkdown::render('%s')" localname)))))
         (setq-local gpb-ess:build-cmd build-cmd)
-        (ess-send-string ess-proc build-cmd)))
+        (ess-send-string ess-proc build-cmd t)))
 
      ;; If we are in a package, reload the package.
      ((string-equal (file-name-base dir) "R")
