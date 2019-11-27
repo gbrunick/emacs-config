@@ -697,4 +697,11 @@
   '(oset poly-markdown-root-innermode :adjust-face 5))
 
 
+(eval-after-load 'markdown-mode
+  '(progn
+     (let ((map markdown-mode-map))
+     (define-key map (kbd "C-c c") #'markdown-mode-command-map)
+     (define-key map (kbd "C-c C-c") #'gpb-ess:save-and-load-command))))
+
+
 (setq debug-on-quit nil)
