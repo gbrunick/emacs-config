@@ -1308,13 +1308,12 @@ interactively."
   "Save the current buffer and then source it or reload the package."
   (interactive "P")
   (let* ((filename (buffer-file-name))
-         (localname (file-local-name filename))
+         (localname (ignore-errors (file-local-name filename)))
          (ess-proc (ess-get-process))
          dir cmd)
     ;; Get the name of the directory that contains filename.
-    (setq dir (directory-file-name
-               (file-name-directory localname)))
-    (save-buffer)
+    (setq dir (ignore-errors (directory-file-name (file-name-directory localname))))
+    (when filename (save-buffer))
     (cond
      ((string-suffix-p ".Rmd" localname t)
       (let ((build-cmd
@@ -1325,7 +1324,7 @@ interactively."
         (ess-send-string ess-proc build-cmd t)))
 
      ;; If we are in a package, reload the package.
-     ((string-equal (file-name-base dir) "R")
+     ((string-equal (ignore-errors (file-name-base dir)) "R")
       (gpb:ess-save-package)
       (setq cmd (format "devtools::load_all('%s', export_all = FALSE)"
                         (directory-file-name (file-name-directory dir))))
@@ -1334,7 +1333,7 @@ interactively."
      ;; If we are in a test file, source the file but evaluate in the
      ;; current package namespace with the current directory as the working
      ;; directory.
-     ((string-equal (file-name-base dir) "testthat")
+     ((string-equal (ignore-errors (file-name-base dir)) "testthat")
       (let* ((cmd (format "cat(pkgload::pkg_name('%s'), fill = TRUE)\n"
                           (file-local-name (buffer-file-name))))
              (package-name (ess-string-command cmd nil 1)))
