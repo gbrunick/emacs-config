@@ -48,8 +48,9 @@
                   (and (derived-mode-p 'gpb-git:show-status-mode)
                        (current-buffer))
                   (get-buffer gpb-git:status-buffer-name)))
-         (cmd `("git" "-c" "advice.statusHints=false" "status" "-u"))
+         (cmd "git -c advice.statusHints=false status -u")
          (inhibit-read-only t)
+         (root-dir (gpb-git--abbreviate-file-name default-directory))
          pt)
 
     (when buf
@@ -59,93 +60,92 @@
           (delete-overlay ov))
         (erase-buffer)
         (save-excursion
-          (insert (format "Repo: %s\n\n%s\n\n"
-                          (gpb-git--abbreviate-file-name default-directory)
-                          (mapconcat 'identity cmd " ")))
+          (insert (format "Repo: %s\n\n%s\n\n" root-dir cmd))
           (setq-local original-point pt)
           (setq-local put-status-here (point))
-          (gpb-git:exec-async2 cmd default-directory
-                               #'gpb-git:show-status--refresh-1))))))
+          (gpb-git:async-shell-command-1
+           cmd default-directory #'gpb-git:show-status--refresh-1))))))
 
 
-(defun gpb-git:show-status--refresh-1 (output-buffer)
+(defun gpb-git:show-status--refresh-1 (buf start end complete)
   "Implementation detail of `gpb-git:show-status--refresh'.
 
 Asyncronous callback that add buttons and overlays to the Git
 status output."
-  (save-excursion
-    (let ((status-text (with-current-buffer output-buffer (buffer-string)))
-          (inhibit-read-only t))
+  (when complete
+    (save-excursion
+      (let ((status-text (with-current-buffer buf (buffer-string)))
+            (inhibit-read-only t))
 
-      (goto-char put-status-here)
-      (insert status-text)
-      (goto-char put-status-here)
-      (when (re-search-forward "Changes to be committed:" nil t)
-        (insert " (")
-        (insert-text-button "view all"
-                            'action 'gpb-git:show-status--show-staged-changes
-                            'repo-dir default-directory)
-        (insert ")")
-        (forward-line 1)
+        (goto-char put-status-here)
+        (insert status-text)
+        (goto-char put-status-here)
+        (when (re-search-forward "Changes to be committed:" nil t)
+          (insert " (")
+          (insert-text-button "view all"
+                              'action 'gpb-git:show-status--show-staged-changes
+                              'repo-dir default-directory)
+          (insert ")")
+          (forward-line 1)
 
-        (while (looking-at "^\t[^\t]")
-          (let* ((regex (concat "^\t\\(deleted:\\|modified:"
-                                "\\|new file:\\|renamed:\\)?"
-                                " *\\(.*\\)$"))
-                 (ov (make-overlay (point)
-                                   (progn (re-search-forward regex)
-                                          (forward-line 1)
-                                          (point))))
-                 (filename (match-string 2)))
+          (while (looking-at "^\t[^\t]")
+            (let* ((regex (concat "^\t\\(deleted:\\|modified:"
+                                  "\\|new file:\\|renamed:\\)?"
+                                  " *\\(.*\\)$"))
+                   (ov (make-overlay (point)
+                                     (progn (re-search-forward regex)
+                                            (forward-line 1)
+                                            (point))))
+                   (filename (match-string 2)))
 
-            (overlay-put ov 'staged t)
-            (overlay-put ov 'filename filename)
-            (make-text-button (match-beginning 2) (match-end 2)
-                              'action 'gpb-git:show-status--show-staged-file-diff
-                              'filename filename))))
+              (overlay-put ov 'staged t)
+              (overlay-put ov 'filename filename)
+              (make-text-button (match-beginning 2) (match-end 2)
+                                'action 'gpb-git:show-status--show-staged-file-diff
+                                'filename filename))))
 
-      (when (re-search-forward "Changes not staged for commit:" nil t)
-        (insert " (")
-        (insert-text-button
-         "view all" 'action 'gpb-git:show-status--show-unstaged-changes
-         'repo-dir default-directory)
-        (insert ")")
-        (forward-line 1)
+        (when (re-search-forward "Changes not staged for commit:" nil t)
+          (insert " (")
+          (insert-text-button
+           "view all" 'action 'gpb-git:show-status--show-unstaged-changes
+           'repo-dir default-directory)
+          (insert ")")
+          (forward-line 1)
 
-        (while (looking-at "^\t[^\t]")
-          (let* ((regex (concat "^\t\\(deleted:\\|modified:\\|new file:\\)?"
-                                " *\\(.*\\)$"))
-                 (ov (make-overlay (point)
-                                   (progn (re-search-forward regex)
-                                          (forward-line 1)
-                                          (point))))
-                 (filename (match-string 2)))
+          (while (looking-at "^\t[^\t]")
+            (let* ((regex (concat "^\t\\(deleted:\\|modified:\\|new file:\\)?"
+                                  " *\\(.*\\)$"))
+                   (ov (make-overlay (point)
+                                     (progn (re-search-forward regex)
+                                            (forward-line 1)
+                                            (point))))
+                   (filename (match-string 2)))
 
-            (overlay-put ov 'unstaged t)
-            (overlay-put ov 'filename filename)
-            (make-text-button (match-beginning 2) (match-end 2)
-                              'action
-                              'gpb-git:show-status--show-unstaged-file-diff
-                              'filename filename))))
+              (overlay-put ov 'unstaged t)
+              (overlay-put ov 'filename filename)
+              (make-text-button (match-beginning 2) (match-end 2)
+                                'action
+                                'gpb-git:show-status--show-unstaged-file-diff
+                                'filename filename))))
 
-      (when (re-search-forward "Untracked files:" nil t)
-        (forward-line 1)
+        (when (re-search-forward "Untracked files:" nil t)
+          (forward-line 1)
 
-        (while (looking-at "^\t[^\t]")
-          (let* ((regex (concat "^\t\\(.*\\)$"))
-                 (ov (make-overlay (point)
-                                   (progn (re-search-forward regex)
-                                          (forward-line 1)
-                                          (point))))
-                 (filename (match-string 1)))
+          (while (looking-at "^\t[^\t]")
+            (let* ((regex (concat "^\t\\(.*\\)$"))
+                   (ov (make-overlay (point)
+                                     (progn (re-search-forward regex)
+                                            (forward-line 1)
+                                            (point))))
+                   (filename (match-string 1)))
 
-            (overlay-put ov 'untracked t)
-            (overlay-put ov 'filename filename))))
+              (overlay-put ov 'untracked t)
+              (overlay-put ov 'filename filename))))
 
 
-      (untabify (point-min) (point-max))))
-  (goto-char original-point)
-  (forward-line 0))
+        (untabify (point-min) (point-max))))
+    (goto-char original-point)
+    (forward-line 0)))
 
 
 (defun gpb-git:show-status--mark-file ()
@@ -311,7 +311,7 @@ status output."
 
 (defun gpb-git:show-status--show-unstaged-file-diff (button)
   (let* ((filename (button-get button 'filename))
-         (cmd `("git" "diff" "--" ,filename))
+         (cmd (format "git diff -- \"%s\"" filename))
          (buf (get-buffer-create (format "*unstaged: %s*" filename)))
          (repo-dir default-directory))
     (with-current-buffer buf
@@ -321,7 +321,7 @@ status output."
 
 (defun gpb-git:show-status--show-staged-file-diff (button)
   (let* ((filename (button-get button 'filename))
-         (cmd `("git" "diff" "--cached" "--" ,filename))
+         (cmd (format "git diff --cached -- \"%s\"" filename))
          (buf (get-buffer-create (format "*staged: %s*" filename)))
          (repo-dir default-directory))
     (with-current-buffer buf

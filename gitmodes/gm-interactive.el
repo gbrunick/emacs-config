@@ -14,7 +14,7 @@
 
 (defun gpb-git:interactive-git-command (&rest cmd)
   "Perform an interactive Git command."
-  (let ((buf (get-buffer-create (apply 'format "*%s %s*" cmd)))
+  (let ((buf (gpb-git:get-git-server-buf))
         (process-environment process-environment)
         (cmd-string (mapconcat 'identity cmd " "))
         proc)

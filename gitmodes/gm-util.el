@@ -74,11 +74,15 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
   dir)
 
 
-(defun gpb-git--trace-funcall (func args)
+(defun gpb-git--trace-funcall (&optional func args)
   "Write tracing output to buffer."
   (when gpb-git--show-tracing-info
-    (let ((buf (current-buffer))
-          (bufname gpb-git--tracing-buffer-name))
+    (let* ((buf (current-buffer))
+           (bufname gpb-git--tracing-buffer-name)
+           ;; If the nesting changes, the NFRAMES may change.
+           (outer-call (backtrace-frame 5))
+           (func (cadr outer-call))
+           (args (cddr outer-call)))
       (with-current-buffer (get-buffer-create bufname)
         (setq truncate-lines t)
         (let ((args-string (mapconcat (lambda (y)
@@ -88,7 +92,8 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
           (save-excursion
             (goto-char (point-max))
             (unless (bobp) (insert "\n"))
-            (insert (format "%S in %S:\n  %s\n" func buf args-string))))))))
+            (insert (format "%S called in buffer %S\n  %s\n"
+                            func (buffer-name buf) args-string))))))))
 
 
 (defun gpb-git:insert-placeholder (text)

@@ -45,31 +45,35 @@
 
 
 (defun gpb-git--refresh-commit-graph (&optional callback)
-  (let ((cmd '("git" "log" "--graph" "--oneline" "--decorate"
-               "--color" "--all" "-n" "100"))
+  (let ((cmd "git log --graph --oneline --decorate --color --all")
         (inhibit-read-only t))
     (read-only-mode 1)
     (erase-buffer)
     (gpb-git:commit-graph-mode)
-    (insert (format "Repo: %s\n\n" default-directory))
-    (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
-    (save-excursion (gpb-git:insert-placeholder "Loading commits"))
-    (gpb-git:exec-async2 cmd default-directory #'gpb-git--refresh-commit-graph-1
-                         callback)))
-
-(defun gpb-git--refresh-commit-graph-1 (buf callback)
-  (let ((inhibit-read-only t))
-    (gpb-git:delete-placeholder "Loading commits")
     (save-excursion
-      (insert (with-current-buffer buf (buffer-string)))
-      (ansi-color-apply-on-region (point-min) (point-max))
-      (goto-char (point-min))
+      (insert (format "Repo: %s\n\n" default-directory))
+      (insert (format "%s\n\n" cmd))
+      (setq-local output-marker (copy-marker (point))))
+    (setq-local callback-func callback)
+    (gpb-git:async-shell-command-1
+     cmd default-directory #'gpb-git--refresh-commit-graph-1)))
+
+(defun gpb-git--refresh-commit-graph-1 (buf start end complete)
+  (gpb-git--trace-funcall))
+  (let ((inhibit-read-only t))
+    (save-excursion
+      (goto-char output-marker)
+      (save-excursion
+        (insert (with-current-buffer buf
+                  (buffer-substring-no-properties start end)))
+        (ansi-color-apply-on-region output-marker (point))
+        (move-marker output-marker (point)))
       (while (re-search-forward "^[* \\|/]+ \\([a-f0-9]+\\) " nil t)
         (add-text-properties (progn (forward-line 0) (point))
                              (progn (forward-line 1) (point))
                              `(:commit-hash ,(match-string 1)))))
     (setq-local refresh-cmd `(gpb-git--refresh-commit-graph))
-    (when callback (funcall callback))))
+    (when (and complete callback-func) (funcall callback-func))))
 
 
 (defun gpb-git:mark-line ()

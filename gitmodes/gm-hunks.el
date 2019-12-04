@@ -121,14 +121,15 @@
 Overwrites the current buffer and sets the mode to
 `gpb-git:unstaged-changes-mode'."
   (interactive)
-  (let ((cmd (or cmd '("git" "diff" "--histogram" "--find-renames")))
+  (gpb-git--trace-funcall)
+  (let ((cmd (or cmd "git diff --histogram --find-renames"))
         (inhibit-read-only t))
-    (gpb-git--refresh-changes cmd repo-dir callback)
     (gpb-git:unstaged-changes-mode)
+    (gpb-git--refresh-changes cmd repo-dir callback)
     (goto-char (point-min))
     (insert (format "\nUnstaged changes in %s\n\n"
                     (gpb-git--abbreviate-file-name default-directory)))
-    (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
+    (insert (format "%s\n\n" cmd " "))
     (goto-char (point-min))
     ;; This didn't seem to stick until I moved it here?
     (setq-local refresh-cmd `(gpb-git--refresh-unstaged-changes
@@ -141,10 +142,11 @@ Overwrites the current buffer and sets the mode to
 Overwrites the current buffer and sets the mode to
 `gpb-git:staged-changes-mode'."
   (interactive)
-  (let ((cmd (or cmd '("git" "diff" "--cached" "--histogram" "--find-renames")))
+  (gpb-git--trace-funcall)
+  (let ((cmd (or cmd "git diff --cached --histogram --find-renames"))
         (inhibit-read-only t))
-    (gpb-git--refresh-changes cmd repo-dir callback)
     (gpb-git:staged-changes-mode)
+    (gpb-git--refresh-changes cmd repo-dir callback)
     (goto-char (point-min))
     (insert (format "\nStaged changes in %s\n\n"
                     (gpb-git--abbreviate-file-name default-directory)))
@@ -160,8 +162,8 @@ Overwrites the current buffer and sets the mode to
 Overwrites the current buffer and sets the mode to
 `gpb-git:staged-changes-mode'."
   (interactive)
-  (let ((cmd `("git" "diff" "--stat" "--patch" "--histogram" "--find-renames"
-               ,hash1 ,hash2 "--"))
+  (let ((cmd "git diff --stat --patch --histogram --find-renames"
+             hash1 ,hash2 "--")
         (inhibit-read-only t)
         (repo-dir (or repo-dir default-directory)))
     (gpb-git--refresh-changes cmd repo-dir callback)
@@ -183,54 +185,56 @@ the buffer and adds overlays.  `cmd' is a list of strings.  If
 `callback' is non-nil, we call this function when the buffer has
 been updated (i.e., asyncronously)."
   (interactive)
+  (gpb-git--trace-funcall)
   (let ((repo-dir (or repo-dir default-directory))
         (inhibit-read-only t))
     ;; Delete any existing hunk overlays in the buffer.
     (dolist (ov (gpb-git--get-hunk-overlays)) (delete-overlay ov))
     (erase-buffer)
     (setq default-directory repo-dir)
-    ;; We save the command for `gpb-git--refresh-changes'.
-    (setq current-command cmd)
+    (setq-local callback-func callback)
     (gpb-git:insert-placeholder "Loading hunks ")
-  (gpb-git:exec-async2 cmd repo-dir #'gpb-git--refresh-changes-1 callback)))
+  (gpb-git:async-shell-command-1 cmd repo-dir #'gpb-git--refresh-changes-1)))
 
 
-(defun gpb-git--refresh-changes-1 (buf callback)
+(defun gpb-git--refresh-changes-1 (buf start end complete)
   "Implementation detail of `gpb-git--refresh-changes'."
-  (let ((hunks (with-current-buffer buf (gpb-git--parse-diff)))
-        (inhibit-read-only t))
-    (goto-char (point-min))
-    (gpb-git:delete-placeholder "Loading hunks")
-    (cond
-     (hunks
-      ;; Add a text button for each filename
-      (insert "Files: ")
-      (let* ((filenames (mapcar (lambda (hunk) (aget hunk :filename1 t))
-                                hunks))
-             (max-length (apply 'max (mapcar 'length filenames))))
-        (dolist (filename (sort (delete-dups (delq nil filenames)) 'string<))
-          (make-text-button (point)
-                            (progn (insert filename) (point))
-                            'action 'gpb-git:jump-to-file-hunks
-                            'filename filename)
-          (insert (make-string (max (- max-length (length filename)) 0)
-                               ?\ ))
-          (let ((file-hunks (cl-remove-if-not
-                             (lambda (h) (equal (aget h :filename1 t) filename))
-                             hunks)))
-            (insert (cond
-                     ((= (length file-hunks) 1) " (1 hunk)")
-                     (t (format " (%s hunks)"
-                                (length file-hunks))))))
-          (insert "\n       ")))
-      (forward-line 0)
-      (delete-region (point) (line-end-position))
-      (insert "\n\n")
-      (gpb-git--insert-hunks hunks))
-     (t
-      (insert "No changes")))
-    (goto-char (point-min))
-    (when callback (funcall callback buf))))
+  (gpb-git--trace-funcall)
+  (when complete
+    (let ((hunks (with-current-buffer buf (gpb-git--parse-diff)))
+          (inhibit-read-only t))
+      (goto-char (point-min))
+      (gpb-git:delete-placeholder "Loading hunks")
+      (cond
+       (hunks
+        ;; Add a text button for each filename
+        (insert "Files: ")
+        (let* ((filenames (mapcar (lambda (hunk) (aget hunk :filename1 t))
+                                  hunks))
+               (max-length (apply 'max (mapcar 'length filenames))))
+          (dolist (filename (sort (delete-dups (delq nil filenames)) 'string<))
+            (make-text-button (point)
+                              (progn (insert filename) (point))
+                              'action 'gpb-git:jump-to-file-hunks
+                              'filename filename)
+            (insert (make-string (max (- max-length (length filename)) 0)
+                                 ?\ ))
+            (let ((file-hunks (cl-remove-if-not
+                               (lambda (h) (equal (aget h :filename1 t) filename))
+                               hunks)))
+              (insert (cond
+                       ((= (length file-hunks) 1) " (1 hunk)")
+                       (t (format " (%s hunks)"
+                                  (length file-hunks))))))
+            (insert "\n       ")))
+        (forward-line 0)
+        (delete-region (point) (line-end-position))
+        (insert "\n\n")
+        (gpb-git--insert-hunks hunks))
+       (t
+        (insert "No changes")))
+      (goto-char (point-min))
+      (when callback-func (funcall callback-func buf)))))
 
 
 (defun gpb-git--decorate-hunk (hunk &optional focused)
