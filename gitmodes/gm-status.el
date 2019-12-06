@@ -8,7 +8,7 @@
     (define-key map "a" 'gpb-git:show-status--stage-files)
     (define-key map "r" 'gpb-git:show-status--unstage-files)
     (define-key map "d" 'gpb-git:show-status--show-diff)
-    (define-key map "!" 'gpb-git:shell-command)
+    (define-key map [remap shell-command] 'gpb-git:shell-command)
     map)
   "The keymap used when viewing git status output.")
 

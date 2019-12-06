@@ -63,28 +63,40 @@ The buffer name is based on the buffer name of the current buffer."
 
 CMD is a string that is passed through to an interactive bash or
 cmd.exe process."
-  (interactive "sShell Command: ")
+  (interactive "sGit Shell Command: ")
   (let ((repo-root (gpb-git--find-repo-root))
-        (buf (gpb-git--get-new-buffer "*shell command" "*"))
+        (buf (get-buffer-create "*Git Shell Command*"))
         proc output)
 
     (with-current-buffer buf
+      (let ((inhibit-read-only t)) (erase-buffer))
+      (view-mode)
       (setq default-directory repo-root)
       (setq-local output-marker (copy-marker (point-min)))
-      (gpb-git:async-shell-command
-       cmd repo-root #'gpb-git:shell-command-1 t))
+      (gpb-git:async-shell-command cmd repo-root #'gpb-git:shell-command-1))
 
-    (pop-to-buffer buf)))
+    (switch-to-buffer buf)))
 
 
 (defun gpb-git:shell-command-1 (buf start end complete)
   (gpb-git--trace-funcall)
   (let ((new-text (with-current-buffer buf
-                    (buffer-substring-no-properties start end))))
+                    (buffer-substring-no-properties start end)))
+        (inhibit-read-only t))
     (save-excursion
       (goto-char output-marker)
       (insert new-text)
+
+      ;; Delete overwriten output.
+      (save-excursion
+        (goto-char output-marker)
+        (while (re-search-forward "^[^]*" nil t)
+          (delete-region (match-beginning 0) (match-end 0))))
+
+      ;; Color new input.
       (ansi-color-apply-on-region output-marker (point))
+
+      ;; Update the marker.
       (move-marker output-marker (point)))))
 
 
@@ -117,8 +129,8 @@ processing command and nil otherwise."
       (setq proc (get-buffer-process (current-buffer)))
 
       (set-process-filter proc #'gpb-git:async-shell-command--process-filter)
-      (setq proc-cmd (format "echo %s && echo %s && %s && echo %s\n"
-                             cmd gpb-git:output-start cmd gpb-git:output-end))
+      (setq proc-cmd (format "echo %s && %s && echo %s\n"
+                             gpb-git:output-start cmd gpb-git:output-end))
       (process-send-string proc proc-cmd)
 
       (let ((inhibit-message t))
