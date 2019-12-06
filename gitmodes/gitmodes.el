@@ -267,57 +267,6 @@ Bind to this to a prefix of your choosing (e.g., \"\C-cv\")")
       (gpb-git--update-highlights))))
 
 
-(defun gpb-git:exec-async (cmd dir callback &rest args)
-  "Execute an asyncronous command and then call CALLBACK.
-
-CMD is a list of strings that is passed through to
-`start-file-process' to execute an asynchronous command and the
-output is written into the new temporary buffer.
-
-CALLBACK is a function that will (eventually) be called in the
-buffer where this command was called when the asycnronous command
-finishes.  If that buffer is no longer alive when the subprocess
-exits, the CALLBACK will not be called.  The CALLBACK function is
-passed the buffer that contains the process output followed by
-any additional arguments in ARGS."
-  (gpb-git--trace-funcall #'gpb-git:exec-async `(,cmd ,dir ,callback ,@args))
-  (let ((buf (current-buffer)) proc)
-    (with-current-buffer (gpb-git--get-new-buffer "*exec-async" "*")
-      ;; Set variables for `gpb-git:exec-async--process-sentinel'.
-      (setq-local default-directory dir)
-      (setq-local callback-func callback)
-      (setq-local callback-args args)
-      (setq-local callback-buf buf)
-      (setq proc (apply 'start-file-process (car cmd) (current-buffer) cmd))
-      (set-process-sentinel proc 'gpb-git:exec-async--process-sentinel)
-      (let ((inhibit-message t))
-        (message "Started process %S in %S" cmd (current-buffer))))))
-
-
-(defun gpb-git:exec-async--process-sentinel (proc change)
-  "Process sentinel used handle asyncronous Git commands."
-  (gpb-git--trace-funcall #'gpb-git:exec-async--process-sentinel
-                          `(,proc ,change))
-  (when (eq 'exit (process-status proc))
-    (let (func args buf)
-      ;; (message "gpb-git:exec-async--process-sentinel(1) %S"
-      ;;          (process-buffer proc))
-      (with-current-buffer (process-buffer proc)
-        (setq func callback-func
-              args (cons (current-buffer) callback-args)
-              buf callback-buf))
-      ;; Evaluate `func' in the buffer where `gpb-git:exec-async' was
-      ;; initially called.
-      ;; (message "gpb-git:exec-async--process-sentinel(2) %S" buf)
-      (when (buffer-live-p buf)
-        (with-current-buffer buf
-          (let ((debug-on-error t))
-            (gpb-git--trace-funcall func args)
-            (apply func args))))
-
-      (kill-buffer (process-buffer proc)))))
-
-
 (defun gpb-git:insert-spinner ()
   "Insert spinner at current point."
   (let ((m (copy-marker (point))))
