@@ -63,7 +63,7 @@
           (insert (format "Repo: %s\n\n%s\n\n" root-dir cmd))
           (setq-local original-point pt)
           (setq-local put-status-here (point))
-          (gpb-git:async-shell-command-1
+          (gpb-git:async-shell-command
            cmd default-directory #'gpb-git:show-status--refresh-1))))))
 
 
@@ -100,9 +100,10 @@ status output."
 
               (overlay-put ov 'staged t)
               (overlay-put ov 'filename filename)
-              (make-text-button (match-beginning 2) (match-end 2)
-                                'action 'gpb-git:show-status--show-staged-file-diff
-                                'filename filename))))
+              (make-text-button
+               (match-beginning 2) (match-end 2)
+               'action 'gpb-git:show-status--show-staged-file-diff
+               'filename filename))))
 
         (when (re-search-forward "Changes not staged for commit:" nil t)
           (insert " (")

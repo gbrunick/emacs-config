@@ -150,7 +150,7 @@ Overwrites the current buffer and sets the mode to
     (goto-char (point-min))
     (insert (format "\nStaged changes in %s\n\n"
                     (gpb-git--abbreviate-file-name default-directory)))
-    (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
+    (insert (format "%s\n\n" cmd " "))
     (setq-local refresh-cmd `(gpb-git--refresh-staged-changes
                               ,default-directory ',cmd))
     (goto-char (point-min))))
@@ -194,7 +194,7 @@ been updated (i.e., asyncronously)."
     (setq default-directory repo-dir)
     (setq-local callback-func callback)
     (gpb-git:insert-placeholder "Loading hunks ")
-  (gpb-git:async-shell-command-1 cmd repo-dir #'gpb-git--refresh-changes-1)))
+  (gpb-git:async-shell-command cmd repo-dir #'gpb-git--refresh-changes-1)))
 
 
 (defun gpb-git--refresh-changes-1 (buf start end complete)
@@ -1193,15 +1193,14 @@ the file for the structure of these alists."
 
 Overwrites the current buffer and sets the mode to
 `gpb-git:hunk-view-mode'."
-  (let ((cmd `("git" "show" ,hash "--"))
+  (let ((cmd (format "git show %s --" hash))
         (inhibit-read-only t)
         (f (lambda (buf) )))
-
-    (gpb-git--refresh-changes cmd repo-dir #'gpb-git--show-commit-1)
     (gpb-git:hunk-view-mode)
+    (gpb-git--refresh-changes cmd repo-dir #'gpb-git--show-commit-1)
     (setq-local refresh-cmd `(gpb-git--refresh-changes
                               ,cmd ,repo-dir ,#'gpb-git--show-commit-1))
-    (setq-local buffer-header (format "%s\n\n" (mapconcat 'identity cmd " ")))
+    (setq-local buffer-header (format "%s\n\n" cmd))
     (goto-char (point-min))))
 
 

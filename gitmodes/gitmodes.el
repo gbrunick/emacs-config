@@ -100,7 +100,7 @@
 (require 'gm-logs)
 (require 'gm-hunks)
 (require 'gm-interactive)
-(require 'gm-exec-async2)
+(require 'gm-shell-commands)
 
 (defcustom gpb-git:remote-home-dirs nil
   "A list of strings giving remote directory paths.

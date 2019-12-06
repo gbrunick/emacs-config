@@ -45,6 +45,7 @@
 
 
 (defun gpb-git--refresh-commit-graph (&optional callback)
+  (gpb-git--trace-funcall)
   (let ((cmd "git log --graph --oneline --decorate --color --all")
         (inhibit-read-only t))
     (read-only-mode 1)
@@ -55,11 +56,11 @@
       (insert (format "%s\n\n" cmd))
       (setq-local output-marker (copy-marker (point))))
     (setq-local callback-func callback)
-    (gpb-git:async-shell-command-1
+    (gpb-git:async-shell-command
      cmd default-directory #'gpb-git--refresh-commit-graph-1)))
 
 (defun gpb-git--refresh-commit-graph-1 (buf start end complete)
-  (gpb-git--trace-funcall))
+  (gpb-git--trace-funcall)
   (let ((inhibit-read-only t))
     (save-excursion
       (goto-char output-marker)
