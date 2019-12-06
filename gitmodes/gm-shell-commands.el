@@ -128,7 +128,6 @@ processing command and nil otherwise."
 (defun gpb-git:async-shell-command--process-filter (proc string)
   "Process filter for `gpb-git:async-shell-command'."
   (gpb-git--trace-funcall)
-  (message "1")
   (when (buffer-live-p (process-buffer proc))
     (let ((proc-buf (process-buffer proc))
           (start-regex (format "^%s\n" gpb-git:output-start))
@@ -160,43 +159,32 @@ processing command and nil otherwise."
           (set-marker (process-mark proc) (point))
           (setq output-end (save-excursion (beginning-of-line) (point))))
 
-        (message "1.1")
-
         (when (<= output-start-marker output-end-marker)
           ;; We are waiting on the next `gpb-git:output-start` marker.
           (save-excursion
             (goto-char output-end-marker)
             (when (re-search-forward start-regex nil t)
-              (message "start-regex match: %s" (match-end 0))
               (set-marker output-start-marker (match-end 0)))))
 
-        (message "1.2")
-
         (when (> output-start-marker output-end-marker)
-          (message "1.2.1")
           ;; We are waiting on the next `gpb-git:output-end` marker.
           (setq output-start (max output-start output-start-marker))
           (goto-char output-start)
           (forward-line 0)
-          (message "1.2.2")
           (when (re-search-forward end-regex nil t)
-            (message "1.2.3")
             (setq complete t)
             (set-marker output-end-marker (match-beginning 0))
             ;; Trim the current output region.
             (setq output-end (min output-end output-end-marker))
             (push `(,default-directory . ,proc-buf) gpb-git:worker-pool))
 
-          (message "2")
-          (message "%S" callback-func)
           (save-restriction
             (narrow-to-region output-start-marker output-end)
             ;; Capture the buffer local variable `callback-func' so we can
             ;; call it in the buffer `callback-buf'.
             (let ((f callback-func))
               (with-current-buffer callback-buf
-                (funcall f proc-buf output-start output-end complete))))
-          (message "3"))))))
+                (funcall f proc-buf output-start output-end complete)))))))))
 
 
 (provide 'gm-shell-commands)
