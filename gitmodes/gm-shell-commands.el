@@ -142,8 +142,9 @@ processing command and nil otherwise."
   (gpb-git--trace-funcall)
   (when (buffer-live-p (process-buffer proc))
     (let ((proc-buf (process-buffer proc))
-          (start-regex (format "^%s\n" gpb-git:output-start))
-          (end-regex (format "^%s\n" gpb-git:output-end))
+          ;; echo includes the trailing space when called from cmd.exe.
+          (start-regex (format "^%s ?\n" gpb-git:output-start))
+          (end-regex (format "^%s ?\n" gpb-git:output-end))
           ;; The let-bound variables `output-start' and `output-end' will
           ;; delimit the new lines of output that result from inserting
           ;; `string'.

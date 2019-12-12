@@ -72,6 +72,7 @@
 
 Asyncronous callback that add buttons and overlays to the Git
 status output."
+  (gpb-git--trace-funcall)
   (when complete
     (save-excursion
       (let ((status-text (with-current-buffer buf (buffer-string)))

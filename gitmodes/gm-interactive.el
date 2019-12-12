@@ -94,9 +94,10 @@ edit, and the FIFO pipe to use for syncronization."
           (run-hooks 'post-command-hook))))))
 
 (defun gpb-git:send-signal-to-git ()
-  (gpb-git--trace-funcall #'gpb-git:send-signal-to-git `(,pipe-file))
+  (gpb-git--trace-funcall)
   (if (and (eq window-system 'w32) (not (file-remote-p default-directory)))
-      (shell-command "waitfor /si EmacsEditDone")
+      (unless (= (call-process-shell-command "waitfor /si EmacsEditDone") 0)
+        (error "Could not send signal to Git process"))
     (process-file-shell-command
      (format "bash -c \"echo done. > %s\"" pipe-file))))
 
