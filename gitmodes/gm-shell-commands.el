@@ -5,14 +5,12 @@ Each buffer contains a bash processes with the associated working
 directory.  The working directory may be a TRAMP remote filename,
 so these processes may be running on different machines.")
 
-(defvar gpb-git:output-start "f691081fx1b3bx5ab4x8233x4f382c9cba21"
-  "Arbitrary string that is used to mark the start of process output.
+(defvar gpb-git:process-output-marker "e7010240-6f57-4d86-84f9-62fb8958b7a6"
+  "Arbitrary string that is used to mark locations within process output.
 
-We want something that is unlikely to show up in any Git output
-and doesn't require any shell quoting.")
-
-(defvar gpb-git:output-end "cc412e81x7f5dxf624x93f3xab948734143a"
-  "Arbitrary string that is used to mark the end of process output.")
+We want this string to be something that is unlikely to show up
+at the start of a line in any Git command output and doesn't
+require any shell quoting.")
 
 (defun gpb-git:get-git-server-buf (&optional repo-root)
   "Get a buffer containing a live bash process.
@@ -128,7 +126,8 @@ cmd.exe process."
           (assert (bolp))
           (while (< (point) end)
             (cond
-             ((looking-at "^Edit File: \\(.*\\)")
+             ((looking-at (format "^%s:edit-file:\\(.*\\)"
+                                  gpb-git:process-output-marker))
               (with-current-buffer (find-file (concat remote-prefix
                                                       (match-string 1)))
                 (gpb-git:edit-mode)
@@ -138,7 +137,8 @@ cmd.exe process."
                 ;; they can respond to the updated current buffer.
                 (run-hooks 'post-command-hook)))
 
-             ((looking-at "^Pipe File: \\(.*\\)")
+             ((looking-at (format "^%s:pipe-file:\\(.*\\)"
+                                  gpb-git:process-output-marker))
               ;; `gpb-git:send-signal-to-git` uses this value.
               (let ((match-str (match-string 1)))
                 (message "Pipe File: %s" match-str)
@@ -198,15 +198,16 @@ processing command and nil otherwise."
       (setq proc (get-buffer-process (current-buffer)))
 
       (set-process-filter proc #'gpb-git:async-shell-command--process-filter)
-      ;; We need the first echo below so `gpb-git:output-start` appears
-      ;; that the start of a line when bash doesn't echo the command
-      (setq proc-cmd (format "echo %s && %s && echo %s"
-                             gpb-git:output-start cmd gpb-git:output-end))
+      (setq proc-cmd (format "echo %s:output-start && %s && echo %s:output-end"
+                             gpb-git:process-output-marker
+                             cmd
+                             gpb-git:process-output-marker))
 
       (unless (and (eq window-system 'w32) (not (file-remote-p dir)))
         ;; Bash doesn't echo the command, so we echo it into the buffer
-        ;; directly.  This ensures that `gpb-git:output-start` starts at
-        ;; the beginning of an output line.
+        ;; directly.  This ensures that each
+        ;; `gpb-git:process-output-marker` we echo above starts at the
+        ;; beginning of an output line.
         (setq proc-cmd (format "echo \"%s\" && %s" proc-cmd proc-cmd)))
 
       (process-send-string proc (format "%s\n" proc-cmd))
@@ -220,8 +221,10 @@ processing command and nil otherwise."
   (when (buffer-live-p (process-buffer proc))
     (let ((proc-buf (process-buffer proc))
           ;; echo includes the trailing space when called from cmd.exe.
-          (start-regex (format "^%s ?\n" gpb-git:output-start))
-          (end-regex (format "^%s ?\n" gpb-git:output-end))
+          (start-regex (format "^%s:output-start ?\n"
+                               gpb-git:process-output-marker))
+          (end-regex (format "^%s:output-end ?\n"
+                             gpb-git:process-output-marker))
           ;; The let-bound variables `output-start' and `output-end' will
           ;; delimit the new lines of output that result from inserting
           ;; `string'.
@@ -250,14 +253,14 @@ processing command and nil otherwise."
           (setq output-end (save-excursion (beginning-of-line) (point))))
 
         (when (<= output-start-marker output-end-marker)
-          ;; We are waiting on the next `gpb-git:output-start` marker.
+          ;; We are waiting on the next output start marker.
           (save-excursion
             (goto-char output-end-marker)
             (when (re-search-forward start-regex nil t)
               (set-marker output-start-marker (match-end 0)))))
 
         (when (> output-start-marker output-end-marker)
-          ;; We are waiting on the next `gpb-git:output-end` marker.
+          ;; We are waiting on the next output end marker.
           (setq output-start (max output-start output-start-marker))
           (goto-char output-start)
           (forward-line 0)
