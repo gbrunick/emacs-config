@@ -89,6 +89,8 @@ The buffer name is based on the buffer name of the current buffer."
     buf))
 
 
+(define-derived-mode git-command-output-mode view-mode "Git Command")
+
 (defun gpb-git:shell-command (cmd)
   "Execute CMD in a new buffer and pop to that buffer.
 
@@ -101,10 +103,13 @@ cmd.exe process."
     (with-current-buffer buf
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert (format "%s\n\n" cmd)))
+        (git-command-output-mode)
+        (local-set-key [remap shell-command] 'gpb-git:shell-command)
+        (setq mode-line-process ":running")
+        (insert (format "%s\n\n" cmd))
+        (setq-local output-marker (copy-marker (point))))
       (view-mode)
       (setq default-directory repo-root)
-      (setq-local output-marker (copy-marker (point)))
       (gpb-git:async-shell-command cmd repo-root #'gpb-git:shell-command-1))
 
     (switch-to-buffer buf)))
@@ -116,7 +121,7 @@ cmd.exe process."
         (new-text "")
         (inhibit-read-only t)
         (remote-prefix (or (file-remote-p default-directory) ""))
-        this-line)
+        this-line move-pt)
 
     ;; Read the new output line by line, looking for special output markers.
     (with-current-buffer buf
@@ -153,7 +158,9 @@ cmd.exe process."
 
     ;; Insert the new text and fix up the display.
     (save-excursion
-      (goto-char output-marker)
+      (if (= (point) output-marker)
+          (setq move-pt t)
+        (goto-char output-marker))
       (insert new-text)
 
       ;; Delete output that was overwritten using carriage returns.
@@ -165,8 +172,15 @@ cmd.exe process."
       ;; Color new input.
       (ansi-color-apply-on-region output-marker (point))
 
-      ;; Update the marker.
-      (move-marker output-marker (point)))))
+      ;; Update markers.
+      (move-marker output-marker (point))
+
+      (when complete
+        (with-current-buffer output-buf
+          (setq mode-line-process ":complete"))))
+
+    (when move-pt
+      (goto-char output-marker))))
 
 
 (defun gpb-git:async-shell-command (cmd dir callback)
