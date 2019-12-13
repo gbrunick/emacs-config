@@ -41,20 +41,53 @@ the worker."
   "Create a buffer containing a live bash process.
 
 The buffer name is based on the buffer name of the current buffer."
-  (gpb-git--trace-funcall #'gpb-git:make-git-server-buf `(,repo-root))
+  (gpb-git--trace-funcall)
   (let* ((buf (gpb-git--get-new-buffer "*git server" "*"))
          (dir default-directory)
          (use-cmd (and (eq window-system 'w32) (not (file-remote-p dir))))
+         (process-environment process-environment)
          proc)
+
     (with-current-buffer buf
       (insert (format "Repo Dir: %s\n\n" repo-root))
+
+      ;; Set Git environment variables to use a custom editor script.
+      (cond
+       ;; If we are working locally on a Windows machine, use the CMD script.
+       ((and (eq window-system 'w32) (not (file-remote-p default-directory)))
+        (push (format "GIT_EDITOR=%s" (locate-library "git-editor.cmd"))
+              process-environment)
+        (push (format "GIT_SEQUENCE_EDITOR=%s"
+                      (locate-library "git-editor.cmd"))
+              process-environment))
+
+       ;; Othewise, use the BASH script.  We could be working remotely, so we
+       ;; write the script to a file on the machine where the Git command is
+       ;; running.
+       (t
+        (let ((script-file (locate-library "git-editor.bash"))
+              (tmpfile-name (gpb-git:get-temporary-file "git-editor.bash")))
+          (assert (not (null script-file)))
+          (with-temp-file tmpfile-name (insert-file-contents script-file))
+          ;; Set the permissions so the owner can read, write and execute.
+          ;; 448 = 7 * 8 * 8
+          (set-file-modes tmpfile-name 448)
+          (push (format "GIT_EDITOR=bash %s" (file-local-name tmpfile-name))
+                process-environment)
+          (push (format "GIT_SEQUENCE_EDITOR=bash %s"
+                        (file-local-name tmpfile-name))
+                process-environment))))
+
       (setq default-directory repo-root
             proc (if use-cmd
                      (start-file-process "cmd-git-server" buf "cmd")
                    (start-file-process "bash-git-server" buf "bash")))
       (setq-local kill-buffer-query-functions nil)
       (setq-local output-start-marker (copy-marker (point-min)))
-      (setq-local output-end-marker (copy-marker (point-min))))
+      (setq-local output-end-marker (copy-marker (point-min)))
+
+
+      )
     buf))
 
 
@@ -64,15 +97,16 @@ The buffer name is based on the buffer name of the current buffer."
 CMD is a string that is passed through to an interactive bash or
 cmd.exe process."
   (interactive "sGit Shell Command: ")
-  (let ((repo-root (gpb-git--find-repo-root))
-        (buf (get-buffer-create "*Git Shell Command*"))
-        proc output)
+  (let ((buf (get-buffer-create "*Git Shell Command*"))
+        (repo-root (gpb-git--find-repo-root)))
 
     (with-current-buffer buf
-      (let ((inhibit-read-only t)) (erase-buffer))
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (format "%s\n\n" cmd)))
       (view-mode)
       (setq default-directory repo-root)
-      (setq-local output-marker (copy-marker (point-min)))
+      (setq-local output-marker (copy-marker (point)))
       (gpb-git:async-shell-command cmd repo-root #'gpb-git:shell-command-1))
 
     (switch-to-buffer buf)))
@@ -80,14 +114,49 @@ cmd.exe process."
 
 (defun gpb-git:shell-command-1 (buf start end complete)
   (gpb-git--trace-funcall)
-  (let ((new-text (with-current-buffer buf
-                    (buffer-substring-no-properties start end)))
-        (inhibit-read-only t))
+  (let ((output-buf (current-buffer))
+        (new-text "")
+        (inhibit-read-only t)
+        (remote-prefix (or (file-remote-p default-directory) ""))
+        this-line)
+
+    ;; Read the new output line by line, looking for special output markers.
+    (with-current-buffer buf
+      (save-excursion
+        (save-match-data
+          (goto-char start)
+          (assert (bolp))
+          (while (< (point) end)
+            (cond
+             ((looking-at "^Edit File: \\(.*\\)")
+              (with-current-buffer (find-file (concat remote-prefix
+                                                      (match-string 1)))
+                (gpb-git:edit-mode)
+                ;; Used by `gpb-git:finish-edit`.
+                (setq-local command-buffer output-buf)
+                ;; This happens in a callback so call any post command hooks so
+                ;; they can respond to the updated current buffer.
+                (run-hooks 'post-command-hook)))
+
+             ((looking-at "^Pipe File: \\(.*\\)")
+              ;; `gpb-git:send-signal-to-git` uses this value.
+              (let ((match-str (match-string 1)))
+                (message "Pipe File: %s" match-str)
+                (with-current-buffer output-buf
+                  (setq-local pipe-file match-str))))
+
+             (t
+              (setq this-line (buffer-substring
+                               (point) (save-excursion (end-of-line) (point)))
+                    new-text (format "%s%s\n" new-text this-line))))
+            (forward-line 1)))))
+
+    ;; Insert the new text and fix up the display.
     (save-excursion
       (goto-char output-marker)
       (insert new-text)
 
-      ;; Delete overwriten output.
+      ;; Delete output that was overwritten using carriage returns.
       (save-excursion
         (goto-char output-marker)
         (while (re-search-forward "^[^]*" nil t)
@@ -129,10 +198,18 @@ processing command and nil otherwise."
       (setq proc (get-buffer-process (current-buffer)))
 
       (set-process-filter proc #'gpb-git:async-shell-command--process-filter)
-      (setq proc-cmd (format "echo %s && %s && echo %s\n"
+      ;; We need the first echo below so `gpb-git:output-start` appears
+      ;; that the start of a line when bash doesn't echo the command
+      (setq proc-cmd (format "echo %s && %s && echo %s"
                              gpb-git:output-start cmd gpb-git:output-end))
-      (process-send-string proc proc-cmd)
 
+      (unless (and (eq window-system 'w32) (not (file-remote-p dir)))
+        ;; Bash doesn't echo the command, so we echo it into the buffer
+        ;; directly.  This ensures that `gpb-git:output-start` starts at
+        ;; the beginning of an output line.
+        (setq proc-cmd (format "echo \"%s\" && %s" proc-cmd proc-cmd)))
+
+      (process-send-string proc (format "%s\n" proc-cmd))
       (let ((inhibit-message t))
         (message "Sent command %S to %S" cmd (current-buffer))))))
 
@@ -200,4 +277,49 @@ processing command and nil otherwise."
                 (funcall f proc-buf output-start output-end complete)))))))))
 
 
+(defun gpb-git:send-signal-to-git ()
+  (gpb-git--trace-funcall)
+  (if (and (eq window-system 'w32) (not (file-remote-p default-directory)))
+      (unless (= (call-process-shell-command "waitfor /si EmacsEditDone") 0)
+        (error "Could not send signal to Git process"))
+    (process-file-shell-command
+     (format "bash -c \"echo done. > %s\"" pipe-file))))
+
+(defun gpb-git:commit (&optional amend)
+  (interactive "P")
+  (if amend
+      (gpb-git:shell-command "git commit --amend")
+    (gpb-git:shell-command "git commit")))
+
+(defun gpb-git:interactive-rebase (hash)
+  (interactive (list (read-string "Base Commit: ")))
+  (gpb-git:shell-command (format "git rebase -i %s" hash)))
+
+
+(define-derived-mode gpb-git:edit-mode diff-mode "Git Edit"
+  "Mode for editing a file during an interactive Git command."
+  (local-set-key "\C-c\C-c" 'gpb-git:finish-edit)
+  (add-hook 'kill-buffer-hook 'gpb-git:kill-buffer-hook nil t))
+
+(defun gpb-git:kill-buffer-hook ()
+  (ignore-errors
+    (with-current-buffer command-buffer
+      (gpb-git:send-signal-to-git))))
+
+(defun gpb-git:finish-edit ()
+  "Finish edit and show Git process buffer."
+  (interactive)
+  (save-buffer)
+  ;; The buffer local variable `command-buffer' was set by
+  ;; `gpb-git:shell-command-1'.
+  (let ((buf command-buffer))
+    (kill-buffer)
+    (with-current-buffer buf (gpb-git:send-signal-to-git))
+    (switch-to-buffer buf)))
+
+
+
+
+
 (provide 'gm-shell-commands)
+

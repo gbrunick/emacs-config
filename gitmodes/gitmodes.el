@@ -99,7 +99,6 @@
 (require 'gm-status)
 (require 'gm-logs)
 (require 'gm-hunks)
-(require 'gm-interactive)
 (require 'gm-shell-commands)
 
 (defcustom gpb-git:remote-home-dirs nil
