@@ -42,7 +42,6 @@ The buffer name is based on the buffer name of the current buffer."
   (gpb-git--trace-funcall)
   (let* ((buf (gpb-git--get-new-buffer "*git server" "*"))
          (dir default-directory)
-         (use-cmd (and (eq window-system 'w32) (not (file-remote-p dir))))
          (process-environment process-environment)
          proc)
 
@@ -52,7 +51,7 @@ The buffer name is based on the buffer name of the current buffer."
       ;; Set Git environment variables to use a custom editor script.
       (cond
        ;; If we are working locally on a Windows machine, use the CMD script.
-       ((and (eq window-system 'w32) (not (file-remote-p default-directory)))
+       ((gpb-git:use-cmd-exe dir)
         (push (format "GIT_EDITOR=%s" (locate-library "git-editor.cmd"))
               process-environment)
         (push (format "GIT_SEQUENCE_EDITOR=%s"
@@ -77,7 +76,7 @@ The buffer name is based on the buffer name of the current buffer."
                 process-environment))))
 
       (setq default-directory repo-root
-            proc (if use-cmd
+            proc (if (gpb-git:use-cmd-exe repo-root)
                      (start-file-process "cmd-git-server" buf "cmd")
                    (start-file-process "bash-git-server" buf "bash")))
       (setq-local kill-buffer-query-functions nil)
@@ -212,12 +211,14 @@ processing command and nil otherwise."
       (setq proc (get-buffer-process (current-buffer)))
 
       (set-process-filter proc #'gpb-git:async-shell-command--process-filter)
-      (setq proc-cmd (format "echo %s:output-start && %s && echo %s:output-end"
+      (setq proc-cmd (format (if (gpb-git:use-cmd-exe)
+                                 "echo %s:output-start & %s & echo %s:output-end"
+                               "echo %s:output-start ; %s ; echo %s:output-end")
                              gpb-git:process-output-marker
                              cmd
                              gpb-git:process-output-marker))
 
-      (unless (and (eq window-system 'w32) (not (file-remote-p dir)))
+      (unless (gpb-git:use-cmd-exe)
         ;; Bash doesn't echo the command, so we echo it into the buffer
         ;; directly.  This ensures that each
         ;; `gpb-git:process-output-marker` we echo above starts at the
@@ -296,7 +297,7 @@ processing command and nil otherwise."
 
 (defun gpb-git:send-signal-to-git ()
   (gpb-git--trace-funcall)
-  (if (and (eq window-system 'w32) (not (file-remote-p default-directory)))
+  (if (gpb-git:use-cmd-exe)
       (unless (= (call-process-shell-command "waitfor /si EmacsEditDone") 0)
         (error "Could not send signal to Git process"))
     (process-file-shell-command
@@ -335,7 +336,15 @@ processing command and nil otherwise."
     (switch-to-buffer buf)))
 
 
+(defun gpb-git:use-cmd-exe (&optional dir)
+  "Are we using cmd.exe rather than bash?
 
+We use cmd.exe when we are on the local filesystem of a Windows
+machine.  In all other cases (i.e., not on Windows machine or on
+a Windows machine but working remotely via TRAMP) we use bash."
+  (let ((dir (or dir default-directory)))
+    (and (eq window-system 'w32)
+         (ignore-errors (not (file-remote-p default-directory))))))
 
 
 (provide 'gm-shell-commands)
