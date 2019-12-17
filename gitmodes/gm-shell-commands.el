@@ -143,7 +143,7 @@ cmd.exe process."
 
              ((looking-at (format "^%s:pipe-file:\\(.*\\)"
                                   gpb-git:process-output-marker))
-              ;; `gpb-git:send-signal-to-git` uses this value.
+              ;; `gpb-git:send-signal-to-git' uses this value.
               (let ((match-str (match-string 1)))
                 (message "Pipe File: %s" match-str)
                 (with-current-buffer output-buf
@@ -182,7 +182,7 @@ cmd.exe process."
       (goto-char output-marker))))
 
 
-(defun gpb-git:async-shell-command (cmd dir callback)
+(defun gpb-git:async-shell-command (cmd dir &optional callback)
   "Execute CMD in DIR and call CALLBACK as output becomes available.
 
 CMD is a string that is passed through to a Bash or cmd.exe
@@ -290,9 +290,10 @@ processing command and nil otherwise."
             (narrow-to-region output-start-marker output-end)
             ;; Capture the buffer local variable `callback-func' so we can
             ;; call it in the buffer `callback-buf'.
-            (let ((f callback-func))
-              (with-current-buffer callback-buf
-                (funcall f proc-buf output-start output-end complete)))))))))
+            (when callback-func
+              (let ((f callback-func))
+                (with-current-buffer callback-buf
+                  (funcall f proc-buf output-start output-end complete))))))))))
 
 
 (defun gpb-git:send-signal-to-git ()
@@ -300,8 +301,8 @@ processing command and nil otherwise."
   (if (gpb-git:use-cmd-exe)
       (unless (= (call-process-shell-command "waitfor /si EmacsEditDone") 0)
         (error "Could not send signal to Git process"))
-    (process-file-shell-command
-     (format "bash -c \"echo done. > %s\"" pipe-file))))
+    (gpb-git:async-shell-command
+     (format "echo done. > %s" pipe-file) default-directory)))
 
 (defun gpb-git:commit (&optional amend)
   (interactive "P")
