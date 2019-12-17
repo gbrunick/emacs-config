@@ -130,6 +130,34 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
 (defun gpb-git:get-temporary-file (name)
   (concat (gpb-git:get-temporary-dir default-directory) name))
 
+(defun gpb-git:insert-spinner ()
+  "Insert spinner at current point."
+  (let ((m (copy-marker (point))))
+    (set-marker-insertion-type m nil)
+    (insert (propertize "|" 'spinner t 'sequence '("/" "-" "\\" "|")))
+    (set-marker-insertion-type m t)
+    (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m)))
+
+(defun gpb-git:insert-spinner--spin (m)
+  "Implementation detail of `gpb-git:insert-spinner'"
+  (with-current-buffer (marker-buffer m)
+    (when (ignore-errors (get-text-property m 'spinner))
+      (let* ((seq (get-text-property m 'sequence))
+             (next-seq (append (cdr seq) (list (car seq))))
+             (inhibit-read-only t)
+             props)
+        (save-excursion
+          (goto-char m)
+          (setq props (text-properties-at m))
+          (plist-put props 'sequence next-seq)
+          (set-marker-insertion-type m nil)
+          (insert (apply 'propertize (car seq) props))
+          (set-marker-insertion-type m t)
+          (delete-region (+ m 1) (+ m 2))))
+      (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m))))
+
+
+
 (provide 'gm-util)
 
 

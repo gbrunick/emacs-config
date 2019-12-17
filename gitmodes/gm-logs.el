@@ -165,4 +165,22 @@
     (pop-to-buffer buf)))
 
 
+(defun gpb-git:show-file-history (&optional filename)
+  (interactive)
+  (let* ((filename (or filename (buffer-file-name)))
+         (basename (file-name-nondirectory filename))
+         (cmd `("git" "log" "--follow" "-p" "--" ,basename))
+         (buf (get-buffer-create (format "*git log: %s*" basename)))
+         (dir default-directory)
+         (inhibit-read-only t))
+    (with-current-buffer buf
+      (setq buffer-read-only t
+            default-directory dir)
+      (erase-buffer)
+      (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
+      (apply 'process-file (car cmd) nil t t (cdr cmd))
+      (diff-mode))
+    (pop-to-buffer buf)))
+
+
 (provide 'gm-logs)

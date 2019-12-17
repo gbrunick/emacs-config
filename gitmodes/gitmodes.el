@@ -1,21 +1,5 @@
 ;;
-;;  Modes for working with Git output
-;;
-;;  This package provides the command `gpb-git:stage-changes' which opens
-;;  two side-by-side buffers for selecting unstaged changes that should be
-;;  applied to the Git index, selecting staged changes to be removed, and
-;;  committing the currently staged changes.  This is essentially a GUI
-;;  interface to `git add --patch`, but the implementation makes no use of
-;;  this command.
-;;
-;;  To get started, call `gpb-git:stage-changes' from a buffer whose
-;;  `default-directory' lies inside a Git a repository and then call
-;;  `describe-mode' in the buffers that appear to get help on the
-;;  keybindings and workflow.
-;;
-;;  This package does not attempt to provide a full Git porcelain.  In
-;;  particular, you will still need to use the command line (or `vc' or
-;;  `magit') to view logs, merge branches, and perform other actions.
+;;  An Emacs Git Interface
 ;;
 ;;  Due to a bug/missing feature in TRAMP, `magit' cannot commit hunks to a
 ;;  Git reposity on a remote machine over TRAMP from a Windows machine.
@@ -23,24 +7,6 @@
 ;;  trying to pipe patchs into the stdin of a Git process.  See
 ;;  https://github.com/magit/magit/issues/3624 and
 ;;  http://lists.gnu.org/archive/html/tramp-devel/2018-11/msg00020.html
-;;
-;;  Implementation overview:
-;;
-;;  We use git command `diff-files` to find the changes in the working
-;;  directory relative to the index and we insert these hunks into a buffer
-;;  named `gpb-git:unstaged-buffer-name', placing an overlay on each hunk.
-;;  We then give the user an opportunity to mark hunks and portions of
-;;  hunks in this buffers, recording the marked hunks using properties on
-;;  the hunk overlays.  Once the user has finished selecting the hunks, she
-;;  calls `gpb-git:stage-hunks' to construct a patch from the
-;;  selected hunks and apply it to the Git index.
-;;
-;;  Similarly, we use `diff-index --cached` to find the changes in the
-;;  index relative to HEAD, place these hunks in the buffer
-;;  `gpb-git:staged-buffer-name', and give the user an opportunity mark
-;;  hunks and portions of hunks there as well.  When done, the user may
-;;  call `gpb-git:unstage-hunks' to remove existing changes from the
-;;  index.  In this case, we create the patch, but apply it in reverse.
 ;;
 ;;  The primary complex data structure used is a hunk alist that contains
 ;;  information from the Git diff output about a single unit of change.
@@ -256,43 +222,6 @@ Bind to this to a prefix of your choosing (e.g., \"\C-cv\")")
 ;;
 
 
-(defun gpb-git--post-command-hook ()
-  "Updates hunk highlighting after each user command."
-  (when (derived-mode-p 'gpb-git:hunk-view-mode)
-    ;; If the mark will be deactivated before the next command, we want to
-    ;; consider it to already be deactivated when we compute the highlights
-    ;; to avoid flicker.
-    (let ((mark-active (and mark-active (not deactivate-mark))))
-      (gpb-git--update-highlights))))
-
-
-(defun gpb-git:insert-spinner ()
-  "Insert spinner at current point."
-  (let ((m (copy-marker (point))))
-    (set-marker-insertion-type m nil)
-    (insert (propertize "|" 'spinner t 'sequence '("/" "-" "\\" "|")))
-    (set-marker-insertion-type m t)
-    (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m)))
-
-(defun gpb-git:insert-spinner--spin (m)
-  "Implementation detail of `gpb-git:insert-spinner'"
-  (with-current-buffer (marker-buffer m)
-    (when (ignore-errors (get-text-property m 'spinner))
-      (let* ((seq (get-text-property m 'sequence))
-             (next-seq (append (cdr seq) (list (car seq))))
-             (inhibit-read-only t)
-             props)
-        (save-excursion
-          (goto-char m)
-          (setq props (text-properties-at m))
-          (plist-put props 'sequence next-seq)
-          (set-marker-insertion-type m nil)
-          (insert (apply 'propertize (car seq) props))
-          (set-marker-insertion-type m t)
-          (delete-region (+ m 1) (+ m 2))))
-      (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m))))
-
-
 (defun gpb-git:refresh-buffer ()
   "Implements the standard refresh on g behaviour.
 
@@ -313,22 +242,5 @@ User-facing; attempts to preserve window position."
     (message "gpb-git:refresh-buffer: %s %s" (current-buffer) major-mode)
     (eval `(,@refresh-cmd reset-window))))
 
-
-(defun gpb-git:show-file-history (&optional filename)
-  (interactive)
-  (let* ((filename (or filename (buffer-file-name)))
-         (basename (file-name-nondirectory filename))
-         (cmd `("git" "log" "--follow" "-p" "--" ,basename))
-         (buf (get-buffer-create (format "*git log: %s*" basename)))
-         (dir default-directory)
-         (inhibit-read-only t))
-    (with-current-buffer buf
-      (setq buffer-read-only t
-            default-directory dir)
-      (erase-buffer)
-      (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
-      (apply 'process-file (car cmd) nil t t (cdr cmd))
-      (diff-mode))
-    (pop-to-buffer buf)))
 
 (provide 'gitmodes)

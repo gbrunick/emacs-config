@@ -179,9 +179,9 @@ Overwrites the current buffer and sets the mode to
 (defun gpb-git--refresh-changes (cmd &optional repo-dir callback)
   "Update the diff hunks in a buffer.
 
-Executes `cmd', parses the result, erases the current buffer,
-sets the major mode to `major-mode', writes the parsed hunks into
-the buffer and adds overlays.  `cmd' is a list of strings.  If
+Executes CMD, parses the result, erases the current buffer, sets
+the major mode to `major-mode', writes the parsed hunks into the
+buffer and adds overlays.  `cmd' is a list of strings.  If
 `callback' is non-nil, we call this function when the buffer has
 been updated (i.e., asyncronously)."
   (interactive)
@@ -1250,6 +1250,17 @@ Overwrites the current buffer and sets the mode to
             (smerge-refine-regions beg-del beg-add beg-add end-add
                                    nil 'diff-refine-preproc
                                    props-r props-a)))))))
+
+
+(defun gpb-git--post-command-hook ()
+  "Updates hunk highlighting after each user command."
+  (when (derived-mode-p 'gpb-git:hunk-view-mode)
+    ;; If the mark will be deactivated before the next command, we want to
+    ;; consider it to already be deactivated when we compute the highlights
+    ;; to avoid flicker.
+    (let ((mark-active (and mark-active (not deactivate-mark))))
+      (gpb-git--update-highlights))))
+
 
 
 (provide 'gm-hunks)
