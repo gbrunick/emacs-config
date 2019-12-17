@@ -243,4 +243,13 @@ User-facing; attempts to preserve window position."
     (eval `(,@refresh-cmd reset-window))))
 
 
+(defun gpb-git--reload-all ()
+  "Reload all source files."
+  (load "gm-util.el")
+  (load "gm-status.el")
+  (load "gm-logs.el")
+  (load "gm-hunks.el")
+  (load "gm-shell-commands.el")
+  (load "gitmodes.el"))
+
 (provide 'gitmodes)
