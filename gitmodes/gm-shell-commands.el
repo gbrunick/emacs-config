@@ -88,7 +88,12 @@ The buffer name is based on the buffer name of the current buffer."
     buf))
 
 
-(define-derived-mode git-command-output-mode view-mode "Git Command")
+(defvar git-command-output-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [remap shell-command] 'gpb-git:shell-command)
+    map))
+
+(define-derived-mode git-command-output-mode special-mode "Git Command")
 
 (defun gpb-git:shell-command (cmd)
   "Execute CMD in a new buffer and pop to that buffer.
@@ -103,7 +108,6 @@ cmd.exe process."
       (let ((inhibit-read-only t))
         (erase-buffer)
         (git-command-output-mode)
-        (local-set-key [remap shell-command] 'gpb-git:shell-command)
         (setq mode-line-process ":running")
         (insert (format "%s\n\n" cmd))
         (setq-local output-marker (copy-marker (point))))
