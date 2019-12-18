@@ -136,7 +136,7 @@ cmd.exe process."
           (while (< (point) end)
             (cond
              ;; Skip over any initial output that is later overwritten
-             ;; through the use of carraige returns.
+             ;; through the use of carriage returns.
              ((looking-at (format "^\\(?:[^]*\\)*%s:edit-file:\\(.*\\)"
                                   gpb-git:process-output-marker))
               (with-current-buffer (find-file (concat remote-prefix
