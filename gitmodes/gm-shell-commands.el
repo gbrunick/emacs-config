@@ -109,8 +109,9 @@ cmd.exe process."
         (erase-buffer)
         (git-command-output-mode)
         (setq mode-line-process ":running")
+        (insert (format "Repo: %s\n\n" default-directory))
         (insert (format "%s\n\n" cmd))
-        (setq-local output-marker (copy-marker (point))))
+        (setq-local output-marker (gpb-git:insert-spinner)))
       (view-mode)
       (setq default-directory repo-root)
       (gpb-git:async-shell-command cmd repo-root #'gpb-git:shell-command-1))
@@ -164,22 +165,22 @@ cmd.exe process."
       (if (= (point) output-marker)
           (setq move-pt t)
         (goto-char output-marker))
-      (insert new-text)
+
+      ;; This insertion moves `output-marker'
+      (save-excursion (insert new-text))
 
       ;; Delete output that was overwritten using carriage returns.
       (save-excursion
-        (goto-char output-marker)
         (while (re-search-forward "^[^]*" nil t)
           (delete-region (match-beginning 0) (match-end 0))))
 
       ;; Color new input.
-      (ansi-color-apply-on-region output-marker (point))
-
-      ;; Update markers.
-      (move-marker output-marker (point))
+      (ansi-color-apply-on-region (point) output-marker)
 
       (when complete
         (with-current-buffer output-buf
+          ;; Delete the spinner
+          (delete-region (point) (point-max))
           (setq mode-line-process ":complete"))))
 
     (when move-pt
