@@ -210,6 +210,7 @@ names in the UI."
     (define-key map "s" 'gpb-git:show-status)
     (define-key map "c" 'gpb-git:commit)
     (define-key map "l" 'gpb-git:show-commit-graph)
+    (define-key map "!" 'gpb-git:shell-command)
     (fset 'gpb-git:user-command-prefix-keymap map)
     map)
   "The prefix keymap for user commands.
