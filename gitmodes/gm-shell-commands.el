@@ -135,7 +135,9 @@ cmd.exe process."
           (assert (bolp))
           (while (< (point) end)
             (cond
-             ((looking-at (format "^%s:edit-file:\\(.*\\)"
+             ;; Skip over any initial output that is later overwritten
+             ;; through the use of carraige returns.
+             ((looking-at (format "^\\(?:[^]*\\)*%s:edit-file:\\(.*\\)"
                                   gpb-git:process-output-marker))
               (with-current-buffer (find-file (concat remote-prefix
                                                       (match-string 1)))
@@ -180,7 +182,7 @@ cmd.exe process."
       (when complete
         (with-current-buffer output-buf
           ;; Delete the spinner
-          (delete-region (point) (point-max))
+          (delete-region output-marker (point-max))
           (setq mode-line-process ":complete"))))
 
     (when move-pt
