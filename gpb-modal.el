@@ -67,20 +67,6 @@ switches to insert mode after one of these commands.  This may be
 convenient for commands that usually precede the entering of
 text.")
 
-(defvar gpb-modal--enter-insert-mode-major-modes
-  `(;;imenu-tree-mode browse-kill-ring-mode
-    ;; property-list-mode
-    ediff-mode calc-mode
-    ;;debugger-mode ;;Buffer-menu-mode
-    ;;log-edit-mode bookmark-bmenu-mode
-    ;;Info-mode doc-view-mode ;; vc-dir-mode vc-hg-log-view-mode
-    ;;Man-mode ;; ert-results-mode
-    )
-  "If a major mode is contained in this list, then we enter
-insert mode when we switch to that buffer.  Normally we switch to
-command mode when we enter a buffer.  See
-`gpb-modal--insert-mode-buffer-p' for more.")
-
 (defvar gpb-modal--insert-mode-buffer-predicates nil
   "Each function in this list is called with a single argument
 which is equal to a buffer.  If the function returns t, then we
@@ -650,16 +636,13 @@ will be reset in the post-command-hook."
 (defun gpb-modal--insert-mode-buffer-p (&optional buf)
   "Should we enter insert mode when we enter this buffer?
 
-This function consults `gpb-modal--enter-insert-mode-major-modes'
-and `gpb-modal--insert-mode-buffer-predicates' to determine if we
-should enter insert mode when we switch to BUF.  Normally we
-enter command mode when we switch to a buffer."
+This function consults `gpb-modal--insert-mode-buffer-predicates'
+to determine if we should enter insert mode when we switch to
+BUF.  Normally we enter command mode when we switch to a buffer."
   (setq buf (or buf (current-buffer)))
   (with-current-buffer buf
     (catch 'done
       (progn
-        (when (member major-mode gpb-modal--enter-insert-mode-major-modes)
-          (throw 'done t))
         (dolist (pred gpb-modal--insert-mode-buffer-predicates)
           (when (condition-case exc
                     (funcall pred)
