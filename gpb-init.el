@@ -356,6 +356,8 @@
 (autoload 'gpb-open-ielm-here "gpb-lisp-init" "" t)
 (autoload 'octave-mode "octave-mode" nil t)
 (autoload 'run-bash "gpb-readline" "Run bash" t)
+(autoload 'gpb-latex-insert-item "gpb-latex" nil t)
+(autoload 'gpb-latex-compile-document "gpb-latex" nil t)
 
 (eval-after-load 'dired  '(load-safe "gpb-dired"))
 (eval-after-load 'help-mode '(load-safe "gpb-help"))

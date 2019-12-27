@@ -25,21 +25,64 @@
 (require 'gpb-logging)
 (require 'gpb-text-objects)
 
-(defvar gpb-modal--enable-logging nil
-  "If non-nil, log information to *Modal Log* buffer.")
+(defcustom gpb-modal-enable-logging nil
+  "If non-nil, log information to *Modal Log* buffer."
+  :type 'boolean
+  :group 'gpb-modal)
 
-(defcustom gpb-modal--overlay-priority 200
+(defcustom gpb-modal-overlay-priority 200
   "The priority on the overlay that carries the overriding modal keymap."
-  :type 'integer)
+  :type 'integer
+  :group 'gpb-modal)
 
 (defcustom gpb-modal-command-cursor-type 'box
   ;; If `cursor-type' is nil, then emacs does not show a cursor in
   ;; either selected or nonselected windows (see get_window_cursor_type
   ;; in xdisp.c), so is better to use '(bar . 0) than nil.
-  "Value for `cursor-type' when in command mode.")
+  "Value for `cursor-type' when in command mode."
+  :group 'gpb-modal)
 
 (defcustom gpb-modal-insert-cursor-type 'bar
-  "Value for `cursor-type' when in insert mode.")
+  "Value for `cursor-type' when in insert mode."
+  :group 'gpb-modal)
+
+(defcustom gpb-modal-enter-insert-mode-hook nil
+  "Normal hook run when entering insert mode."
+  :type 'hook
+  :group 'gpb-modal)
+
+(defcustom gpb-modal-enter-command-mode-hook nil
+  "Normal hook run when entering command mode."
+  :type 'hook
+  :group 'gpb-modal)
+
+(defcustom gpb-modal-enter-insert-mode-after
+  `(gpb-latex-insert-item kmacro-start-macro-or-insert-counter)
+  "The function `gpb-modal--post-command-hook' automatically
+switches to insert mode after one of these commands.  This may be
+convenient for commands that usually precede the entering of
+text."
+  :type '(repeat function)
+  :group 'gpb-modal)
+
+(defcustom gpb-modal-enter-command-mode-after
+  `(gpb-eval-prev-defun eval-defun set-mark-command
+    save-buffer gpb-latex-compile-document
+    gpb-lisp-eval-something gpb-execute-shell-script)
+  "The function `gpb-modal--post-command-hook' automatically
+switches to command mode after one of these commands.  This may
+be convenient for commands that usually follow the completion of
+editing or precede cursor movement like saving the file or
+setting the mark in transient mark mode."
+  :type '(repeat function)
+  :group 'gpb-modal)
+
+(defvar gpb-modal-insert-mode-buffer-predicates nil
+  "Each function in this list is called with a single argument
+which is equal to a buffer.  If the function returns t, then we
+enter insert mode when we switch to the buffer.  Normally we
+switch to command mode when we enter a buffer.  See
+`gpb-modal--insert-mode-buffer-p' for more.")
 
 (defvar gpb-modal--current-mode nil
   "The current global editing mode.
@@ -48,33 +91,6 @@ Warning: this use of the word \"mode\" is similiar to VIM and
 local to the gpb-modal package.  In particular, this use of the
 word \"mode\" does not agree with the usual meaning of the word
 \"mode\" in Emacs such as `major-mode' and `minor-mode-alist'.")
-
-(defvar gpb-modal--enter-insert-mode-hook nil
-  "Functions run after entering insert mode")
-
-(defvar gpb-modal--enter-command-mode-after
-  `(gpb-eval-prev-defun eval-defun set-mark-command gpb-set-mark-command
-    gpb-eval-buffer save-buffer gpb-latex-compile-document
-    gpb-lisp-eval-something gpb-execute-shell-script)
-  "The function `gpb-modal--post-command-hook' automatically
-switches to command mode after one of these commands.  This may
-be convenient for commands that usually follow the completion of
-editing or precede cursor movement like saving the file or
-setting the mark in transient mark mode.")
-
-(defvar gpb-modal--enter-insert-mode-after
-  `(gpb-latex-insert-item kmacro-start-macro-or-insert-counter)
-  "The function `gpb-modal--post-command-hook' automatically
-switches to insert mode after one of these commands.  This may be
-convenient for commands that usually precede the entering of
-text.")
-
-(defvar gpb-modal--insert-mode-buffer-predicates nil
-  "Each function in this list is called with a single argument
-which is equal to a buffer.  If the function returns t, then we
-enter insert mode when we switch to the buffer.  Normally we
-switch to command mode when we enter a buffer.  See
-`gpb-modal--insert-mode-buffer-p' for more.")
 
 (defvar gpb-modal--previous-buffer nil
   "The function `gpb-modal--post-command-hook' uses this variable
@@ -359,7 +375,7 @@ the keymap on this overlay."
   ;; If there is no overlay, create one.
   (when (null gpb-modal--keymap-overlay)
     (let ((ov (make-overlay (point-min) (point-max) nil nil t)))
-      (overlay-put ov 'priority gpb-modal--overlay-priority)
+      (overlay-put ov 'priority gpb-modal-overlay-priority)
       (setq gpb-modal--keymap-overlay ov))
     (gpb-modal--log-message "Created new overlay in %s" (current-buffer)))
 
@@ -437,7 +453,7 @@ will be reset in the post-command-hook."
   ;; `gpb-modal--weak-command-mode-map' is never the first entry in the
   ;; current local map list.
   (delq 'gpb-modal--weak-command-mode-map (current-local-map))
-  (run-hooks 'gpb-modal--enter-insert-mode-hook)
+  (run-hooks 'gpb-modal-enter-insert-mode-hook)
   (when (called-interactively-p)
     (unless (minibuffer-window-active-p (selected-window)))))
 
@@ -486,11 +502,11 @@ will be reset in the post-command-hook."
 
            ;; It seems more reliable to test `this-original-command'
            ;; than `this-command'.
-           ((member this-original-command gpb-modal--enter-command-mode-after)
+           ((member this-original-command gpb-modal-enter-command-mode-after)
             (gpb-modal--log-message "case 1")
             (gpb-modal--enter-command-mode))
 
-           ((member this-original-command gpb-modal--enter-insert-mode-after)
+           ((member this-original-command gpb-modal-enter-insert-mode-after)
             (gpb-modal--log-message "case 2")
             (gpb-modal--enter-insert-mode))
 
@@ -515,15 +531,14 @@ will be reset in the post-command-hook."
                                 (t (error "Runtime error"))))
             (gpb-modal--update-overlay)
             (gpb-modal--log-forms 'gpb-modal--current-mode
-                                  'cursor-type
-                                  'cursor-in-non-selected-windows)))
+                                  'cursor-type)))
 
       (error
        (with-current-buffer (get-buffer-create "*Modal Log*")
          (save-excursion
            (goto-char (point-max))
            (insert (format "Error in gpb-modal--post-command-hook:\n  %S\n" exc))
-           (setq gpb-modal--enable-logging t)))))
+           (setq gpb-modal-enable-logging t)))))
 
     (gpb-modal--log-forms 'mark-active 'deactivate-mark)
     (gpb-modal--log-message "... end gpb-modal--post-command-hook>")))
@@ -617,14 +632,14 @@ will be reset in the post-command-hook."
 (defun gpb-modal--insert-mode-buffer-p (&optional buf)
   "Should we enter insert mode when we enter this buffer?
 
-This function consults `gpb-modal--insert-mode-buffer-predicates'
+This function consults `gpb-modal-insert-mode-buffer-predicates'
 to determine if we should enter insert mode when we switch to
 BUF.  Normally we enter command mode when we switch to a buffer."
   (setq buf (or buf (current-buffer)))
   (with-current-buffer buf
     (catch 'done
       (progn
-        (dolist (pred gpb-modal--insert-mode-buffer-predicates)
+        (dolist (pred gpb-modal-insert-mode-buffer-predicates)
           (when (condition-case exc
                     (funcall pred)
                   (error (message
@@ -715,7 +730,7 @@ object and continues moving backwards on consecutive calls."
 (defun gpb-modal--in-minibuffer-p ()
   (minibuffer-window-active-p (selected-window)))
 
-(add-to-list 'gpb-modal--insert-mode-buffer-predicates
+(add-to-list 'gpb-modal-insert-mode-buffer-predicates
              'gpb-modal--in-minibuffer-p)
 
 
@@ -846,7 +861,7 @@ loop."
   (and (boundp 'edebug-mode-map)
        (eq edebug-mode-map (current-local-map))))
 
-(add-to-list 'gpb-modal--insert-mode-buffer-predicates
+(add-to-list 'gpb-modal-insert-mode-buffer-predicates
              'gpb-modal--in-edebug-buffer-p)
 
 
@@ -871,7 +886,7 @@ loop."
 The forms are only logged if logging has been enabled for the
 function using `gpb-log--enable-logging'.  This is not a macro,
 so forms must be quoted to prevent premature evaluation."
-  (when gpb-modal--enable-logging
+  (when gpb-modal-enable-logging
     (let ((caller (gpb-modal--get-caller))
           (inhibit-modification-hooks t))
       (when args (setq message (apply 'format message args)))
@@ -887,7 +902,7 @@ so forms must be quoted to prevent premature evaluation."
 The forms are only logged if logging has been enabled for the
 function using `gpb-log--enable-logging'.  This is not a macro,
 so forms must be quoted to prevent premature evaluation."
-  (when gpb-modal--enable-logging
+  (when gpb-modal-enable-logging
     (dolist (form forms)
       (let* ((value (condition-case exc (eval form)
                       ('error (format "Error: %s" exc)))))
@@ -910,7 +925,7 @@ so forms must be quoted to prevent premature evaluation."
          proc
          (>= (point) (process-mark proc)))))
 
-(add-to-list 'gpb-modal--insert-mode-buffer-predicates
+(add-to-list 'gpb-modal-insert-mode-buffer-predicates
              'gpb-modal--at-comint-prompt-p)
 
 (defun gpb-modal--enter-insert-in-comint ()
