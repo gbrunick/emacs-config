@@ -95,8 +95,8 @@ word \"mode\" does not agree with the usual meaning of the word
 
 (defvar gpb-modal--mode-changed nil
   "Has the mode just changed?\n
-The functions `gpb-modal--enter-command-mode' and
-`gpb-modal--enter-insert-mode' set this flag so that
+The functions `gpb-modal-enter-command-mode' and
+`gpb-modal-enter-insert-mode' set this flag so that
 `gpb-modal--post-command-hook' does not undo these changes.")
 
 (defvar-local gpb-modal--keymap-overlay nil
@@ -113,7 +113,7 @@ current active keybindings."
   (if gpb-modal-mode
       (progn
         (add-hook 'post-command-hook 'gpb-modal--post-command-hook)
-        (gpb-modal--enter-command-mode))
+        (gpb-modal-enter-command-mode))
     (dolist (buf (buffer-list))
       (with-current-buffer buf
         (when gpb-modal--keymap-overlay
@@ -161,8 +161,8 @@ current active keybindings."
 
 (defvar gpb-modal--insert-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map [(control ?j)] 'gpb-modal--enter-command-mode)
-    (define-key map [?\C- ] 'gpb-modal--enter-command-mode)
+    (define-key map [(control ?j)] 'gpb-modal-enter-command-mode)
+    (define-key map [?\C- ] 'gpb-modal-enter-command-mode)
     (fset 'gpb-modal--insert-mode-map map)
     map)
   "The global keymap for insert mode.")
@@ -170,7 +170,7 @@ current active keybindings."
 
 (defvar gpb-modal--command-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "i" 'gpb-modal--enter-insert-mode)
+    (define-key map "i" 'gpb-modal-enter-insert-mode)
     (define-key map "\M-i" 'gpb-modal--execute-one-command)
 
     (define-key map "j" 'next-line)
@@ -180,6 +180,11 @@ current active keybindings."
 
     (define-key map " " 'gpb-modal--next-VIM-WORD)
     (define-key map [(shift ?\ )] 'gpb-modal--beginning-of-VIM-WORD)
+
+    (define-key map [(control tab)] 'gpb-next-window)
+    (define-key map [(control shift iso-lefttab)] 'gpb-previous-window)
+    (define-key map [(control shift tab)] 'gpb-previous-window)
+    (define-key map "\C-w" 'gpb-kill-buffer)
 
     ;; This binding provides access to the weak command map.
     (define-key map [(control ?j)] 'gpb-modal--weak-command-mode-map)
@@ -246,6 +251,7 @@ current active keybindings."
     (define-key map "r" 'replace-text-object-with-clipboard)
     (define-key map "E" 'execute-text-object)
 
+    (define-key map "q" 'fill-paragraph)
     (define-key map "z" 'undo)
     (define-key map "u" 'undo)
     (define-key map "v" 'yank)
@@ -254,12 +260,6 @@ current active keybindings."
 
     (define-key map [remap describe-mode] 'gpb-modal--describe-mode)
 
-    (define-key map [(control tab)] 'gpb-next-window)
-    (define-key map [(control shift iso-lefttab)] 'gpb-previous-window)
-    (define-key map [(control shift tab)] 'gpb-previous-window)
-    (define-key map "\C-w" 'gpb-kill-buffer)
-
-    (define-key map "q" 'fill-paragraph)
 
     ;; This allows us to use the symbol
     ;; `gpb-modal--command-mode-map' in keymaps.
@@ -304,6 +304,40 @@ current active keybindings."
 Don't set this variable directly; use `gpb-model:define-key'.
 Each car is a symbol giving a major or minor mode name.  The map
 is activated in command mode when the mode is active.")
+
+
+(defun gpb-modal-enter-command-mode ()
+  "Enter command mode."
+  (interactive)
+  (setq gpb-modal--current-mode 'command
+        gpb-modal--mode-changed t)
+  (let ((symbol 'gpb-modal--weak-command-mode-map)
+        (local-map (current-local-map)))
+    ;; Ensure there is a local map.
+    (when (null local-map)
+      (setq local-map (make-sparse-keymap))
+      (use-local-map local-map))
+    ;; The following sexp modifies the `local-map' list in-place to ensure
+    ;; that the symbol `gpb-modal--weak-command-mode-map' appears exactly
+    ;; once at the end of the list.
+    (nconc (delq symbol local-map) (list symbol)))
+  (run-hooks 'gpb-modal-enter-command-mode-hook)
+  (when (called-interactively-p)
+    (unless (minibuffer-window-active-p (selected-window)))))
+
+
+(defun gpb-modal-enter-insert-mode ()
+  "Enter insert mode."
+  (interactive)
+  (setq gpb-modal--current-mode 'insert
+        gpb-modal--mode-changed t)
+  ;; The following uses the fact that the symbol
+  ;; `gpb-modal--weak-command-mode-map' is never the first entry in the
+  ;; current local map list.
+  (delq 'gpb-modal--weak-command-mode-map (current-local-map))
+  (run-hooks 'gpb-modal-enter-insert-mode-hook)
+  (when (called-interactively-p)
+    (unless (minibuffer-window-active-p (selected-window)))))
 
 
 (defun gpb-modal--get-top-level-map (&optional mode)
@@ -417,40 +451,6 @@ will be reset in the post-command-hook."
       (call-interactively command))))
 
 
-(defun gpb-modal--enter-command-mode ()
-  "Enter command mode."
-  (interactive)
-  (setq gpb-modal--current-mode 'command
-        gpb-modal--mode-changed t)
-  (let ((symbol 'gpb-modal--weak-command-mode-map)
-        (local-map (current-local-map)))
-    ;; Ensure there is a local map.
-    (when (null local-map)
-      (setq local-map (make-sparse-keymap))
-      (use-local-map local-map))
-    ;; The following sexp modifies the `local-map' list in-place to ensure
-    ;; that the symbol `gpb-modal--weak-command-mode-map' appears exactly
-    ;; once at the end of the list.
-    (nconc (delq symbol local-map) (list symbol)))
-  (run-hooks 'gpb-modal-enter-command-mode-hook)
-  (when (called-interactively-p)
-    (unless (minibuffer-window-active-p (selected-window)))))
-
-
-(defun gpb-modal--enter-insert-mode ()
-  "Enter insert mode."
-  (interactive)
-  (setq gpb-modal--current-mode 'insert
-        gpb-modal--mode-changed t)
-  ;; The following uses the fact that the symbol
-  ;; `gpb-modal--weak-command-mode-map' is never the first entry in the
-  ;; current local map list.
-  (delq 'gpb-modal--weak-command-mode-map (current-local-map))
-  (run-hooks 'gpb-modal-enter-insert-mode-hook)
-  (when (called-interactively-p)
-    (unless (minibuffer-window-active-p (selected-window)))))
-
-
 (defun gpb-modal--not-defined ()
   (interactive)
   (error "This key is not bound in command mode"))
@@ -488,8 +488,8 @@ will be reset in the post-command-hook."
     (condition-case exc
         (progn
           (cond
-           ;; If the mode has been changed by `gpb-modal--enter-command-mode'
-           ;; or `gpb-modal--enter-insert-mode' during the last command, then
+           ;; If the mode has been changed by `gpb-modal-enter-command-mode'
+           ;; or `gpb-modal-enter-insert-mode' during the last command, then
            ;; we don't change it again.
            (gpb-modal--mode-changed)
 
@@ -497,11 +497,11 @@ will be reset in the post-command-hook."
            ;; than `this-command'.
            ((member this-original-command gpb-modal-enter-command-mode-after)
             (gpb-modal--log-message "case 1")
-            (gpb-modal--enter-command-mode))
+            (gpb-modal-enter-command-mode))
 
            ((member this-original-command gpb-modal-enter-insert-mode-after)
             (gpb-modal--log-message "case 2")
-            (gpb-modal--enter-insert-mode))
+            (gpb-modal-enter-insert-mode))
 
            ((or buffer-changed window-changed)
             (with-current-buffer next-buffer
@@ -509,10 +509,10 @@ will be reset in the post-command-hook."
                ;; Enter insert mode when changing to the minibuffer.
                ((minibuffer-window-active-p (selected-window))
                 (gpb-modal--log-message "case 3")
-                (gpb-modal--enter-insert-mode))
+                (gpb-modal-enter-insert-mode))
                (t
                 (gpb-modal--log-message "case 4")
-                (gpb-modal--enter-command-mode))))))
+                (gpb-modal-enter-command-mode))))))
 
           (setq gpb-modal--previous-window (selected-window)
                 gpb-modal--previous-buffer (current-buffer)
@@ -639,18 +639,18 @@ will be reset in the post-command-hook."
   "Implementation detail of gpb-modal--next-VIM-WORD")
 
 (defun gpb-modal--next-VIM-WORD (arg)
-  "Move to the beginning of the next VIM-style word.\n
-With a negative prefix argument, moves to beginning of text
-object and continues moving backwards on consecutive calls."
-  (interactive "p")
+  "Move to the beginning of the next VIM-style word.
+
+With a prefix argument, moves to beginning of text object and
+continues moving backwards on consecutive calls."
+  (interactive "P")
   ;; The S-SPC keybinding doesn't work in the terminal.
-  (if (or (< arg 0) (and (eq last-command 'gpb-modal--next-VIM-WORD)
-                         (eq gpb-modal--last-direction -1)))
+  (if (or arg (and (eq last-command 'gpb-modal--next-VIM-WORD)
+                   (eq gpb-modal--last-direction -1)))
       (progn
-        (goto-beginning-of-text-object 'VIM-WORD (point)
-                                       :count (abs arg))
+        (goto-beginning-of-text-object 'VIM-WORD (point))
         (setq gpb-modal--last-direction -1))
-    (goto-next-text-object 'VIM-WORD (point) :count arg)
+    (goto-next-text-object 'VIM-WORD (point))
     (setq gpb-modal--last-direction 1)))
 
 (defun gpb-modal--next-word (arg)
@@ -692,7 +692,7 @@ object and continues moving backwards on consecutive calls."
 ;; When a file is opened using emacsclient, the `find-file' is called
 ;; after the post command loop has already run.
 
-(add-hook 'find-file-hook 'gpb-modal--enter-command-mode)
+(add-hook 'find-file-hook 'gpb-modal-enter-command-mode)
 
 (defun gpb-modal--find-comment-prefix (beg end)
   "Determine if every line in region starts with a comment string.
@@ -861,7 +861,7 @@ so forms must be quoted to prevent premature evaluation."
 
 
 ;;  Man-mode
-(add-hook 'Man-mode-hook 'gpb-modal--enter-command-mode)
+(add-hook 'Man-mode-hook 'gpb-modal-enter-command-mode)
 
 (eval-after-load 'eldoc
   '(eldoc-add-command-completions "gpb-modal--next-"
@@ -871,7 +871,7 @@ so forms must be quoted to prevent premature evaluation."
 ;; Magit integration --------------------------------------------------
 
 (add-hook 'magit-status-mode-hook 'gpb-magit-status-mode-setup)
-(add-hook 'magit-popup-mode-hook 'gpb-modal--enter-insert-mode)
+(add-hook 'magit-popup-mode-hook 'gpb-modal-enter-insert-mode)
 
 
 ;; Rectangle mark mode ------------------------------------------------
