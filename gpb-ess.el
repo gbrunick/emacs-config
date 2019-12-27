@@ -76,7 +76,6 @@ Contains a cons of two markers.")
   (when (require 'yasnippet nil t)
     (yas-minor-mode 1))
   (when (require 'gpb-text-objects nil t)
-    (gpb-modal--define-command-key "q" 'fill-paragraph t)
     (setq-local execute-text-object-function 'gpb:ess-eval-text-object)
     (gpb-tobj--define-key 'root "a" 'ess-last-eval-region :local t)
     (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
@@ -92,6 +91,8 @@ Contains a cons of two markers.")
   (local-set-key [?\t] 'gpb:inferior-ess-tab-command)
   (local-set-key [(backtab)] 'gpb:inferior-ess-previous-traceback)
   (local-set-key "\C-co" 'gpb:ess-view-data-frame)
+  (when (require 'gpb-text-objects nil t)
+    (local-set-key  "g" 'gpb:ess-goto-line t))
 
   ;; Override the help function
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
@@ -127,10 +128,7 @@ Contains a cons of two markers.")
 
   ;; Track the current line when debugging like pdbtrack in Python.
   (add-hook 'comint-output-filter-functions
-            'gpb:ess-debug-track-comint-output-filter-function nil t)
-
-  (when (require 'gpb-text-objects nil t)
-    (gpb-modal--define-command-key "g" 'gpb:ess-goto-line t)))
+            'gpb:ess-debug-track-comint-output-filter-function nil t))
 
 
 (defun gpb:ess-post-run-hook ()

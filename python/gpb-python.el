@@ -206,15 +206,7 @@ block.  If |N|, we repeat this operation |N| times."
   ;; (eldoc-mode 1)
   (cond
    ((member 'gpb-text-objects features)
-    (setq-local execute-text-object-function 'gpb-ipy:execute-region))
-   ((member 'gpb-modal features)
-    (gpb-modal--define-command-key
-     "\t" 'gpb-back-to-indentation-or-indent-according-to-mode t))
-     ;; (gpb-modal--define-command-key "!" 'gpb-py:execute-text-object t)
-   ;; The following key binding is redundant given the previous key binding
-   ;; ((member 'gpb-region features)
-   ;;  (gpb-reg--define-key "!" 'gpb-py:execute-region t))
-   ))
+    (setq-local execute-text-object-function 'gpb-ipy:execute-region))))
 
 
 (defun gpb-py:run-ipython ()

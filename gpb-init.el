@@ -478,7 +478,6 @@
   (c-set-offset 'inline-open 0)
   ;; (ac-clang-launch-completion-process)
   ;; (auto-complete-mode t)
-  (gpb-modal--define-command-key "\C-i" 'indent-according-to-mode t)
   ;; (local-set-key "\C-i" 'gpb-cc-tab-command t)
   (local-set-key "\C-c\C-c" '(lambda () (interactive)
                                (save-buffer)
@@ -652,46 +651,6 @@
              (pop-to-buffer buf 'other-window)
              (message "selected window: %s" (selected-window))
              (run-at-time 0.1 nil 'recenter)))))
-
-(eval-after-load 'gitmodes
-  '(progn
-     (gpb-modal:define-key
-      'gpb-git:show-status-mode "m" 'gpb-git:show-status--mark-file)
-     (gpb-modal:define-key
-      'gpb-git:show-status-mode "u" 'gpb-git:show-status--unmark-file)
-     (gpb-modal:define-key
-      'gpb-git:show-status-mode "a" 'gpb-git:show-status--stage-files)
-     (gpb-modal:define-key
-      'gpb-git:show-status-mode "r" 'gpb-git:show-status--unstage-files)
-     (gpb-modal:define-key
-      'gpb-git:show-status-mode "d" 'gpb-git:show-status--show-diff)
-     (gpb-modal:define-key
-      'gpb-git:show-status-mode "c" nil)
-
-     (gpb-modal:define-key
-      'gpb-git:hunk-view-mode "n" 'gpb-git:forward-command)
-     (gpb-modal:define-key
-      'gpb-git:hunk-view-mode "p" 'gpb-git:backward-command)
-     (gpb-modal:define-key
-      'gpb-git:hunk-view-mode "N" 'gpb-git:forward-file-command)
-     (gpb-modal:define-key
-      'gpb-git:hunk-view-mode "P" 'gpb-git:backward-file-command)
-
-     (gpb-modal:define-key
-      'gpb-git:hunk-selection-mode "m" 'gpb-git:mark-hunk-command)
-     (gpb-modal:define-key
-      'gpb-git:hunk-selection-mode "u" 'gpb-git:unmark-hunk-command)
-
-     (gpb-modal:define-key
-      'gpb-git:unstaged-changes-mode "a" 'gpb-git:stage-hunks)
-     (gpb-modal:define-key
-      'gpb-git:staged-changes-mode "r" 'gpb-git:unstage-hunks)
-
-
-     (gpb-modal:define-key
-      'gpb-git:commit-graph-mode "m" 'gpb-git:mark-line)
-     (gpb-modal:define-key
-      'gpb-git:commit-graph-mode "d" 'gpb-git--commit-graph-mode--show-diff)))
 
 (eval-after-load 'poly-markdown
   '(oset poly-markdown-root-innermode :adjust-face 5))

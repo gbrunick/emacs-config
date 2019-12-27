@@ -103,9 +103,6 @@
   (interactive)
   (eldoc-mode 1)
   (when (require 'gpb-modal nil t)
-    (gpb-modal--define-command-key
-     "\t" 'gpb-back-to-indentation-or-indent-according-to-mode t)
-    (gpb-modal--define-command-key "g" 'gpb-lisp-goto-definition t)
     (setq-local execute-text-object-function 'eval-text-object)))
 
 
