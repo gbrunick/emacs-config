@@ -77,13 +77,6 @@ setting the mark in transient mark mode."
   :type '(repeat function)
   :group 'gpb-modal)
 
-(defvar gpb-modal-insert-mode-buffer-predicates nil
-  "Each function in this list is called with a single argument
-which is equal to a buffer.  If the function returns t, then we
-enter insert mode when we switch to the buffer.  Normally we
-switch to command mode when we enter a buffer.  See
-`gpb-modal--insert-mode-buffer-p' for more.")
-
 (defvar gpb-modal--current-mode nil
   "The current global editing mode.
 
@@ -513,7 +506,8 @@ will be reset in the post-command-hook."
            ((or buffer-changed window-changed)
             (with-current-buffer next-buffer
               (cond
-               ((gpb-modal--insert-mode-buffer-p)
+               ;; Enter insert mode when changing to the minibuffer.
+               ((minibuffer-window-active-p (selected-window))
                 (gpb-modal--log-message "case 3")
                 (gpb-modal--enter-insert-mode))
                (t
@@ -629,26 +623,6 @@ will be reset in the post-command-hook."
   (indent-according-to-mode)
   (next-line))
 
-(defun gpb-modal--insert-mode-buffer-p (&optional buf)
-  "Should we enter insert mode when we enter this buffer?
-
-This function consults `gpb-modal-insert-mode-buffer-predicates'
-to determine if we should enter insert mode when we switch to
-BUF.  Normally we enter command mode when we switch to a buffer."
-  (setq buf (or buf (current-buffer)))
-  (with-current-buffer buf
-    (catch 'done
-      (progn
-        (dolist (pred gpb-modal-insert-mode-buffer-predicates)
-          (when (condition-case exc
-                    (funcall pred)
-                  (error (message
-                          "Error in gpb-modal--insert-mode-buffer-p: %s %s"
-                          pred exc)
-                         nil))
-            (throw 'done t)))))))
-
-
 (defun gpb-modal--next-paragraph  (arg)
   (interactive "p")
   (goto-next-text-object 'paragraph (point) :count arg))
@@ -718,21 +692,7 @@ object and continues moving backwards on consecutive calls."
 ;; When a file is opened using emacsclient, the `find-file' is called
 ;; after the post command loop has already run.
 
-(defun gpb-modal--find-file-hook ()
-  (if (gpb-modal--insert-mode-buffer-p)
-      (gpb-modal--enter-insert-mode)
-    (gpb-modal--enter-command-mode)))
-
-(add-hook 'find-file-hook 'gpb-modal--find-file-hook)
-
-;; the minibuffer
-
-(defun gpb-modal--in-minibuffer-p ()
-  (minibuffer-window-active-p (selected-window)))
-
-(add-to-list 'gpb-modal-insert-mode-buffer-predicates
-             'gpb-modal--in-minibuffer-p)
-
+(add-hook 'find-file-hook 'gpb-modal--enter-command-mode)
 
 (defun gpb-modal--find-comment-prefix (beg end)
   "Determine if every line in region starts with a comment string.
@@ -846,23 +806,14 @@ before the `recursive-edit' that correpsonds to the debugger
 loop."
   (unless (and arg (< arg 0))
     (gpb-modal--log-forms 'edebug-mode 'post-command-hook '(current-buffer)
-                   'source-buffer 'cursor-type)
+                          'source-buffer 'cursor-type)
     (unless (or (member 'gpb-modal--post-command-hook post-command-hook)
                 (and (member t post-command-hook)
                      (member 'gpb-modal--post-command-hook
                              (default-value 'post-command-hook))))
       (add-to-list 'post-command-hook 'gpb-modal--post-command-hook))
     (gpb-modal--log-forms 'edebug-mode 'post-command-hook '(current-buffer)
-                   'source-buffer 'cursor-type)
-    (gpb-modal--enter-insert-mode)))
-
-
-(defun gpb-modal--in-edebug-buffer-p ()
-  (and (boundp 'edebug-mode-map)
-       (eq edebug-mode-map (current-local-map))))
-
-(add-to-list 'gpb-modal-insert-mode-buffer-predicates
-             'gpb-modal--in-edebug-buffer-p)
+                          'source-buffer 'cursor-type)))
 
 
 (defun gpb-modal--get-caller ()
@@ -908,33 +859,6 @@ so forms must be quoted to prevent premature evaluation."
                       ('error (format "Error: %s" exc)))))
         (gpb-modal--log-message "%S = %S" form value)))))
 
-
-;; Interact nicely with commands issued by emacsclient outside of the
-;; usual command loop
-;; (defadvice server-process-filter (around gpb-modal-compatibility activate)
-;;   "Allow emacslient to interoperate with `gpb-modal-mode'."
-;;   (gpb-modal--pre-command-hook)
-;;   ad-do-it
-;;   (gpb-modal--post-command-hook))
-
-;; comint mode
-
-(defun gpb-modal--at-comint-prompt-p ()
-  (let ((proc (get-buffer-process (current-buffer))))
-    (and (derived-mode-p 'comint-mode)
-         proc
-         (>= (point) (process-mark proc)))))
-
-(add-to-list 'gpb-modal-insert-mode-buffer-predicates
-             'gpb-modal--at-comint-prompt-p)
-
-(defun gpb-modal--enter-insert-in-comint ()
-  (interactive)
-  (when (and (derived-mode-p 'comint-mode)
-             (eq text-object 'gpb-buffer))
-    (gpb-modal--enter-insert-mode)))
-
-(add-hook 'post-goto-end-of-text-object-hook 'gpb-modal--enter-insert-in-comint)
 
 ;;  Man-mode
 (add-hook 'Man-mode-hook 'gpb-modal--enter-command-mode)
