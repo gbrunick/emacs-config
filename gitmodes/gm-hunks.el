@@ -162,15 +162,17 @@ Overwrites the current buffer and sets the mode to
 Overwrites the current buffer and sets the mode to
 `gpb-git:staged-changes-mode'."
   (interactive)
-  (let ((cmd "git diff --stat --patch --histogram --find-renames"
-             hash1 ,hash2 "--")
+  (let ((cmd (format "git diff --stat --patch %s %s %s --"
+                     "--histogram --find-renames" hash1 hash2))
         (inhibit-read-only t)
         (repo-dir (or repo-dir default-directory)))
+
+
     (gpb-git--refresh-changes cmd repo-dir callback)
     (gpb-git:hunk-view-mode)
     (goto-char (point-min))
     (insert (format "\nChanges from %s to %s\n\n" hash1 hash2))
-    (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
+    (insert (format "%s\n\n" cmd))
     (setq-local refresh-cmd `(gpb-git--refresh-commit-diff
                               ,hash1 ,hash2 ,repo-dir))
     (goto-char (point-min))))

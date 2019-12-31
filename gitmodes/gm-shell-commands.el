@@ -88,7 +88,12 @@ The buffer name is based on the buffer name of the current buffer."
     buf))
 
 
-(define-derived-mode git-command-output-mode view-mode "Git Command")
+(defvar git-command-output-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [remap shell-command] 'gpb-git:shell-command)
+    map))
+
+(define-derived-mode git-command-output-mode special-mode "Git Command")
 
 (defun gpb-git:shell-command (cmd)
   "Execute CMD in a new buffer and pop to that buffer.
@@ -103,10 +108,10 @@ cmd.exe process."
       (let ((inhibit-read-only t))
         (erase-buffer)
         (git-command-output-mode)
-        (local-set-key [remap shell-command] 'gpb-git:shell-command)
         (setq mode-line-process ":running")
+        (insert (format "Repo: %s\n\n" default-directory))
         (insert (format "%s\n\n" cmd))
-        (setq-local output-marker (copy-marker (point))))
+        (setq-local output-marker (gpb-git:insert-spinner)))
       (view-mode)
       (setq default-directory repo-root)
       (gpb-git:async-shell-command cmd repo-root #'gpb-git:shell-command-1))
@@ -130,7 +135,9 @@ cmd.exe process."
           (assert (bolp))
           (while (< (point) end)
             (cond
-             ((looking-at (format "^%s:edit-file:\\(.*\\)"
+             ;; Skip over any initial output that is later overwritten
+             ;; through the use of carriage returns.
+             ((looking-at (format "^\\(?:[^]*\\)*%s:edit-file:\\(.*\\)"
                                   gpb-git:process-output-marker))
               (with-current-buffer (find-file (concat remote-prefix
                                                       (match-string 1)))
@@ -143,7 +150,7 @@ cmd.exe process."
 
              ((looking-at (format "^%s:pipe-file:\\(.*\\)"
                                   gpb-git:process-output-marker))
-              ;; `gpb-git:send-signal-to-git` uses this value.
+              ;; `gpb-git:send-signal-to-git' uses this value.
               (let ((match-str (match-string 1)))
                 (message "Pipe File: %s" match-str)
                 (with-current-buffer output-buf
@@ -160,29 +167,29 @@ cmd.exe process."
       (if (= (point) output-marker)
           (setq move-pt t)
         (goto-char output-marker))
-      (insert new-text)
+
+      ;; This insertion moves `output-marker'
+      (save-excursion (insert new-text))
 
       ;; Delete output that was overwritten using carriage returns.
       (save-excursion
-        (goto-char output-marker)
         (while (re-search-forward "^[^]*" nil t)
           (delete-region (match-beginning 0) (match-end 0))))
 
       ;; Color new input.
-      (ansi-color-apply-on-region output-marker (point))
-
-      ;; Update markers.
-      (move-marker output-marker (point))
+      (ansi-color-apply-on-region (point) output-marker)
 
       (when complete
         (with-current-buffer output-buf
+          ;; Delete the spinner
+          (delete-region output-marker (point-max))
           (setq mode-line-process ":complete"))))
 
     (when move-pt
       (goto-char output-marker))))
 
 
-(defun gpb-git:async-shell-command (cmd dir callback)
+(defun gpb-git:async-shell-command (cmd dir &optional callback)
   "Execute CMD in DIR and call CALLBACK as output becomes available.
 
 CMD is a string that is passed through to a Bash or cmd.exe
@@ -290,9 +297,10 @@ processing command and nil otherwise."
             (narrow-to-region output-start-marker output-end)
             ;; Capture the buffer local variable `callback-func' so we can
             ;; call it in the buffer `callback-buf'.
-            (let ((f callback-func))
-              (with-current-buffer callback-buf
-                (funcall f proc-buf output-start output-end complete)))))))))
+            (when callback-func
+              (let ((f callback-func))
+                (with-current-buffer callback-buf
+                  (funcall f proc-buf output-start output-end complete))))))))))
 
 
 (defun gpb-git:send-signal-to-git ()
@@ -300,8 +308,8 @@ processing command and nil otherwise."
   (if (gpb-git:use-cmd-exe)
       (unless (= (call-process-shell-command "waitfor /si EmacsEditDone") 0)
         (error "Could not send signal to Git process"))
-    (process-file-shell-command
-     (format "bash -c \"echo done. > %s\"" pipe-file))))
+    (gpb-git:async-shell-command
+     (format "echo done. > %s" pipe-file) default-directory)))
 
 (defun gpb-git:commit (&optional amend)
   (interactive "P")
@@ -314,9 +322,28 @@ processing command and nil otherwise."
   (gpb-git:shell-command (format "git rebase -i %s" hash)))
 
 
-(define-derived-mode gpb-git:edit-mode diff-mode "Git Edit"
+(defvar gpb-git:edit-mode-keywords
+  (list "^pick" "^reword" "^edit" "^squash" "^fixup" "^exec" "^drop"))
+
+(defvar gpb-git:edit-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "\C-c\C-c" 'gpb-git:finish-edit)
+    map)
+  "Keymap for `gpb-git:edit-mode'.")
+
+(defvar gpb-git:edit-mode-syntax-table
+  (let ((table (make-syntax-table)))
+    (modify-syntax-entry ?# "<" table)
+    (modify-syntax-entry ?\n ">" table)
+    table)
+  "Lines starting with # are comments.")
+
+(define-derived-mode gpb-git:edit-mode text-mode "Git Edit"
   "Mode for editing a file during an interactive Git command."
-  (local-set-key "\C-c\C-c" 'gpb-git:finish-edit)
+  ;; :syntax-table gpb-git:edit-mode-syntax-table
+  (use-local-map gpb-git:edit-mode-map)
+  (setq font-lock-defaults (list 'gpb-git:edit-mode-keywords))
+  (font-lock-fontify-buffer)
   (add-hook 'kill-buffer-hook 'gpb-git:kill-buffer-hook nil t))
 
 (defun gpb-git:kill-buffer-hook ()

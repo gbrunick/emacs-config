@@ -136,7 +136,8 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
     (set-marker-insertion-type m nil)
     (insert (propertize "|" 'spinner t 'sequence '("/" "-" "\\" "|")))
     (set-marker-insertion-type m t)
-    (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m)))
+    (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m)
+    m))
 
 (defun gpb-git:insert-spinner--spin (m)
   "Implementation detail of `gpb-git:insert-spinner'"

@@ -210,6 +210,7 @@ names in the UI."
     (define-key map "s" 'gpb-git:show-status)
     (define-key map "c" 'gpb-git:commit)
     (define-key map "l" 'gpb-git:show-commit-graph)
+    (define-key map "!" 'gpb-git:shell-command)
     (fset 'gpb-git:user-command-prefix-keymap map)
     map)
   "The prefix keymap for user commands.
@@ -242,5 +243,14 @@ User-facing; attempts to preserve window position."
     (message "gpb-git:refresh-buffer: %s %s" (current-buffer) major-mode)
     (eval `(,@refresh-cmd reset-window))))
 
+
+(defun gpb-git--reload-all ()
+  "Reload all source files."
+  (load "gm-util.el")
+  (load "gm-status.el")
+  (load "gm-logs.el")
+  (load "gm-hunks.el")
+  (load "gm-shell-commands.el")
+  (load "gitmodes.el"))
 
 (provide 'gitmodes)
