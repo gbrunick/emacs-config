@@ -322,9 +322,28 @@ processing command and nil otherwise."
   (gpb-git:shell-command (format "git rebase -i %s" hash)))
 
 
-(define-derived-mode gpb-git:edit-mode diff-mode "Git Edit"
+(defvar gpb-git:edit-mode-keywords
+  (list "^pick" "^reword" "^edit" "^squash" "^fixup" "^exec" "^drop"))
+
+(defvar gpb-git:edit-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "\C-c\C-c" 'gpb-git:finish-edit)
+    map)
+  "Keymap for `gpb-git:edit-mode'.")
+
+(defvar gpb-git:edit-mode-syntax-table
+  (let ((table (make-syntax-table)))
+    (modify-syntax-entry ?# "<" table)
+    (modify-syntax-entry ?\n ">" table)
+    table)
+  "Lines starting with # are comments.")
+
+(define-derived-mode gpb-git:edit-mode text-mode "Git Edit"
   "Mode for editing a file during an interactive Git command."
-  (local-set-key "\C-c\C-c" 'gpb-git:finish-edit)
+  ;; :syntax-table gpb-git:edit-mode-syntax-table
+  (use-local-map gpb-git:edit-mode-map)
+  (setq font-lock-defaults (list 'gpb-git:edit-mode-keywords))
+  (font-lock-fontify-buffer)
   (add-hook 'kill-buffer-hook 'gpb-git:kill-buffer-hook nil t))
 
 (defun gpb-git:kill-buffer-hook ()
