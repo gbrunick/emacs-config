@@ -1341,14 +1341,18 @@ interactively."
                  (read-string "Build command: "
                               (format "rmarkdown::render('%s')" localname)))))
         (setq-local gpb-ess:build-cmd build-cmd)
-        (ess-send-string ess-proc build-cmd t)))
+        (ess-send-string ess-proc build-cmd t)
+        (with-current-buffer (process-buffer ess-proc)
+          (comint-add-to-input-history build-cmd))))
 
      ;; If we are in a package, reload the package.
      ((string-equal (ignore-errors (file-name-base dir)) "R")
       (gpb:ess-save-package)
       (setq cmd (format "devtools::load_all('%s', export_all = FALSE)"
                         (directory-file-name (file-name-directory dir))))
-      (ess-send-string ess-proc cmd t))
+      (ess-send-string ess-proc cmd t)
+      (with-current-buffer (process-buffer ess-proc)
+        (comint-add-to-input-history cmd)))
 
      ;; If we are in a test file, source the file but evaluate in the
      ;; current package namespace with the current directory as the working
