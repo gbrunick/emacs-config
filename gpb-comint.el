@@ -23,6 +23,24 @@ number of prefix arguments."
    (t (call-interactively 'comint-previous-input))))
 
 
+(defun gpb-comint:isearch-backward-command (arg)
+  "Do-what-I-mean comint isearch backwars.
+
+If before the process mark, call `isearch-backward'.  If called
+after the mark with no prefix arguments, call
+`comint-history-isearch-backward'.  If called after the mark with
+no prefix arguments, call
+`comint-history-isearch-backward-regexp'."
+  (interactive "p")
+  (if (comint-after-pmark-p)
+      (cond
+       ((>= arg 4)
+        (call-interactively 'comint-history-isearch-backward-regexp))
+       (t
+        (call-interactively 'comint-history-isearch-backward)))
+    (call-interactively 'isearch-backward)))
+
+
 (defun gpb-comint:current-input ()
   "Returns the current line of input."
   (let* ((proc (get-buffer-process (current-buffer)))
@@ -146,9 +164,7 @@ Returns a list of the form (BEG END)."
 
 Due to the way Emacs font-locking seems to work, overly long
 lines can lock everything up, so we insert newlines if things get
-out of control just to prevent a lock up.
-
-"
+out of control just to prevent a lock up."
   (interactive)
   (save-excursion
     (goto-char (process-mark (get-buffer-process (current-buffer))))

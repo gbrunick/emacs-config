@@ -586,6 +586,7 @@
 
 (require 'gpb-comint)
 (add-hook 'comint-mode-hook 'gpb-comint:enable-bold-prompt-mode t)
+
 (let ((map comint-mode-map))
   (define-key map "\C-m" 'gpb-comint:goto-error-or-send)
   (define-key map "\C-cd" 'gpb-comint:delete-output)
@@ -593,7 +594,9 @@
   (define-key map "\C-ce" 'comint-send-eof)
   (define-key map "\C-n" 'comint-next-input)
   (define-key map "\C-p" 'gpb-comint:previous-input)
-  (define-key map "\C-d" nil))
+  (define-key map "\C-d" nil)
+  (define-key map [remap isearch-backward]
+    'gpb-comint:isearch-backward-command))
 
 (require 'gpb-yank-rigidly)
 (gpb-yank-rigidly-mode 1)
