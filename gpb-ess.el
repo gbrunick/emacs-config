@@ -285,7 +285,7 @@ an ESS inferior buffer."
         (setq-local buffer-read-only nil)
         (erase-buffer)
         (insert (format "#\n#  %s\n#\n\n" command))
-        (ess-r-mode 1))
+        (ess-r-mode))
       (setq-local gpb:output-buffer buffer)
       (comint-redirect-send-command command buffer nil)))
 
