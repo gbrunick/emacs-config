@@ -357,7 +357,13 @@ an ESS inferior buffer."
            (end (cdr gpb:ess-last-eval-region)))
       (with-current-buffer buf (gpb:ess-eval-region beg end))))
    ((eq obj 'ess-test-func)
-    (gpb:ess-eval-region start end "RLSBacktest" default-directory))
+    (let* ((cmd (format "cat(pkgload::pkg_name('%s'), fill = TRUE)\n"
+                        (file-local-name (buffer-file-name))))
+           (package-name (ess-string-command cmd nil 1)))
+      ;; Test files are evaluated in the appropriate package namespace with
+      ;; the test file dirctory as the working directory.
+      (gpb:ess-eval-region (point-min) (point-max)
+                           package-name default-directory)))
    (t
     (gpb:ess-eval-region start end))))
 
@@ -517,9 +523,11 @@ to be the working directory."
       (ess-send-string ess-proc (buffer-substring-no-properties beg end) t))
      ;; If the file is up to date and the region is whole file, just source
      ;; the file.
-     ((and whole-buffer-p (not (buffer-modified-p)) (null package) (null working-dir))
+     ((and whole-buffer-p (not (buffer-modified-p))
+           (null package) (null working-dir))
       (let* ((filename (buffer-file-name))
-             (working-dir (ess-string-command "cat(sprintf(\"%s\\n\", getwd()))\n"))
+             (working-dir (ess-string-command
+                           "cat(sprintf(\"%s\\n\", getwd()))\n"))
              (localname (or (file-remote-p filename 'localname) filename))
              (relative-name (file-relative-name localname working-dir))
              (cmd (format "source(%s)" (prin1-to-string relative-name))))
@@ -531,7 +539,8 @@ to be the working directory."
                                                  package working-dir))
              (local-filename (or (file-remote-p filename 'localname) filename))
              (cmd (format "source(%s)" (prin1-to-string local-filename)))
-             (text (format "[Evaluate lines %s-%s in %s]" line1 line2 (buffer-name))))
+             (text (format "[Evaluate lines %s-%s in %s]"
+                           line1 line2 (buffer-name))))
         (gpb:exit-all-browsers)
         (ess-send-string ess-proc cmd text)
         (with-current-buffer (process-buffer ess-proc)
