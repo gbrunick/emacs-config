@@ -1428,9 +1428,21 @@ x <- (
 (advice-add 'ess-behind-block-paren-p :override 'gpb:ess-behind-block-paren-p)
 
 ;; This matches R Markdown build failures like:
-;;     Quitting from lines 257-329 (report.Rmd)
+;;   Quitting from lines 257-329 (report.Rmd)
+;; If we see
+;;   Quitting from lines 257-329 (./report.Rmd)
+;; We don't include the "./" prefix in the file match as it confuses
+;; compilation mode.  Recall that rmarkdow::render changes the working
+;; directory.
+;;
 (aput 'compilation-error-regexp-alist-alist
-      'R-markdown '("Quitting from lines \\(\\([0-9]+\\)-[0-9]+ (\\(.*\\))\\)" 3 2 nil 1))
+      'R-markdown
+      (list (format "Quitting from lines %s %s"
+                    ;; Matches 257-329 part
+                    "\\(\\([0-9]+\\)-[0-9]+"
+                    ;; Matches filename, excluding any initial "./"
+                    "([.]?/?\\(.*\\))\\)")
+            3 2 nil 1))
 
 (add-to-list 'ess-r-error-regexp-alist 'R-markdown)
 
