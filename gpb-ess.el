@@ -471,8 +471,21 @@ to be the working directory."
                                     (buffer-file-name)))
                               (buffer-name))))
     (with-temp-file region-filename
-      (insert (make-string (1- line-number) ?\n))
       (insert text)
+
+      ;; If all the lines are in a roxygen comment, remove the comment
+      ;; prefix.
+      (goto-char (point-min))
+      (while (looking-at "^#'") (forward-line))
+      (when (eobp)
+        (goto-char (point-min))
+        (while (looking-at "^#'")
+          (replace-match "  ")
+          (forward-line)))
+
+      (goto-char (point-min))
+      (insert (make-string (1- line-number) ?\n))
+      (goto-char (point-max))
       (insert "\n\n"))
     (message "Wrote %s" region-filename)
     (with-temp-file wrapper-filename
