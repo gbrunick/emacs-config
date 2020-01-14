@@ -667,5 +667,7 @@
      (define-key map (kbd "C-c c") #'markdown-mode-command-map)
      (define-key map (kbd "C-c C-c") #'gpb-ess:save-and-load-command))))
 
+(eval-after-load 'ess-mode
+  '(define-key ess-mode-map [remap yank] nil))
 
 (setq debug-on-quit nil)
