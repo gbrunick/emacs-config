@@ -1042,7 +1042,8 @@ are identified by `imenu-create-index-function'."
 
 
 (defun gpb:create-imenu-index-buffer--kill-buffer-hook ()
-  (when gpb:index-buffer
+  (when (and (boundp 'gpb:index-buffer)
+             (buffer-live-p gpb:index-buffer))
     (kill-buffer gpb:index-buffer)))
 
 
