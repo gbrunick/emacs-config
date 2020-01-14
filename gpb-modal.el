@@ -885,7 +885,8 @@ so forms must be quoted to prevent premature evaluation."
   (define-cond-key 'rectangle-mark-mode "s" 'string-rectangle)
   (define-cond-key 'rectangle-mark-mode "v" 'yank-rectangle)
   (define-cond-key 'rectangle-mark-mode "\C-v" 'yank-rectangle)
-  (define-cond-key 'rectangle-mark-mode " " 'clear-rectangle))
+  (define-cond-key 'rectangle-mark-mode " " 'clear-rectangle)
+  (define-cond-key 'rectangle-mark-mode "i" 'string-rectangle))
 
 
 ;; Polymode integration --------------------------------------------------
