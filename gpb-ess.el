@@ -536,15 +536,27 @@ to be the working directory."
       (ess-send-string ess-proc (buffer-substring-no-properties beg end) t))
      ;; If the file is up to date and the region is whole file, just source
      ;; the file.
-     ((and whole-buffer-p (not (buffer-modified-p))
-           (null package) (null working-dir))
+     ((and whole-buffer-p (not (buffer-modified-p)))
       (let* ((filename (buffer-file-name))
              (working-dir (ess-string-command
                            "cat(sprintf(\"%s\\n\", getwd()))\n"))
              (localname (or (file-remote-p filename 'localname) filename))
              (relative-name (file-relative-name localname working-dir))
-             (cmd (format "source(%s)" (prin1-to-string relative-name))))
-        (ess-send-string ess-proc cmd t)))
+             (dir (ignore-errors (directory-file-name
+                                  (file-name-directory localname))))
+             (in-test-file (string-equal (ignore-errors (file-name-base dir))
+                                         "testthat"))
+             (cmd (format (cond
+                           ((and in-test-file (not (null package)))
+                            (format "testthat::test_file(%%s, env = new.env(parent = loadNamespace(\"%s\")))"
+                                    package))
+                           (in-test-file "testthat::test_file(%s)")
+                           (t "source(%s)"))
+                          (prin1-to-string relative-name))))
+        (ess-send-string ess-proc cmd t)
+        (display-buffer (process-buffer ess-proc))
+        (with-current-buffer (process-buffer ess-proc)
+          (goto-char (point-max)))))
      ;; Otherwise, write temp files (we actually use two files for this see
      ;; `gpb:ess-make-region-file') and source the appropriate temp file.
      (t
