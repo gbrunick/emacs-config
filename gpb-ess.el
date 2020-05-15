@@ -1377,9 +1377,27 @@ interactively."
              (package-name (ess-string-command cmd nil 1)))
         (gpb:ess-eval-region (point-min) (point-max) package-name dir)))
 
+     ;; If we have a prefix argument, source with chdir = TRUE.  This
+     ;; requires us to save the file.
+     ((not (null arg))
+      (save-buffer)
+      (let* ((filename (buffer-file-name))
+             (proc (ess-get-process ess-local-process-name))
+             (proc-buf (process-buffer proc))
+             (working-dir (with-current-buffer proc-buf default-directory))
+             (relative-name (file-relative-name filename working-dir))
+             (cmd (format "source('%s', chdir = TRUE)" relative-name)))
+        (message "working-dir: %s" working-dir)
+        (ess-send-string proc cmd t)
+        (display-buffer (process-buffer ess-proc))
+        (with-current-buffer (process-buffer ess-proc)
+          (comint-add-to-input-history cmd)
+          (goto-char (point-max)))))
+
      ;; Otherwise, just evaluate the buffer contents in the global
      ;; environment.
      (t
+      (save-buffer)
       (save-restriction
         (widen)
         (gpb:ess-eval-region (point-min) (point-max)))))))
