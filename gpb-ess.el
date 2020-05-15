@@ -73,6 +73,8 @@ Contains a cons of two markers.")
     (setcar package-item "Packages")
     (setcdr package-item '("^.*\\(library\\|require\\)(\\([^,)]*\\)" 2)))
 
+  (setq-local indent-line-function #'gpb:ess-indent-line)
+
   (when (require 'yasnippet nil t)
     (yas-minor-mode 1))
   (when (require 'gpb-text-objects nil t)
@@ -1528,3 +1530,51 @@ x <- (
         (beginning-of-buffer)
         (forward-button 1))
       (switch-to-buffer menu-buffer-name))))
+
+
+(defun gpb:ess-indent-line ()
+  (prog1
+      (ess-r-indent-line)
+    (let ((pt (point))
+          (continue t)
+          init-depth col)
+      (setq init-depth (car (syntax-ppss)))
+      (catch 'done
+        (setq start (save-excursion
+                      (ess-backward-up-list)
+                      (unless (looking-at-p "(\\|\\[") (throw 'done t))
+                      (point)))
+
+        ;; Look for an outer comma.  If we find one, we are in an argument
+        ;; list and should only look back to the start of this argument to
+        ;; find the "~" or ":=".
+        (save-excursion
+          (while (and continue (re-search-backward "," start t))
+            (when (<= (car (syntax-ppss)) init-depth)
+              (setq continue nil
+                    start (point)))))
+
+        (save-excursion
+          (setq continue t)
+          (beginning-of-line)
+          (while (and continue (>= (point) start))
+            (if (re-search-backward "~\\|:=" start t)
+                (cond
+                 ;; If the "~" or ":=" we found is not inside a string or
+                 ;; some other nested expression.
+                 ((and (null (nth 3 (syntax-ppss)))
+                       (<= (car (syntax-ppss)) init-depth))
+                  (goto-char (match-end 0))
+                  (skip-chars-forward " ")
+                  (setq col (current-column)
+                        continue nil))
+                 ;; Otherwise, keep looking.
+                 (t (backward-char)))
+              ;; We didn't find a string match
+              (throw 'done t))))
+
+        (unless (null col)
+          (beginning-of-line)
+          (when (looking-at " +")
+            (delete-region (match-beginning 0) (match-end 0)))
+          (indent-to-column col))))))
