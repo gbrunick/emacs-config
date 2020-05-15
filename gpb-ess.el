@@ -41,7 +41,7 @@ Contains a cons of two markers.")
   (local-set-key "\C-c\C-c" 'gpb-ess:save-and-load-command)
   (local-set-key "\C-co" 'gpb:ess-view-data-frame)
   (local-set-key "\C-ct" 'gpb:ess-test-package)
-
+  (local-set-key "\C-c\C-s" 'gpb:ess-choose-interpreter)
   ;; Override the help function
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
 
@@ -1463,3 +1463,56 @@ x <- (
     (ess-send-string (ess-get-process) cmd2 t)
     (ess-wait-for-process)
     (ess-send-string (ess-get-process) cmd3 t)))
+
+
+(defun gpb:ess-set-active-interpreter (bufname)
+  "The current buffer to be the active interpreter."
+  (update-ess-process-name-list)
+  (let* ((procbuf (get-buffer bufname))
+         (procname (process-name (get-buffer-process procbuf)))
+         (tramp-prefix (with-current-buffer procbuf (file-remote-p default-directory)))
+         ;; Find all the buffer visiting files on the same machine that the
+         ;; interpreter is running.
+         (buffer-list (remove-if-not
+                       (lambda (buf) (with-current-buffer buf
+                                       (and (string= (file-remote-p default-directory) tramp-prefix)
+                                            (not (null (buffer-file-name))))))
+                       (buffer-list))))
+    (dolist (buf buffer-list)
+      (with-current-buffer buf
+        (setq-local ess-local-process-name procname)))))
+
+
+(defun gpb:ess-choose-interpreter ()
+  (interactive)
+  (update-ess-process-name-list)
+  (let ((keymap (make-sparse-keymap))
+        (indent "    ")
+        (dir default-directory)
+        (menu-buffer-name "*choose interpreter*"))
+    (cl-flet ((make-button
+               (lambda (name)
+                 (insert-button
+                  name 'action `(lambda (button)
+                                  (gpb:ess-set-active-interpreter ,name)
+                                  (display-buffer ,name)
+                                  (kill-buffer ,menu-buffer-name))))))
+
+      ;; (set-keymap-parent keymap view-mode-map)
+      (define-key keymap "\t" 'forward-button)
+      (define-key keymap [(backtab)] 'backward-button)
+      (define-key keymap "q" 'View-quit)
+
+      (with-current-buffer (get-buffer-create menu-buffer-name)
+        (erase-buffer)
+        (insert "Select an R process:\n\n")
+
+        (dolist (name (sort (mapcar 'car ess-process-name-list) 'string<))
+          (insert indent)
+          (make-button (buffer-name (process-buffer (get-process name))))
+          (insert "\n\n"))
+
+        (use-local-map keymap)
+        (beginning-of-buffer)
+        (forward-button 1))
+      (switch-to-buffer menu-buffer-name))))
