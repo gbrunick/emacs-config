@@ -50,6 +50,7 @@
         (inhibit-read-only t))
     (read-only-mode 1)
     (erase-buffer)
+    (remove-overlays)
     (gpb-git:commit-graph-mode)
     (save-excursion
       (insert (format "Repo: %s\n\n" default-directory))
@@ -69,7 +70,7 @@
                   (buffer-substring-no-properties start end)))
         (ansi-color-apply-on-region output-marker (point))
         (move-marker output-marker (point)))
-      (while (re-search-forward "^[* \\|/]+ \\([a-f0-9]+\\) " nil t)
+      (while (re-search-forward "^[* \\|/-]+\\.? +\\([a-f0-9]+\\) " nil t)
         (add-text-properties (progn (forward-line 0) (point))
                              (progn (forward-line 1) (point))
                              `(:commit-hash ,(match-string 1)))))
