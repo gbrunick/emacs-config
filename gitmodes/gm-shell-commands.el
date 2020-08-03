@@ -91,17 +91,20 @@ The buffer name is based on the buffer name of the current buffer."
 (defvar git-command-output-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [remap shell-command] 'gpb-git:shell-command)
+    (define-key map "q" 'bury-buffer)
     map))
 
 (define-derived-mode git-command-output-mode special-mode "Git Command")
 
-(defun gpb-git:shell-command (cmd)
+(defun gpb-git:shell-command (cmd &optional bufname)
   "Execute CMD in a new buffer and pop to that buffer.
 
 CMD is a string that is passed through to an interactive bash or
-cmd.exe process."
+cmd.exe process.  BUFNAME is a string giving the name of the
+buffer in which the results are written.  Any current contents
+are deleted."
   (interactive "sGit Shell Command: ")
-  (let ((buf (get-buffer-create "*Git Shell Command*"))
+  (let ((buf (get-buffer-create (or bufname "*Git Shell Command*")))
         (repo-root (gpb-git--find-repo-root)))
 
     (with-current-buffer buf
@@ -116,7 +119,8 @@ cmd.exe process."
       (setq default-directory repo-root)
       (gpb-git:async-shell-command cmd repo-root #'gpb-git:shell-command-1))
 
-    (switch-to-buffer buf)))
+    (switch-to-buffer buf)
+    buf))
 
 
 (defun gpb-git:shell-command-1 (buf start end complete)

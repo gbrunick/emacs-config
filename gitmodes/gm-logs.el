@@ -153,17 +153,13 @@
                     (save-excursion (forward-line 0) (point))
                     (save-excursion (forward-line 1) (1- (point)))))
          (cmd `("git" "show" ,(format "%s:%s" git-commit-hash filename)))
+         (inhibit-read-only t)
          buf)
     (unless filename (error "No file on line"))
-    (setq buf (get-buffer-create (format "*%s: %s*" git-commit-hash filename)))
-    (with-current-buffer buf
-      (erase-buffer)
-      (save-excursion
-        (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
-        (apply 'start-file-process "*git show*" buf cmd))
-      (read-only-mode 1)
-      (view-mode))
-    (pop-to-buffer buf)))
+    (setq buf (gpb-git:shell-command
+               (mapconcat 'identity cmd " ")
+               (format "*%s: %s*" git-commit-hash filename)))
+    (with-current-buffer buf (goto-char (point-min)))))
 
 
 (defun gpb-git:show-file-history (&optional filename)
