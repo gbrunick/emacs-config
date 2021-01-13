@@ -68,10 +68,10 @@ Contains a cons of two markers.")
   ;; Enable tab completion of R object names.
   ;; (setq ess-tab-complete-in-script t)
 
-  (let ((package-item (or (assoc "Package" ess-imenu-S-generic-expression)
-                          (assoc "Packages" ess-imenu-S-generic-expression))))
-    (setcar package-item "Packages")
-    (setcdr package-item '("^.*\\(library\\|require\\)(\\([^,)]*\\)" 2)))
+  ;; (let ((package-item (or (assoc "Package" ess-imenu-S-generic-expression)
+  ;;                         (assoc "Packages" ess-imenu-S-generic-expression))))
+  ;;   (setcar package-item "Packages")
+  ;;   (setcdr package-item '("^.*\\(library\\|require\\)(\\([^,)]*\\)" 2)))
 
   (setq-local indent-line-function #'gpb:ess-indent-line)
 
@@ -1596,3 +1596,28 @@ x <- (
           (when (looking-at " +")
             (delete-region (match-beginning 0) (match-end 0)))
           (indent-to-column col))))))
+
+
+(defun gpb:make-functionish-regex (keyword)
+  (format "%s%s%s" "^ *\\([^ \t\n]+\\)[ \t\n]*\\(?:<-\\|=\\)[ \t\n]*"
+          keyword "[ \t]*("))
+
+(defun gpb-ess:adjust-imenu-definitions ()
+  ;; The Data section of the imenu entries is pretty useless.
+  (adelete 'ess-imenu-S-generic-expression "Data")
+
+  ;; Only match top-level function definitions.
+  (setcdr (assoc "Functions" ess-imenu-S-generic-expression)
+          '("^\\([^ \t\n]+\\)[ \t\n]*\\(?:<-\\|=\\)[ \t\n]function[ ]*(" 1))
+
+  (nconc ess-imenu-S-generic-expression
+         '(("Tests" "^test_that([\"']\\(.*\\)[\"'], *{" 1)))
+
+  (nconc ess-imenu-S-generic-expression
+         `(("Reactives" ,(gpb:make-functionish-regex "reactive") 1)))
+
+  (nconc ess-imenu-S-generic-expression
+         `(("renderUIs" ,(gpb:make-functionish-regex "renderUI") 1)))
+
+  (nconc imenu-generic-expression
+         `(("observeEvents" ,(gpb:make-functionish-regex "observeEvent") 1))))
