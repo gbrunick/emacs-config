@@ -44,10 +44,18 @@
     (switch-to-buffer buf)))
 
 
+(defcustom gpb-git--log-excluded-branches nil
+  "Add globs to this list to exclude branches from git log output."
+  :type '(repeat (string :tag "Commmand"))
+  :group 'gpb-git)
+
 (defun gpb-git--refresh-commit-graph (&optional callback)
   (gpb-git--trace-funcall)
-  (let ((cmd "git log --graph --oneline --decorate --color --all")
+  (let ((cmd "git log --graph --oneline --decorate --color")
         (inhibit-read-only t))
+    (dolist (glob gpb-git--log-excluded-branches)
+      (setq cmd (format "%s --exclude=\"%s\"" glob)))
+    (setq cmd (format "%s --all" glob))
     (read-only-mode 1)
     (erase-buffer)
     (remove-overlays)
