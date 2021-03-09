@@ -616,6 +616,9 @@
 ;; (autoload 'gpb-rect--begin-rect-command "gpb-rect-commands")
 
 (recentf-mode 1)
+;; We append to the hook because we want to save the list after
+;; #`recentf-track-opened-file updates it.
+(add-hook 'find-file-hook #'recentf-save-list t)
 
 ;; More convenience names for some interactive functions.
 (defalias 'ediff-with-saved 'gpb-ediff-with-saved)
