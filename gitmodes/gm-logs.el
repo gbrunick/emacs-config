@@ -145,14 +145,13 @@
          buf)
     (unless hash (error "No commit on line"))
     (setq buf (get-buffer-create (format "*ls-tree: %s*" hash)))
+
+    (setq buf (gpb-git:shell-command (mapconcat 'identity cmd " ")
+                                     (format "*ls-tree: %s*" hash)))
     (with-current-buffer buf
-      (erase-buffer)
+      (goto-char (point-min))
       (gpb-git:show-commit-files-mode)
-      (setq-local git-commit-hash hash)
-      (save-excursion
-        (insert (format "%s\n\n" (mapconcat 'identity cmd " ")))
-        (apply 'start-file-process "*git ls-tree*" buf cmd)))
-    (pop-to-buffer buf)))
+      (setq-local git-commit-hash hash))))
 
 
 (defun gpb-git:show-commit-graph--show-file-version ()
