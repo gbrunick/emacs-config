@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: datearg
+# key: datearg
+# --
+A Date vector or an object that can be cast to such a vector with \`as.Date\`.

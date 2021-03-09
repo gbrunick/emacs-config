@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: argdoc
+# key: argdoc
+# --
+A ${1:type} vector or an object that can be cast to such a vector with \`as.$1\`.
