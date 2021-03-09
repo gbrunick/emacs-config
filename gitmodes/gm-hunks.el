@@ -37,6 +37,7 @@
     (define-key map "a" 'gpb-git:stage-hunks)
     ;; "delete" changes.
     (define-key map "d" 'gpb-git:revert-marked-hunks)
+    (define-key map "w" 'gpb-git:toggle-whitespace-diff-args)
     (set-keymap-parent map 'gpb-git:hunk-selection-mode-map)
     (fset 'gpb-git:unstaged-changes-mode-map map)
     map)
@@ -115,6 +116,14 @@
       (switch-to-buffer buf))))
 
 
+(defun gpb-git:toggle-whitespace-diff-args ()
+  (interactive)
+  (let ((val (and (boundp 'show-whitespace-changes) show-whitespace-changes)))
+    (setq-local show-whitespace-changes (not val))
+    (put 'show-whitespace-changes 'permanent-local t)
+    (gpb-git:refresh-buffer)))
+
+
 (defun gpb-git--refresh-unstaged-changes (&optional repo-dir cmd callback)
   "Display the differences between the index and HEAD.
 
@@ -188,7 +197,11 @@ buffer and adds overlays.  `cmd' is a list of strings.  If
 been updated (i.e., asyncronously)."
   (interactive)
   (gpb-git--trace-funcall)
-  (let ((repo-dir (or repo-dir default-directory))
+  (let ((cmd1 (if (and (boundp 'show-whitespace-changes)
+                       show-whitespace-changes)
+                 (format "%s --ignore-space-at-eol" cmd)
+               cmd))
+        (repo-dir (or repo-dir default-directory))
         (inhibit-read-only t))
     ;; Delete any existing hunk overlays in the buffer.
     (dolist (ov (gpb-git--get-hunk-overlays)) (delete-overlay ov))
@@ -196,7 +209,7 @@ been updated (i.e., asyncronously)."
     (setq default-directory repo-dir)
     (setq-local callback-func callback)
     (gpb-git:insert-placeholder "Loading hunks ")
-  (gpb-git:async-shell-command cmd repo-dir #'gpb-git--refresh-changes-1)))
+    (gpb-git:async-shell-command cmd1 repo-dir #'gpb-git--refresh-changes-1)))
 
 
 (defun gpb-git--refresh-changes-1 (buf start end complete)
