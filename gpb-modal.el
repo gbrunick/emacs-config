@@ -289,6 +289,7 @@ current active keybindings."
     (define-key map "\"" 'gpb-modal--quote-symbols-in-region)
     (define-key map "'" 'gpb-modal--quote-symbols-in-region)
     (define-key map "`" 'gpb-modal--quote-symbols-in-region)
+    (define-key map "," 'gpb-modal--add-commas-between-words-in-region)
 
     ;; TODO: This should really only be bound in the ESS major modes.
     (define-key map "C" 'gpb-modal--wrap-in-code)
@@ -768,17 +769,36 @@ return nil."
                       ((string-equal (this-command-keys) "`") "`")
                       ((string-equal (this-command-keys) "'") "'")
                       (t "\"")))
-         (end-marker (copy-marker end)))
+         (end-marker (copy-marker end))
+         (unquote-regex "['\"`]\\(\\_<\\(:?\\sw\\|\\s_\\)+\\_>\\)['\"`]")
+         deactivate-mark)
     (message "this-command-keys: %S" (this-command-keys))
+    (save-restriction
+      (save-excursion
+        (goto-char beg)
+        (cond
+         (unquote
+          (while (re-search-forward unquote-regex end-marker t)
+            (replace-match (match-string 1))))
+         (t
+          (narrow-to-region beg end)
+          (while (re-search-forward "\\_<\\(:?\\sw\\|\\s_\\)+\\(:?\\_>\\|\\'\\)"
+                  ;; "\\_<\\(:?\\sw\\|\\s_\\)+\\'"
+                  end-marker t)
+            (replace-match (concat quote-char (match-string 0) quote-char)))))))))
+
+(defun gpb-modal--add-commas-between-words-in-region (beg end &optional remove)
+  (interactive "r\nP")
+  (let* ((end-marker (copy-marker end)) deactivate-mark)
     (save-excursion
       (goto-char beg)
       (cond
-       (unquote
-        (while (re-search-forward "['\"]\\(\\_<\\(:?\\sw\\|\\s_\\)+\\_>\\)['\"]" end-marker t)
-          (replace-match (match-string 1))))
+       (remove
+        (while (re-search-forward "\\([^ \n]+\\), +" end-marker t)
+          (replace-match (concat (match-string 1) " "))))
        (t
-        (while (re-search-forward "\\_<\\(:?\\sw\\|\\s_\\)+\\_>" end-marker t)
-          (replace-match (concat quote-char (match-string 0) quote-char))))))))
+        (while (re-search-forward "\\([^ \n]+\\) +" end-marker t)
+          (replace-match (concat (match-string 1) ", "))))))))
 
 
 (defun gpb-modal--wrap-in-code (beg end &optional link)
