@@ -236,7 +236,8 @@ been updated (i.e., asyncronously)."
        (t
         (insert "No changes")))
       (goto-char (point-min))
-      (when callback-func (funcall callback-func buf)))))
+      (when (and (boundp 'callback-func) callback-func)
+        (funcall callback-func buf)))))
 
 
 (defun gpb-git--decorate-hunk (hunk &optional focused)
@@ -676,7 +677,8 @@ name of this file."
                                      nil ".patch"))
          (localname (file-relative-name patch-file))
          (proc-output-buf gpb-git:process-output-buffer-name)
-         (args (append args `(,localname))))
+         (args (append args `(,localname)))
+         (inhibit-read-only t))
 
     (with-current-buffer (gpb-git:make-patch hunks (member "-R" args))
       (let ((coding-system-for-write 'unix))
@@ -689,7 +691,9 @@ name of this file."
     (setq retvalue (apply 'process-file "git" nil proc-output-buf t args))
 
     ;; If patch application failed, we pop to the process output.
-    (unless (= retvalue 0) (pop-to-buffer proc-output-buf))
+    (unless (= retvalue 0)
+      (pop-to-buffer proc-output-buf)
+      (error "Could not apply patch"))
     patch-file))
 
 

@@ -12,6 +12,15 @@ We want this string to be something that is unlikely to show up
 at the start of a line in any Git command output and doesn't
 require any shell quoting.")
 
+(defvar gpb-git:windows-editor-temp-dir "c:\\Temp"
+  "A path containing no spaces where we can write CMD.exe scripts.
+
+No amount of escaping or quoting appears to convince git to run a
+script referenced in GIT_EDITOR or GIT_SEQUENCE_EDITOR that
+contains a space in its path, so we write a script to this
+directory so we can reference it when calling git for interactive
+commands.")
+
 (defun gpb-git:get-git-server-buf (&optional repo-root)
   "Get a buffer containing a live bash process.
 
@@ -43,7 +52,7 @@ The buffer name is based on the buffer name of the current buffer."
   (let* ((buf (gpb-git--get-new-buffer "*git server" "*"))
          (dir default-directory)
          (process-environment process-environment)
-         proc)
+         proc path)
 
     (with-current-buffer buf
       (insert (format "Repo Dir: %s\n\n" repo-root))
@@ -52,11 +61,13 @@ The buffer name is based on the buffer name of the current buffer."
       (cond
        ;; If we are working locally on a Windows machine, use the CMD script.
        ((gpb-git:use-cmd-exe dir)
-        (push (format "GIT_EDITOR=%s" (locate-library "git-editor.cmd"))
-              process-environment)
-        (push (format "GIT_SEQUENCE_EDITOR=%s"
-                      (locate-library "git-editor.cmd"))
-              process-environment))
+        (setq path (concat (file-name-as-directory
+                            gpb-git:windows-editor-temp-dir)
+                           "git-editor.cmd"))
+        (unless (file-exists-p path)
+          (copy-file (locate-library "git-editor.cmd") path))
+        (push (format "GIT_EDITOR=%s" path) process-environment)
+        (push (format "GIT_SEQUENCE_EDITOR=%s" path) process-environment))
 
        ;; Othewise, use the BASH script.  We could be working remotely, so we
        ;; write the script to a file on the machine where the Git command is
@@ -81,10 +92,7 @@ The buffer name is based on the buffer name of the current buffer."
                    (start-file-process "bash-git-server" buf "bash")))
       (setq-local kill-buffer-query-functions nil)
       (setq-local output-start-marker (copy-marker (point-min)))
-      (setq-local output-end-marker (copy-marker (point-min)))
-
-
-      )
+      (setq-local output-end-marker (copy-marker (point-min))))
     buf))
 
 
@@ -114,8 +122,9 @@ are deleted."
         (setq mode-line-process ":running")
         (insert (format "Repo: %s\n\n" default-directory))
         (insert (format "%s\n\n" cmd))
-        (setq-local output-marker (gpb-git:insert-spinner)))
-      (view-mode)
+        (setq-local output-marker (gpb-git:insert-spinner))
+        (put 'output-marker 'permanent-local t))
+      ;; (view-mode)
       (setq default-directory repo-root)
       (gpb-git:async-shell-command cmd repo-root #'gpb-git:shell-command-1))
 
@@ -129,7 +138,7 @@ are deleted."
         (new-text "")
         (inhibit-read-only t)
         (remote-prefix (or (file-remote-p default-directory) ""))
-        this-line move-pt)
+        this-line move-pt path)
 
     ;; Read the new output line by line, looking for special output markers.
     (with-current-buffer buf
@@ -143,8 +152,11 @@ are deleted."
              ;; through the use of carriage returns.
              ((looking-at (format "^\\(?:[^]*\\)*%s:edit-file:\\(.*\\)"
                                   gpb-git:process-output-marker))
-              (with-current-buffer (find-file (concat remote-prefix
-                                                      (match-string 1)))
+              (setq path (match-string 1))
+              ;; Remove any quotes
+              (when (string-match "^\".*\"$" path)
+                (setq path (substring path 1 -1)))
+              (with-current-buffer (find-file (concat remote-prefix path))
                 (gpb-git:edit-mode)
                 ;; Used by `gpb-git:finish-edit`.
                 (setq-local command-buffer output-buf)
@@ -222,12 +234,13 @@ processing command and nil otherwise."
       (setq proc (get-buffer-process (current-buffer)))
 
       (set-process-filter proc #'gpb-git:async-shell-command--process-filter)
-      (setq proc-cmd (format (if (gpb-git:use-cmd-exe)
-                                 "echo %s:output-start & %s & echo %s:output-end"
-                               "echo %s:output-start ; %s ; echo %s:output-end")
-                             gpb-git:process-output-marker
-                             cmd
-                             gpb-git:process-output-marker))
+      (setq proc-cmd
+            (format (if (gpb-git:use-cmd-exe)
+                        "echo %s:output-start & %s & echo %s:output-end"
+                      "echo %s:output-start ; %s ; echo ; echo %s:output-end")
+                    gpb-git:process-output-marker
+                    cmd
+                    gpb-git:process-output-marker))
 
       (unless (gpb-git:use-cmd-exe)
         ;; Bash doesn't echo the command, so we echo it into the buffer

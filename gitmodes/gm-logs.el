@@ -107,7 +107,7 @@
         (gpb-get--get-revision-at-point))
     (save-excursion
       (forward-line 0)
-      (skip-chars-forward "* |/\\")
+      (skip-chars-forward "* |/\\-\.")
       (unless (looking-at "\\([0-9a-f]+\\) ")
         (error "Invalid revision line"))
       (match-string 1))))
