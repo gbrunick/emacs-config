@@ -462,7 +462,6 @@ very similiar to (and slightly more general than) the
                             (cons name keymap)))
                         gpb-tobj--global-keymap-alist))
          (overriding-terminal-local-map (aget keymap-alist map-symbol))
-         (current-message (current-message))
          key-sequence last-command-event command)
     (gpb-log-form 'gpb-tobj--read-text-object 'keymap-alist)
     (unless overriding-terminal-local-map
@@ -500,13 +499,11 @@ very similiar to (and slightly more general than) the
                           gpb-tobj--current-text-object-modifiers
                           (nconc gpb-tobj--current-text-object-modifiers
                                  modifiers))
-                    ;; (message "Searching for %s..." obj)
                     )
                   (throw 'text-object-selected nil))
                  ;; Otherwise, call the command
                  (t
                   (funcall command)))))))
-      (message current-message)
       (run-hooks 'gpb-tobj--post-read-text-object-hook))))
 
 
