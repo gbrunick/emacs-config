@@ -393,7 +393,7 @@
      (define-key isearch-mode-map "\C-h" 'isearch-delete-char)
      (define-key isearch-mode-map [(control ?f)] 'isearch-repeat-forward)
      (define-key isearch-mode-map [(control ?v)] 'isearch-yank-kill)
-     (define-key isearch-mode-map [(control ?s)] 'gpb-isearch-yank-symbol)
+     ;; (define-key isearch-mode-map [(control ?s)] 'gpb-isearch-yank-symbol)
      (define-key isearch-mode-map [(control g)] 'isearch-abort)
      (define-key isearch-mode-map "\r" 'isearch-exit)
      (define-key isearch-mode-map [tab] 'isearch-repeat-forward)
