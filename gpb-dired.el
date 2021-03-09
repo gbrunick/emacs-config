@@ -43,6 +43,8 @@
 (define-key dired-mode-map "j" 'dired-next-line)
 (define-key dired-mode-map "k" 'dired-previous-line)
 (define-key dired-mode-map [(control o)] nil)
+(define-key dired-mode-map "b" 'goto-beginning-of-text-object)
+(define-key dired-mode-map "e" 'goto-end-of-text-object)
 ;; (define-key dired-mode-map [remap keyboard-quit] 'quit-window)
 
 (defun gpb-dired-visit-file ()
