@@ -36,6 +36,11 @@ Contains a cons of two markers.")
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
 
+  ;; Clear out some annoying ESS bindings.
+  (local-set-key "\C-c\C-p" nil)
+  (local-set-key "\C-c\C-n" nil)
+  (local-set-key "\C-c\C-b" nil)
+
   (local-set-key "\C-cb" 'gpb:ess-insert-browser)
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
   (local-set-key "\C-c\C-c" 'gpb-ess:save-and-load-command)
@@ -46,14 +51,9 @@ Contains a cons of two markers.")
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
 
   (setq-local ess-indent-with-fancy-comments nil)
-  ;; The Data section of the imenu entries is pretty useless.
-  (adelete 'ess-imenu-S-generic-expression "Data")
-  ;; Only match top-level function definitions.
-  (setcdr (assoc "Functions" ess-imenu-S-generic-expression)
-          '("^\\([^ \t\n]+\\)[ \t\n]*\\(?:<-\\|=\\)[ \t\n]*function[ ]*(" 1))
-  (adelete 'ess-imenu-S-generic-expression "Tests")
-  (nconc ess-imenu-S-generic-expression
-        '(("Tests" "^test_that([\"']\\(.*\\)[\"'], *{" 1)))
+
+  ;; (nconc ess-imenu-S-generic-expression
+  ;;        '(("Chunks" "^```{r \\(.*\\)}" 1)))
 
   ;;(gpb:ess-sniff-out-two-space-indentation)
   (setq ess-indent-offset 2)
@@ -81,7 +81,9 @@ Contains a cons of two markers.")
     (setq-local execute-text-object-function 'gpb:ess-eval-text-object)
     (gpb-tobj--define-key 'root "a" 'ess-last-eval-region :local t)
     (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
-    (gpb-tobj--define-key 'root "T" 'ess-test-func :local t :backwards t)))
+    (gpb-tobj--define-key 'root "T" 'ess-test-func :local t :backwards t)
+    (gpb-tobj--define-key 'root "c" 'ess-rmarkdown-chunk :local t)
+    (gpb-tobj--define-key 'root "C" 'ess-rmarkdown-chunk :local t :backwards t)))
 
 
 (defun gpb:inferior-ess-mode-hook ()
@@ -93,8 +95,8 @@ Contains a cons of two markers.")
   (local-set-key [?\t] 'gpb:inferior-ess-tab-command)
   (local-set-key [(backtab)] 'gpb:inferior-ess-previous-traceback)
   (local-set-key "\C-co" 'gpb:ess-view-data-frame)
-  (when (require 'gpb-text-objects nil t)
-    (local-set-key  "g" 'gpb:ess-goto-line t))
+  ;; (when (require 'gpb-text-objects nil t)
+  ;;   (local-set-key "g" 'gpb:ess-goto-line))
 
   ;; Override the help function
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
@@ -122,22 +124,32 @@ Contains a cons of two markers.")
 
   ;; This matches Shiny tracebacks like:
   ;;     <reactive> [/nfs/home/trpgh47/src/CrossAssetBeta/R/module_tradeTable.R#136]
+  ;; (aput 'compilation-error-regexp-alist-alist
+  ;;       'R2 '("\\(?:\\w\\|\\s.\\)+ \\[?\\(\\([^[() \n]+\\)#\\([0-9]+\\)\\)" 2 3 nil 2 1))
   (aput 'compilation-error-regexp-alist-alist
-        'R2 '("\\(?:\\w\\|\\s.\\)+ \\[?\\(\\([^[())\n]+\\)#\\([0-9]+\\)\\)" 2 3 nil 2 1))
+        'R2 '("\\[?\\(\\([^[() \n]+\\)#\\([0-9]+\\)\\)" 2 3 nil 2 1))
 
-  ;; Implementation detail of "?" help.
-  (add-hook 'comint-redirect-hook 'gpb:show-definition-buffer nil t)
+  ;; ;; Implementation detail of "?" help.
+  ;; (add-hook 'comint-redirect-hook 'gpb:show-definition-buffer nil t)
 
   ;; Track the current line when debugging like pdbtrack in Python.
   (add-hook 'comint-output-filter-functions
-            'gpb:ess-debug-track-comint-output-filter-function nil t))
+            #'gpb:ess-debug-track-comint-output-filter-function nil t)
+
+  (add-hook 'comint-preoutput-filter-functions
+            #'gpb-ess:initial-space-output-filter nil t))
 
 
 (defun gpb:ess-post-run-hook ()
   ;; Do some custom R process configuration
   ;; Disable magical handling of help.
-  (setq comint-input-sender 'inferior-ess-input-sender)
+
+  ;; Setting comint-process-echoes to t can cause things to block with a
+  ;; long runnging commmend.
+  (setq comint-process-echoes nil
+        comint-input-sender 'gpb:inferior-ess-input-sender)
   (ess-string-command gpb-ess:define-traceback-function nil 1)
+  (ess-string-command "options(menu.graphics = FALSE)\n" nil 1)
 
   ;; Use etags rather than ESS's custom xref implementation.
   (xref-etags-mode 1)
@@ -215,17 +227,17 @@ With a prefix argument, show the line but don't jump."
             (select-window window)))))))
 
 
-(defun gpb:show-definition-buffer ()
-  (let ((buffer gpb:output-buffer))
-    (pop-to-buffer buffer)
-    (with-current-buffer buffer
-      (setq-local buffer-read-only t)
-      (set-buffer-modified-p nil)
-      (goto-char 0)
-      ;; Some packages (like `gpb-modal'), get confused if we change
-      ;; buffers asyncronously in a callback function.  Running the
-      ;; `post-command-hook' helps them get sorted.
-      (run-hooks 'post-command-hook))))
+;; (defun gpb:show-definition-buffer ()
+;;   (let ((buffer gpb:output-buffer))
+;;     (pop-to-buffer buffer)
+;;     (with-current-buffer buffer
+;;       (setq-local buffer-read-only t)
+;;       (set-buffer-modified-p nil)
+;;       (goto-char 0)
+;;       ;; Some packages (like `gpb-modal'), get confused if we change
+;;       ;; buffers asyncronously in a callback function.  Running the
+;;       ;; `post-command-hook' helps them get sorted.
+;;       (run-hooks 'post-command-hook))))
 
 
 (defun gpb:inferior-ess-send-or-copy-input ()
@@ -240,56 +252,56 @@ an ESS inferior buffer."
    ;; easier browsing.  This is a workaround for reading function
    ;; definitions.  Ideally, we would prefer to jump to the definition but
    ;; I haven't figures that out yet.
-   ((and (comint-after-pmark-p) (looking-back "? *"))
-    (skip-chars-backward " ")
-    (skip-chars-backward "?")
-    (let* ((proc (get-buffer-process (current-buffer)))
-           (pmark (process-mark proc))
-           (initial-pmark (marker-position pmark))
-           (r-object (buffer-substring pmark (point)))
-           (buffer (get-buffer-create (concat "*" r-object "*")))
-           command)
-      (delete-region initial-pmark (save-excursion (end-of-line) (point)))
-      ;; Send a blank line and wait for a responds to trigger all the
-      ;; proper comint prompt accounting.
-      (inferior-ess-send-input)
-      (while (or (= (marker-position pmark) initial-pmark)
-                 (not (looking-back "> *")))
-        (accept-process-output proc 3 nil t))
-      ;; Now insert the fake input above.
-      (save-excursion
-        (goto-char initial-pmark)
-        (insert (concat r-object "?"))
-        (comint-add-to-input-history (concat r-object "?"))
-        (setq comint-input-ring-index nil))
+   ;; ((and (comint-after-pmark-p) (looking-back "? *"))
+   ;;  (skip-chars-backward " ")
+   ;;  (skip-chars-backward "?")
+   ;;  (let* ((proc (get-buffer-process (current-buffer)))
+   ;;         (pmark (process-mark proc))
+   ;;         (initial-pmark (marker-position pmark))
+   ;;         (r-object (buffer-substring pmark (point)))
+   ;;         (buffer (get-buffer-create (concat "*" r-object "*")))
+   ;;         command)
+   ;;    (delete-region initial-pmark (save-excursion (end-of-line) (point)))
+   ;;    ;; Send a blank line and wait for a responds to trigger all the
+   ;;    ;; proper comint prompt accounting.
+   ;;    (inferior-ess-send-input)
+   ;;    (while (or (= (marker-position pmark) initial-pmark)
+   ;;               (not (looking-back "> *")))
+   ;;      (accept-process-output proc 3 nil t))
+   ;;    ;; Now insert the fake input above.
+   ;;    (save-excursion
+   ;;      (goto-char initial-pmark)
+   ;;      (insert (concat r-object "?"))
+   ;;      (comint-add-to-input-history (concat r-object "?"))
+   ;;      (setq comint-input-ring-index nil))
 
-      (let ((obj-class (ess-string-command (format "class(%s)\n" r-object)))
-            (dt-command (format "print(%%s, %s)"
-                                (mapconcat 'identity
-                                           '("nrows = 10000"
-                                             "topn = 2000"
-                                             "row.names = FALSE")
-                                           ", "))))
-        (cond
-         ((string-match "^Error:" obj-class)
-          (setq command r-object))
-         ((string-match "data.table" obj-class)
-          (setq command (read-string "Print command: "
-                                     (format dt-command r-object))))
-         ((string-match "data.frame" obj-class)
-          (setq command (format "print(%s, max = 10000)" r-object)))
-         (t
-          (setq command r-object))))
+   ;;    (let ((obj-class (ess-string-command (format "class(%s)\n" r-object)))
+   ;;          (dt-command (format "print(%%s, %s)"
+   ;;                              (mapconcat 'identity
+   ;;                                         '("nrows = 10000"
+   ;;                                           "topn = 2000"
+   ;;                                           "row.names = FALSE")
+   ;;                                         ", "))))
+   ;;      (cond
+   ;;       ((string-match "^Error:" obj-class)
+   ;;        (setq command r-object))
+   ;;       ((string-match "data.table" obj-class)
+   ;;        (setq command (read-string "Print command: "
+   ;;                                   (format dt-command r-object))))
+   ;;       ((string-match "data.frame" obj-class)
+   ;;        (setq command (format "print(%s, max = 10000)" r-object)))
+   ;;       (t
+   ;;        (setq command r-object))))
 
 
-      ;; Now actually send the command and pipe the results to a new buffer.
-      (with-current-buffer buffer
-        (setq-local buffer-read-only nil)
-        (erase-buffer)
-        (insert (format "#\n#  %s\n#\n\n" command))
-        (ess-r-mode))
-      (setq-local gpb:output-buffer buffer)
-      (comint-redirect-send-command command buffer nil)))
+   ;;    ;; Now actually send the command and pipe the results to a new buffer.
+   ;;    (with-current-buffer buffer
+   ;;      (setq-local buffer-read-only nil)
+   ;;      (erase-buffer)
+   ;;      (insert (format "#\n#  %s\n#\n\n" command))
+   ;;      (ess-r-mode))
+   ;;    (setq-local gpb:output-buffer buffer)
+   ;;    (comint-redirect-send-command command buffer nil)))
 
 
    ;; If the input looks like "[Evaluate lines 11-22 in scratch.R]"
@@ -343,13 +355,6 @@ an ESS inferior buffer."
   ;; Better to just error out if it is going to try.  We do want to allow
   ;; it to search for existing interpreters as that logic seems pretty
   ;; involved.  See `ess-request-a-process'."
-
-  ;; edebug doesn't like this.  Are we using it correctly?
-  ;; (cl-letf (((symbol-function 'ess-start-process-specific)
-  ;;            (lambda (&rest) (error (concat "No interpreter process is "
-  ;;                                           "associated with this buffer.")))))
-  ;;   (ess-force-buffer-current "Process: " nil t nil))
-
   (cond
    ((eq obj 'ess-last-eval-region)
     (when (null gpb:ess-last-eval-region)
@@ -364,8 +369,7 @@ an ESS inferior buffer."
            (package-name (ess-string-command cmd nil 1)))
       ;; Test files are evaluated in the appropriate package namespace with
       ;; the test file dirctory as the working directory.
-      (gpb:ess-eval-region (point-min) (point-max)
-                           package-name default-directory)))
+      (gpb:ess-eval-region start end package-name default-directory)))
    (t
     (gpb:ess-eval-region start end))))
 
@@ -411,8 +415,8 @@ an ESS inferior buffer."
 
 (defun gpb:ess-send-traceback-command ()
   (interactive)
-  (ess-send-string (get-buffer-process (current-buffer)) ".essrTraceback()" t))
-
+  (ess-send-string (get-buffer-process (current-buffer))
+                   "traceback(rev(.traceback()), -1)" t))
 
 (defun gpb:ess-send-quit-command ()
   (interactive)
@@ -565,7 +569,8 @@ to be the working directory."
       (let* ((filename (gpb:ess-make-region-file beg end proc-default-directory
                                                  package working-dir))
              (local-filename (or (file-remote-p filename 'localname) filename))
-             (cmd (format "source(%s)" (prin1-to-string local-filename)))
+             (cmd (format "source(%s, print.eval = TRUE)"
+                          (prin1-to-string local-filename)))
              (text (format "[Evaluate lines %s-%s in %s]"
                            line1 line2 (buffer-name))))
         (gpb:exit-all-browsers)
@@ -847,7 +852,7 @@ displayed."
           (and (re-search-backward "test_that(" nil t)
                ;; Move forward to the opening parenthesis after "that_that"
                (goto-char (1- (match-end 0)))
-               ;; Move forward to mathcing closing parenthesis
+               ;; Move forward to matching closing parenthesis
                (progn (forward-sexp) t)
                ;; If we are not in front of where we started, we are done.
                (> (point) pt))
@@ -863,6 +868,16 @@ displayed."
       (t (error "Runtime error")))))
 
 
+(defun gpb:ess-forward-chunk (arg)
+  "Move to the beginning or end of the current R Markdown chunk."
+  (let ((pt (point)))
+    (case arg
+      (1 (re-search-forward "```\n")
+         (forward-line -1))
+      (-1 (re-search-backward "```{")
+          (forward-line 1))
+      (t (error "Runtime error")))))
+
 
 ;; This guard may not matter due to eager macro expansion.
 (when (require 'gpb-text-objects nil t)
@@ -873,8 +888,11 @@ displayed."
 
   (gpb-tobj--define-flat-text-object ess-test-func
     "A `test_that` test definition."
-    :forward-func gpb:ess-forward-test))
+    :forward-func gpb:ess-forward-test)
 
+  (gpb-tobj--define-flat-text-object ess-rmarkdown-chunk
+    "An R Markdown chunk test definition."
+    :forward-func gpb:ess-forward-chunk))
 
 
 ;; BUGFIX: workaround the fact that devtools::help always prints the help,
@@ -1205,23 +1223,24 @@ DIR defaults to `default-directory'."
                             (point)
                             ;; Don't include the newline.
                             (progn (forward-line 1) (1- (point)))))
-          (message "Reading %s ..." source-dir)
-          ;; Ignore blank lines and lines starting with '#'.
-          (when (not (string-match "^\\(#\\| *$\\)" source-dir))
-            (setq cmd (format cmd-template source-dir))
-            (with-current-buffer ess-buf
-              ;; `expand-file-name' behaves in way that breaks
-              ;; `etags-file-of-tag' on Windows with a remote
-              ;; `default-directory' and an absolute path so we need to use
-              ;; relative paths in our TAGS file.  We set the R working
-              ;; directory before we call rtags to get relative paths.
-              ;;
-              ;; (expand-file-name  "/home/user/src/DT_0.5/DT/R/shiny.R"
-              ;;                    "/plinkx:SESSION:/home/user/")
-              ;; => "c:/home/user/src/DT_0.5/DT/R/shiny.R"
-              ;;
-              (gpb:ess-with-working-dir working-dir
-                (ess-command cmd)))))))
+          (unless (string-prefix-p "#" source-dir)
+            (message "Reading %s ..." source-dir)
+            ;; Ignore blank lines and lines starting with '#'.
+            (when (not (string-match "^\\(#\\| *$\\)" source-dir))
+              (setq cmd (format cmd-template source-dir))
+              (with-current-buffer ess-buf
+                ;; `expand-file-name' behaves in way that breaks
+                ;; `etags-file-of-tag' on Windows with a remote
+                ;; `default-directory' and an absolute path so we need to use
+                ;; relative paths in our TAGS file.  We set the R working
+                ;; directory before we call rtags to get relative paths.
+                ;;
+                ;; (expand-file-name  "/home/user/src/DT_0.5/DT/R/shiny.R"
+                ;;                    "/plinkx:SESSION:/home/user/")
+                ;; => "c:/home/user/src/DT_0.5/DT/R/shiny.R"
+                ;;
+                (gpb:ess-with-working-dir working-dir
+                  (ess-command cmd))))))))
 
     ;; Now fix up the TAGS file.  The rtags command only keeps the first
     ;; letter of each identifier in the first field of the tag.  This makes
@@ -1339,14 +1358,19 @@ interactively."
 
 
 (defun gpb-ess:save-and-load-command (arg)
-  "Save the current buffer and then source it or reload the package."
+  "Save the current buffer and then source it or reload the package.
+
+With a prefix argument, we source with chdir = TRUE or update the
+Rmarkdown render expression."
   (interactive "P")
   (let* ((filename (buffer-file-name))
          (localname (ignore-errors (file-local-name filename)))
          (ess-proc (ess-get-process))
+         (ess-proc-buf (process-buffer ess-proc))
          dir cmd)
     ;; Get the name of the directory that contains filename.
-    (setq dir (ignore-errors (directory-file-name (file-name-directory localname))))
+    (setq dir (ignore-errors (directory-file-name
+                              (file-name-directory localname))))
     (when filename (save-buffer))
     (cond
      ((string-suffix-p ".Rmd" localname t)
@@ -1355,18 +1379,22 @@ interactively."
                  (read-string "Build command: "
                               (format "rmarkdown::render('%s')" localname)))))
         (setq-local gpb-ess:build-cmd build-cmd)
-        (ess-send-string ess-proc build-cmd t)
-        (with-current-buffer (process-buffer ess-proc)
-          (comint-add-to-input-history build-cmd))))
+        (with-current-buffer ess-proc-buf
+          (comint-add-to-input-history build-cmd)
+          (goto-char (point-max)))
+        (display-buffer ess-proc-buf)
+        (ess-send-string ess-proc build-cmd t)))
 
      ;; If we are in a package, reload the package.
      ((string-equal (ignore-errors (file-name-base dir)) "R")
       (gpb:ess-save-package)
-      (setq cmd (format "devtools::load_all('%s', export_all = FALSE)"
+      (setq cmd (format "pkgload::load_all('%s', export_all = FALSE)"
                         (directory-file-name (file-name-directory dir))))
-      (ess-send-string ess-proc cmd t)
+      (display-buffer (process-buffer ess-proc))
       (with-current-buffer (process-buffer ess-proc)
-        (comint-add-to-input-history cmd)))
+        (comint-add-to-input-history cmd)
+        (goto-char (point-max)))
+      (ess-send-string ess-proc cmd t))
 
      ;; If we are in a test file, source the file but evaluate in the
      ;; current package namespace with the current directory as the working
@@ -1484,7 +1512,8 @@ x <- (
 
 (defun gpb:ess-test-package ()
   (interactive)
-  (let* ((localname (file-local-name (buffer-file-name)))
+  (let* ((procbuf (process-buffer (ess-get-process)))
+         (localname (file-local-name (buffer-file-name)))
          (cmd1 (format "cat(pkgload::pkg_name('%s'), fill = TRUE)\n" localname))
          (package-name (ess-string-command cmd1 nil 0.2))
          (cmd2 (format "pkgload::load_all('%s', export_all = FALSE)" package-name))
@@ -1492,8 +1521,12 @@ x <- (
                        package-name)))
 
     (ess-switch-to-end-of-ESS)
+    (with-current-buffer procbuf
+      (setq-local gpb-ess:initial-space-output-filter-flag t))
     (ess-send-string (ess-get-process) cmd2 t)
     (ess-wait-for-process)
+    (with-current-buffer procbuf
+      (setq-local gpb-ess:initial-space-output-filter-flag t))
     (ess-send-string (ess-get-process) cmd3 t)))
 
 
@@ -1518,6 +1551,7 @@ x <- (
 (defun gpb:ess-choose-interpreter ()
   (interactive)
   (update-ess-process-name-list)
+  (when (null ess-process-name-list) (error "No R processes"))
   (let ((keymap (make-sparse-keymap))
         (indent "    ")
         (dir default-directory)
@@ -1598,6 +1632,23 @@ x <- (
           (indent-to-column col))))))
 
 
+(defvar-local gpb-ess:initial-space-output-filter-flag nil
+  "Set this flag to delete the next initial space from process output.
+The filter function `gpb-ess:initial-space-output-filter' checks this flag.")
+
+
+(defun gpb-ess:initial-space-output-filter (text)
+  "Remove an initial space at the beginning of some process output.
+
+Somewhere in the complexity of the interaction between ESS and
+comint we pick up extra initial spaces for some common commands.
+This filter removes that newline."
+  (let* ((checkmark-character (char-to-string 10004))
+         (regex (format "^\n\\(Loading\\|%s\\)" checkmark-character)))
+    ;; If we match, remove the first character.
+    (if (string-match regex text) (substring text 1) text)))
+
+
 (defun gpb:make-functionish-regex (keyword)
   (format "%s%s%s" "^ *\\([^ \t\n]+\\)[ \t\n]*\\(?:<-\\|=\\)[ \t\n]*"
           keyword "[ \t]*("))
@@ -1621,3 +1672,10 @@ x <- (
 
   (nconc imenu-generic-expression
          `(("observeEvents" ,(gpb:make-functionish-regex "observeEvent") 1))))
+
+
+(defun gpb:inferior-ess-input-sender (proc string)
+  "Replacement for ESS version that doesn't add extra echoing."
+  (inferior-ess--interrupt-subjob-maybe proc)
+  (let ((comint-input-filter-functions nil))
+    (ess-send-string proc string)))
