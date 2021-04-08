@@ -203,7 +203,9 @@ Attempts to pop a process running on the correct machine from
 up a new process if nothing is available in the worker pool.  The
 caller is responsible for returning the buffer by calling
 `shpool-return-buffer' when done."
-  (let* ((local-dir (directory-file-name
+  (shpool-trace-call)
+  (let* ((dir (or dir default-directory))
+         (local-dir (directory-file-name
                      (file-local-name (expand-file-name dir))))
          (tramp-prefix (or (file-remote-p (or dir default-directory)) ""))
          (key-value (assoc tramp-prefix shpool-worker-pool))
