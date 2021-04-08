@@ -249,7 +249,12 @@ caller is responsible for returning the buffer by calling
 (defun shpool-return-buffer (buf)
   "Return BUF and its process to the worker pool."
   (with-current-buffer buf
-    (let ((tramp-prefix (or (file-remote-p default-directory) "")))
+    (let ((tramp-prefix (or (file-remote-p default-directory) ""))
+          (proc (get-buffer-process buf)))
+      ;; Reset the sentinel and filter before returning to the pool.
+      (when (process-live-p proc)
+        (set-process-sentinel proc nil)
+        (set-process-filter proc nil))
       (push `(,tramp-prefix . ,buf) shpool-worker-pool))))
 
 
