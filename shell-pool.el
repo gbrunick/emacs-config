@@ -28,9 +28,11 @@ denotes the local machine.")
   "Arbitrary string that is used to mark locations within process output.
 
 We want this string to be something that is unlikely to show up
-at the start of a line in any command output and doesn't require
-any shell quoting.")
+in any command output and doesn't require any shell quoting.")
 
+(defvar shpool-output-start (format "START:%s" shpool-output-marker))
+(defvar shpool-output-end (format "END:%s" shpool-output-marker))
+(defvar shpool-ping (format "PING:%s" shpool-output-marker))
 
 (defun shpool-async-shell-command (cmd dir &optional callback)
   "Execute CMD in DIR and call CALLBACK as output becomes available.
@@ -63,15 +65,14 @@ processing command and nil otherwise."
 
       (set-process-filter proc #'shpool-async-shell-command--process-filter)
       (setq proc-cmd
-            (if (shpool-use-cmd-exe-p)
-                (mapconcat 'identity
-                           (list (format "echo %s:output-start & "
-                                         shpool-output-marker)
-                                 cmd
-                                 (format "& echo %s:output-end"
-                                         shpool-output-marker)))
-              (format "echo; echo $start_marker; %s; echo; echo $end_marker;"
-                      cmd)))
+            (cond
+             ((shpool-use-cmd-exe-p)
+              (mapconcat 'identity
+                         (list (format "echo %s & " shpool-output-start)
+                               cmd
+                               (format "& echo %s" shpool-output-end))))
+             (t (format "echo \"$output_start\"; %s; echo \"$output_end\";"
+                        cmd))))
 
       (process-send-string proc (format "%s\n" proc-cmd)))))
 
@@ -82,8 +83,8 @@ processing command and nil otherwise."
   (when (buffer-live-p (process-buffer proc))
     (let ((proc-buf (process-buffer proc))
           ;; echo includes the trailing space when called from cmd.exe.
-          (start-regex (format "^%s:output-start" shpool-output-marker))
-          (end-regex (format "^%s:output-end" shpool-output-marker))
+          (start-regex (format "^%s" shpool-output-start))
+          (end-regex (format "^%s" shpool-output-end))
           ;; `output-start' and `output-end' will delimit `string' after we
           ;; insert it in the buffer.
           output-start output-end
@@ -254,27 +255,24 @@ a Windows machine but working remotely via TRAMP) we use bash."
          (ignore-errors (not (file-remote-p dir))))))
 
 (defun shpool-start-bash-process (&optional buf)
+  (shpool-trace-call)
   (let* ((buf (or buf (current-buffer)))
-         (proc (start-file-process "bash-server" buf "bash" "--noediting"))
-         (start-marker (format "%s:output-start\n" shpool-output-marker))
-         (end-marker (format "%s:output-end\n" shpool-output-marker)))
+         (proc (start-file-process "bash-server" buf "bash" "--noediting")))
 
     ;; Echo process input
     (process-send-string proc "stty echo\n")
-    ;; No prompt
+    ;; No prompts.  It just makes the output more non-deterministic.
     (process-send-string proc "PS1=\n")
-    ;; Define boundary values
-    (process-send-string proc (format "start_marker=%s\n" start-marker))
-    (process-send-string proc (format "end_marker=%s\n" end-marker))
-    (process-send-string proc "echo\n")
-    (process-send-string proc "echo $end_marker\n")
-
-    ;; Wait for the last echo statement to complete.
-    (while (not (save-excursion
-                  (goto-char (point-min))
-                  (re-search-forward (format "^%s" end-marker) nil t)))
-      (accept-process-output proc))
-
+    (process-send-string proc "PS2=\n")
+    ;; Define boundary values.  We jump through all this quoting to insert
+    ;; a newline at the start of the string.  Using these varaibles allows
+    ;; us to avoid embedding the marker string directly in the shell
+    ;; commands.
+    (process-send-string proc (format "output_start=\"\n%s\"\n"
+                                      shpool-output-start))
+    (process-send-string proc (format "output_end=\"\n%s\"\n"
+                                      shpool-output-end))
+    (process-send-string proc (format "ping=\"\n%s\"\n" shpool-ping))
     ;; Return the new process.
     proc))
 
