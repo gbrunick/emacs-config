@@ -218,7 +218,11 @@ caller is responsible for returning the buffer by calling
       (setcar key-value nil)
       (setq shpool-worker-pool (assoc-delete-all nil shpool-worker-pool)))
 
-    ;; If the process is dead, use a new buffer.
+
+    (when (process-live-p proc) (shpool-check-for-life buf))
+
+    ;; If the process is dead, use a new buffer.  Leave the buffer for
+    ;; debugging purposes.
     (unless (process-live-p proc)
       (setq buf (shpool-generate-new-buffer "shell-pool-server"))
       (with-current-buffer buf
@@ -226,7 +230,10 @@ caller is responsible for returning the buffer by calling
         (setq default-directory dir)
         (setq proc (if (shpool-use-cmd-exe-p)
                        (start-file-process "cmd-server" buf "cmd")
-                     (shpool-start-bash-process)))))
+                     (shpool-start-bash-process)))
+        ;; Checking for life here ensures that we have accepted all process
+        ;; output before calling `erase-buffer' below.
+        (shpool-check-for-life buf)))
 
     (with-current-buffer buf
       (erase-buffer)
@@ -345,6 +352,20 @@ The argument N gives the number of additional step to skip."
               (set-marker-insertion-type m t)
               (delete-region (+ m 1) (+ m 2))))
           (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m))))))
+
+
+(defun shpool-check-for-life (&optional buf)
+  (let* ((buf (or buf (current-buffer)))
+         (proc (get-buffer-process buf)))
+    (with-current-buffer buf
+      ;; Confirm that the process is alive.
+      (process-send-string proc (format "echo \"$ping\"\n"))
+      ;; Wait for the last echo statement to complete.
+      (while (not (save-excursion
+                    (goto-char (point-min))
+                    (re-search-forward (format "^%s" shpool-ping) nil t)))
+        (accept-process-output proc)))))
+
 
 
 (provide 'shell-queue)
