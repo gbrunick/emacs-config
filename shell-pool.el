@@ -34,7 +34,8 @@ in any command output and doesn't require any shell quoting.")
 (defvar shpool-output-end (format "END:%s" shpool-output-marker))
 (defvar shpool-ping (format "PING:%s" shpool-output-marker))
 
-(defun shpool-async-shell-command (cmd dir &optional callback)
+
+(defun shpool-async-shell-command (cmd dir &optional callback env-vars)
   "Execute CMD in DIR and call CALLBACK as output becomes available.
 
 CMD is a string that is passed through to a Bash or cmd.exe
@@ -48,15 +49,39 @@ longer alive, CALLBACK is not be called.
 
 CALLBACK is called as output is read from the worker process.
 The buffer containing process output is passed to CALLBACK as
-BUF.  START and END give the region that contains new output.
-The new output only contains complete lines (i.e., newline
-terminated).  COMPLETE is t when this worker has finished
-processing command and nil otherwise."
+BUF.  START and END give the region that contains new output and
+COMPLETE is initially nil.  The new output only contains complete
+lines (i.e., newline terminated).  After all lines have been
+process, the callback is called a final time with COMPLETE equal
+to t.  In this case, START and END delimit all process output.
+In particular, callers that don't want to process the output in
+real-time, can wait for COMPLETE and then process all output
+between START and END.
+
+If ENV-VARS is provided, it is a list of strings of the form
+VARNAME=VALUE.  In this case, we run CMD in an inferior shell in
+which these environment variables have been set."
   (shpool-trace-call)
   (let ((buf (current-buffer))
         (server-buf (shpool-get-server-buf dir))
         (local-dir (file-local-name default-directory))
         proc proc-cmd)
+
+    (when (not (null env-vars))
+      (if (shpool-use-cmd-exe-p)
+          ;; cmd.exe
+          (let ((var-defs (mapconcat (lambda (def)
+                                       (format "SET %s=%s" (car def)
+                                               (shell-quote-argument (cdr def))))
+                                     env-vars " && ")))
+            (setq cmd (format "cmd.exe /c \"%s\"" var-defs cmd)))
+        ;; Bash
+        (let ((var-defs (mapconcat (lambda (def)
+                                     (format "%s=%s" (car def)
+                                             (shell-quote-argument (cdr def))))
+                                   env-vars " ")))
+          (setq cmd (format "env %s bash -c '%s'" var-defs cmd)))))
+
     (with-current-buffer server-buf
       ;; Set variables for `shpool-async-shell-command--process-filter'.
       (setq-local callback-buf buf)
@@ -131,16 +156,22 @@ processing command and nil otherwise."
                                 end-marker))
           (let ((f callback-func))
             (with-current-buffer callback-buf
-              (funcall f proc-buf output-start output-end complete))))))))
+              (funcall f proc-buf output-start output-end nil)
+              (when complete
+                (funcall f proc-buf start-marker end-marker t))))
+
+          (when complete (shpool-return-buffer proc-buf)))))))
 
 
-(defun shpool-shell-command (cmd &optional bufname)
+(defun shpool-shell-command (cmd &optional bufname env-vars)
   "Execute CMD in a new buffer and pop to that buffer.
 
 CMD is a string that is passed through to an interactive bash or
 cmd.exe process.  BUFNAME is a string giving the name of the
 buffer in which the results are written.  Any current contents
-are deleted."
+are deleted.  If ENV-VARS is provided, it is a list of strings of
+the form VARNAME=VALUE.  In this case, we run CMD in an inferior
+shell in which these environment variables have been set."
   (interactive "sShell Command: ")
   (shpool-trace-call)
   (let* ((dir default-directory)
@@ -151,48 +182,52 @@ are deleted."
       (fundamental-mode)
       (setq-local default-directory dir)
       (setq-local mode-line-process ":running")
-      (insert (format "Working Dir: %s\n\n" default-directory))
-      (insert (format "%s\n\n" cmd))
+      (insert (format "Working Directory: %s\n\n" default-directory))
+      (when env-vars
+        (insert "Environment Varables:\n")
+        (insert (mapconcat (lambda (def) (format "  %s=%s" (car def) (cdr def)))
+                           env-vars "\n"))
+        (insert "\n\n"))
+      (insert (format "> %s\n\n" cmd))
       (setq-local output-marker (shpool-insert-spinner))
-      ;;(put 'output-marker 'permanent-local t)
-      (goto-char (point-min))
-      (shpool-async-shell-command cmd dir #'shpool-shell-command-1))
+      (shpool-async-shell-command cmd dir #'shpool-shell-command-1 env-vars))
     (switch-to-buffer buf)
     buf))
 
 
 (defun shpool-shell-command-1 (buf start end complete)
   (shpool-trace-call)
-  (let ((new-text (with-current-buffer buf (buffer-substring start end)))
-        (tramp-prefix (or (file-remote-p default-directory) ""))
-        (inhibit-read-only t)
-        this-line move-pt path)
+  (cond
+   (complete
+    ;; Delete the spinner
+    (delete-region output-marker (point-max))
+    (setq mode-line-process ":complete"))
 
-    ;; Insert the new text and fix up the display.
-    (save-excursion
-      (if (= (point) output-marker)
-          (setq move-pt t)
-        (goto-char output-marker))
+   (t
+    (let ((new-text (with-current-buffer buf (buffer-substring start end)))
+          (tramp-prefix (or (file-remote-p default-directory) ""))
+          (inhibit-read-only t)
+          this-line move-pt path)
 
-      ;; This insertion moves `output-marker'
-      (save-excursion (insert new-text))
-
-      ;; Delete output that was overwritten using carriage returns.
+      ;; Insert the new text and fix up the display.
       (save-excursion
-        (while (re-search-forward "^[^]*" nil t)
-          (delete-region (match-beginning 0) (match-end 0))))
+        (if (= (point) output-marker)
+            (setq move-pt t)
+          (goto-char output-marker))
 
-      ;; Color new input.
-      (ansi-color-apply-on-region (point) output-marker)
+        ;; This insertion moves `output-marker'
+        (save-excursion (insert new-text))
 
-      (when complete
-        ;; Delete the spinner
-        (delete-region output-marker (point-max))
-        (setq mode-line-process ":complete")
-        (shpool-return-buffer buf)))
+        ;; Delete output that was overwritten using carriage returns.
+        (save-excursion
+          (while (re-search-forward "^[^]*" nil t)
+            (delete-region (match-beginning 0) (match-end 0))))
 
-    (when move-pt
-      (goto-char output-marker))))
+        ;; Color new input.
+        (ansi-color-apply-on-region (point) output-marker)
+
+        (when move-pt
+          (goto-char output-marker)))))))
 
 
 (defun shpool-get-server-buf (&optional dir)
