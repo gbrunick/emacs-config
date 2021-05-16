@@ -67,7 +67,7 @@
 (global-set-key "\C-cn" 'gpb-new-document)
 (global-set-key "\C-c$" 'gpb-ispell)
 (global-set-key "\C-cg" 'gpb-grep)
-(global-set-key "\C-cr" 'recentf-open-files)
+(global-set-key "\C-cr" 'gpb-recentf-open-files-filtered)
 
 ;; The next binding does nothing because escape is now remapped to C-g
 ;; at the input-decode level
@@ -617,6 +617,7 @@
 ;; We append to the hook because we want to save the list after
 ;; #`recentf-track-opened-file updates it.
 (add-hook 'find-file-hook #'recentf-save-list t)
+(setq recentf-max-saved-items 100)
 
 ;; More convenience names for some interactive functions.
 (defalias 'ediff-with-saved 'gpb-ediff-with-saved)
