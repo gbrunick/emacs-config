@@ -6,8 +6,8 @@
 ;; helpful when working on remote machines if it takes a while for TRAMP to
 ;; spin up a new process.
 ;;
-;; The main function is `shpool-async-shell-command' which is use to
-;; implement the `shpool-shell-command' which provides a potential
+;; The main function is `shpool-async-shell-command' which is used to
+;; implement the `shpool-shell-command'.  The later function is a potential
 ;; replacement for the interactive use of `shell-command'.
 ;;
 
@@ -314,7 +314,7 @@ a Windows machine but working remotely via TRAMP) we use bash."
     (process-send-string proc "PS1=\n")
     (process-send-string proc "PS2=\n")
     ;; Define boundary values.  We jump through all this quoting to insert
-    ;; a newline at the start of the string.  Using these varaibles allows
+    ;; a newline at the start of the string.  Using these variables allows
     ;; us to avoid embedding the marker string directly in the shell
     ;; commands.
     (process-send-string proc (format "output_start=\"\n%s\"\n"
@@ -374,7 +374,7 @@ The argument N gives the number of additional step to skip."
 
 
 (defun shpool-insert-spinner--spin (m)
-  "Implementation detail of `gpb-git:insert-spinner'"
+  "Implementation detail of `shpool-insert-spinner'"
   (let ((buf (marker-buffer m)))
     (when (buffer-live-p buf)
       (with-current-buffer buf
@@ -400,13 +400,15 @@ The argument N gives the number of additional step to skip."
     (with-current-buffer buf
       ;; Confirm that the process is alive.
       (process-send-string proc (format "echo \"$ping\"\n"))
+
       ;; Wait for the last echo statement to complete.
-      (while (not (save-excursion
-                    (goto-char (point-min))
-                    (re-search-forward (format "^%s" shpool-ping) nil t)))
-        (accept-process-output proc)))))
+      (with-timeout (5 (error "Timeout waiting for process"))
+        (while (not (save-excursion
+                      (goto-char (point-min))
+                      (re-search-forward (format "^%s" shpool-ping) nil t)))
+          (accept-process-output proc))))))
 
 
 
-(provide 'shell-queue)
+(provide 'shell-pool)
 
