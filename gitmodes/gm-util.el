@@ -122,7 +122,8 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
          (remote (or (file-remote-p path) 'local))
          (key-value (assoc remote gpb-git:temporary-dirs))
          (tmpdir (cdr key-value)))
-    (unless tmpdir
+    ;; `file-directory-p' checks for existence.
+    (unless (and tmpdir (file-directory-p tmpdir))
       (setq tmpdir (file-name-as-directory (make-nearby-temp-file nil t)))
       (aput 'gpb-git:temporary-dirs remote tmpdir))
     tmpdir))

@@ -26,7 +26,7 @@ commands.")
 
 Attempts to pop a bash process with the correct working directory
 from `gpb-git:worker-pool'.  Spins up a new process if nothing is
-available in the worker pool.  The caller is responsible for add
+available in the worker pool.  The caller is responsible for adding
 the buffer returned back to `gpb-git:worker-pool' when done using
 the worker."
   (let* ((repo-root (or repo-root default-directory))
@@ -45,9 +45,7 @@ the worker."
 
 
 (defun gpb-git:make-git-server-buf (repo-root)
-  "Create a buffer containing a live bash process.
-
-The buffer name is based on the buffer name of the current buffer."
+  "Create a buffer containing a live bash process."
   (gpb-git--trace-funcall)
   (let* ((buf (gpb-git--get-new-buffer "*git server" "*"))
          (dir default-directory)
@@ -84,7 +82,9 @@ The buffer name is based on the buffer name of the current buffer."
                 process-environment)
           (push (format "GIT_SEQUENCE_EDITOR=bash %s"
                         (file-local-name tmpfile-name))
-                process-environment))))
+                process-environment)
+          ;; Don't record BASH commands in the history file.
+          (push "HISTFILE" process-environment))))
 
       (setq default-directory repo-root
             proc (if (gpb-git:use-cmd-exe repo-root)
@@ -389,6 +389,23 @@ a Windows machine but working remotely via TRAMP) we use bash."
   (let ((dir (or dir default-directory)))
     (and (eq window-system 'w32)
          (ignore-errors (not (file-remote-p default-directory))))))
+
+
+(defun gpb-git:reset-worker-pool ()
+  "Reset the worker pool of worker processes"
+  (interactive)
+  (dolist (dir-buf gpb-git:worker-pool)
+    (let* ((buf (cdr dir-buf))
+           (proc (get-buffer-process buf)))
+      (when (process-live-p proc) (kill-process proc))
+      (kill-buffer buf)))
+  (setq gpb-git:worker-pool nil))
+
+
+(defun gpb-git:push-changes ()
+  (interactive)
+  (let ((cmd (read-string "Git Shell Command: " "git push -u origin HEAD")))
+    (gpb-git:shell-command cmd)))
 
 
 (provide 'gm-shell-commands)

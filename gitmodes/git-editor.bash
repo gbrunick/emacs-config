@@ -5,6 +5,7 @@ mkfifo "$tmppipe"
 
 function finish {
     rm $tmppipe
+    echo Deleted $tmppipe
 }
 trap finish EXIT
 

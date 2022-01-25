@@ -77,77 +77,86 @@ status output."
     (save-excursion
       (let ((status-text (with-current-buffer buf (buffer-string)))
             (inhibit-read-only t))
-
         (goto-char put-status-here)
         (insert status-text)
         (goto-char put-status-here)
-        (when (re-search-forward "Changes to be committed:" nil t)
-          (insert " (")
-          (insert-text-button "view all"
-                              'action 'gpb-git:show-status--show-staged-changes
-                              'repo-dir default-directory)
-          (insert ")")
-          (forward-line 1)
-
-          (while (looking-at "^\t[^\t]")
-            (let* ((regex (concat "^\t\\(deleted:\\|modified:"
-                                  "\\|new file:\\|renamed:\\)?"
-                                  " *\\(.*\\)$"))
-                   (ov (make-overlay (point)
-                                     (progn (re-search-forward regex)
-                                            (forward-line 1)
-                                            (point))))
-                   (filename (match-string 2)))
-
-              (overlay-put ov 'staged t)
-              (overlay-put ov 'filename filename)
-              (make-text-button
-               (match-beginning 2) (match-end 2)
-               'action 'gpb-git:show-status--show-staged-file-diff
-               'filename filename))))
-
-        (when (re-search-forward "Changes not staged for commit:" nil t)
-          (insert " (")
-          (insert-text-button
-           "view all" 'action 'gpb-git:show-status--show-unstaged-changes
-           'repo-dir default-directory)
-          (insert ")")
-          (forward-line 1)
-
-          (while (looking-at "^\t[^\t]")
-            (let* ((regex (concat "^\t\\(deleted:\\|modified:\\|new file:\\)?"
-                                  " *\\(.*\\)$"))
-                   (ov (make-overlay (point)
-                                     (progn (re-search-forward regex)
-                                            (forward-line 1)
-                                            (point))))
-                   (filename (match-string 2)))
-
-              (overlay-put ov 'unstaged t)
-              (overlay-put ov 'filename filename)
-              (make-text-button (match-beginning 2) (match-end 2)
-                                'action
-                                'gpb-git:show-status--show-unstaged-file-diff
-                                'filename filename))))
-
-        (when (re-search-forward "Untracked files:" nil t)
-          (forward-line 1)
-
-          (while (looking-at "^\t[^\t]")
-            (let* ((regex (concat "^\t\\(.*\\)$"))
-                   (ov (make-overlay (point)
-                                     (progn (re-search-forward regex)
-                                            (forward-line 1)
-                                            (point))))
-                   (filename (match-string 1)))
-
-              (overlay-put ov 'untracked t)
-              (overlay-put ov 'filename filename))))
-
-
-        (untabify (point-min) (point-max))))
+        (gpb-git:markup-status-output)))
     (goto-char original-point)
     (forward-line 0)))
+
+(defun gpb-git:markup-status-output ()
+  "Markup git status output in the current buffer."
+
+  ;; Some version of Git (e.g. 1.8.3.1) prefix the status output with
+  ;; comment characters.
+  (save-excursion
+    (while (re-search-forward "^# ?" nil t)
+      (replace-match "")))
+
+  (when (re-search-forward "Changes to be committed:" nil t)
+    (insert " (")
+    (insert-text-button "view all"
+                        'action 'gpb-git:show-status--show-staged-changes
+                        'repo-dir default-directory)
+    (insert ")")
+    (forward-line 1)
+
+    (while (looking-at "^\t[^\t]")
+      (let* ((regex (concat "^\t\\(deleted:\\|modified:"
+                            "\\|new file:\\|renamed:\\)?"
+                            " *\\(.*\\)$"))
+             (ov (make-overlay (point)
+                               (progn (re-search-forward regex)
+                                      (forward-line 1)
+                                      (point))))
+             (filename (match-string 2)))
+
+        (overlay-put ov 'staged t)
+        (overlay-put ov 'filename filename)
+        (make-text-button
+         (match-beginning 2) (match-end 2)
+         'action 'gpb-git:show-status--show-staged-file-diff
+         'filename filename))))
+
+  (when (re-search-forward "Changes not staged for commit:" nil t)
+    (insert " (")
+    (insert-text-button
+     "view all" 'action 'gpb-git:show-status--show-unstaged-changes
+     'repo-dir default-directory)
+    (insert ")")
+    (forward-line 1)
+
+    (while (looking-at "^\t[^\t]")
+      (let* ((regex (concat "^\t\\(deleted:\\|modified:\\|new file:\\)?"
+                            " *\\(.*\\)$"))
+             (ov (make-overlay (point)
+                               (progn (re-search-forward regex)
+                                      (forward-line 1)
+                                      (point))))
+             (filename (match-string 2)))
+
+        (overlay-put ov 'unstaged t)
+        (overlay-put ov 'filename filename)
+        (make-text-button (match-beginning 2) (match-end 2)
+                          'action
+                          'gpb-git:show-status--show-unstaged-file-diff
+                          'filename filename))))
+
+  (when (re-search-forward "Untracked files:" nil t)
+    (forward-line 1)
+
+    (while (looking-at "^\t[^\t]")
+      (let* ((regex (concat "^\t\\(.*\\)$"))
+             (ov (make-overlay (point)
+                               (progn (re-search-forward regex)
+                                      (forward-line 1)
+                                      (point))))
+             (filename (match-string 1)))
+
+        (overlay-put ov 'untracked t)
+        (overlay-put ov 'filename filename))))
+
+  (untabify (point-min) (point-max)))
 
 
 (defun gpb-git:show-status--mark-file ()
