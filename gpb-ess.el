@@ -7,9 +7,29 @@
 (require 'cl-lib)
 (require 'ffap)
 (require 'tramp)
+(require 'gpb-r-mode)
 
 ;; For `string-trim'.
 (require 'subr-x)
+
+(defvar gpb:ess-start-of-output-marker
+  "START: 75b30f72-85a0-483c-98ce-d24414394ff9"
+  "Arbitrary string used to denote the end of R output.")
+
+(defvar gpb:ess-end-of-output-marker
+  "END: 75b30f72-85a0-483c-98ce-d24414394ff9"
+  "Arbitrary string used to denote the end of R output.")
+
+(defcustom gpb:ess-tmpdir-map nil
+  "Override the default temporary directory location.
+
+The value is a alist where the keys are TRAMP prefix strings as
+returned by `file-remote-p' and the values are paths to a
+temporary directory.  If set, this location is used when writing
+region code to a temporary file for execution."
+  :type '(alist :key-type (string :tag "TRAMP Prefix")
+                :value-type (string :tag "Temp Dir"))
+  :group 'gpb-ess)
 
 
 (defvar gpb:ess-region-file-cache nil
@@ -21,16 +41,15 @@ two filenames for temporary files that are used by
 `gpb:ess-eval-region' to allow for evaluation of regions of
 code.")
 
+(defvar gpb:ess-primary-interpeter-buffer nil
+  "The primary interpreter buffer")
+
 (add-hook 'R-mode-hook 'gpb:R-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 (add-hook 'ess-r-post-run-hook 'gpb:ess-post-run-hook)
 
-
-(defvar gpb:ess-last-eval-region nil
-  "The last region that was sent to the interpreter.
-Contains a cons of two markers.")
-
-(setq ess-use-auto-complete nil)
+(setq ess-use-auto-complete nil
+      ess-use-tracebug t)
 
 (defun gpb:R-mode-hook ()
   ;; Get rid of the annoying "smart underscore" behaviour.
@@ -79,7 +98,6 @@ Contains a cons of two markers.")
     (yas-minor-mode 1))
   (when (require 'gpb-text-objects nil t)
     (setq-local execute-text-object-function 'gpb:ess-eval-text-object)
-    (gpb-tobj--define-key 'root "a" 'ess-last-eval-region :local t)
     (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
     (gpb-tobj--define-key 'root "T" 'ess-test-func :local t :backwards t)
     (gpb-tobj--define-key 'root "c" 'ess-rmarkdown-chunk :local t)
@@ -108,6 +126,7 @@ Contains a cons of two markers.")
   (subword-mode 1)
 
   (setq-local comint-input-filter 'gpb:ess-comint-input-filter)
+  (setq-local truncate-lines t)
 
   ;; Correct some syntax assignments.
   (setq-local syntax-propertize-function
@@ -116,18 +135,6 @@ Contains a cons of two markers.")
   ;; Customize some faces
   (dolist (face '(underline compilation-error compilation-line-number))
     (face-remap-add-relative face :foreground "royal blue" :weight 'normal))
-
-  ;; Don't underline the " at " part of the traceback.
-  (aput 'compilation-error-regexp-alist-alist
-        'R '("\\(?: at \\|(@\\)\\(\\([^#()\n]+\\)[#:]\\([0-9]+\\)\\)"
-             2 3 nil 2 1))
-
-  ;; This matches Shiny tracebacks like:
-  ;;     <reactive> [/nfs/home/trpgh47/src/CrossAssetBeta/R/module_tradeTable.R#136]
-  ;; (aput 'compilation-error-regexp-alist-alist
-  ;;       'R2 '("\\(?:\\w\\|\\s.\\)+ \\[?\\(\\([^[() \n]+\\)#\\([0-9]+\\)\\)" 2 3 nil 2 1))
-  (aput 'compilation-error-regexp-alist-alist
-        'R2 '("\\[?\\(\\([^[() \n]+\\)#\\([0-9]+\\)\\)" 2 3 nil 2 1))
 
   ;; ;; Implementation detail of "?" help.
   ;; (add-hook 'comint-redirect-hook 'gpb:show-definition-buffer nil t)
@@ -156,7 +163,22 @@ Contains a cons of two markers.")
 
   ;; Not sure what is wrong here, but currently `comint-prompt-regexp'
   ;; doesn't handle the browse prompt correctly.
-  (setq-local comint-prompt-regexp inferior-ess-prompt))
+  (setq-local comint-prompt-regexp inferior-ess-prompt)
+
+  ;; ESS attempts to track the current directory interactively, but
+  ;; this seems to screw up the compiliation mode links.
+  (setq-local ess-getwd-command nil)
+
+  ;; Use `compilation-shell-minor-mode' for parsing R source info output.
+  (setq-local compilation-error-regexp-alist
+              gpb:ess-inferior-compilation-error-regexp-alist)
+
+  ;; We want to void adding the extra keywords in
+  ;; `compilation-mode-font-lock-keywords'.
+  (let ((compilation-mode-font-lock-keywords nil))
+    (compilation-shell-minor-mode 1))
+
+  (setq-local next-error-function #'gpb:ess-next-error))
 
 
 (defun gpb:ess-goto-line (arg)
@@ -248,62 +270,6 @@ which immediately sends input when called on a previous line in
 an ESS inferior buffer."
   (interactive)
   (cond
-   ;; If we end the line with a ?, we put the output in another window for
-   ;; easier browsing.  This is a workaround for reading function
-   ;; definitions.  Ideally, we would prefer to jump to the definition but
-   ;; I haven't figures that out yet.
-   ;; ((and (comint-after-pmark-p) (looking-back "? *"))
-   ;;  (skip-chars-backward " ")
-   ;;  (skip-chars-backward "?")
-   ;;  (let* ((proc (get-buffer-process (current-buffer)))
-   ;;         (pmark (process-mark proc))
-   ;;         (initial-pmark (marker-position pmark))
-   ;;         (r-object (buffer-substring pmark (point)))
-   ;;         (buffer (get-buffer-create (concat "*" r-object "*")))
-   ;;         command)
-   ;;    (delete-region initial-pmark (save-excursion (end-of-line) (point)))
-   ;;    ;; Send a blank line and wait for a responds to trigger all the
-   ;;    ;; proper comint prompt accounting.
-   ;;    (inferior-ess-send-input)
-   ;;    (while (or (= (marker-position pmark) initial-pmark)
-   ;;               (not (looking-back "> *")))
-   ;;      (accept-process-output proc 3 nil t))
-   ;;    ;; Now insert the fake input above.
-   ;;    (save-excursion
-   ;;      (goto-char initial-pmark)
-   ;;      (insert (concat r-object "?"))
-   ;;      (comint-add-to-input-history (concat r-object "?"))
-   ;;      (setq comint-input-ring-index nil))
-
-   ;;    (let ((obj-class (ess-string-command (format "class(%s)\n" r-object)))
-   ;;          (dt-command (format "print(%%s, %s)"
-   ;;                              (mapconcat 'identity
-   ;;                                         '("nrows = 10000"
-   ;;                                           "topn = 2000"
-   ;;                                           "row.names = FALSE")
-   ;;                                         ", "))))
-   ;;      (cond
-   ;;       ((string-match "^Error:" obj-class)
-   ;;        (setq command r-object))
-   ;;       ((string-match "data.table" obj-class)
-   ;;        (setq command (read-string "Print command: "
-   ;;                                   (format dt-command r-object))))
-   ;;       ((string-match "data.frame" obj-class)
-   ;;        (setq command (format "print(%s, max = 10000)" r-object)))
-   ;;       (t
-   ;;        (setq command r-object))))
-
-
-   ;;    ;; Now actually send the command and pipe the results to a new buffer.
-   ;;    (with-current-buffer buffer
-   ;;      (setq-local buffer-read-only nil)
-   ;;      (erase-buffer)
-   ;;      (insert (format "#\n#  %s\n#\n\n" command))
-   ;;      (ess-r-mode))
-   ;;    (setq-local gpb:output-buffer buffer)
-   ;;    (comint-redirect-send-command command buffer nil)))
-
-
    ;; If the input looks like "[Evaluate lines 11-22 in scratch.R]"
    ;; evaluate the region.
    ((and (comint-after-pmark-p)
@@ -356,13 +322,6 @@ an ESS inferior buffer."
   ;; it to search for existing interpreters as that logic seems pretty
   ;; involved.  See `ess-request-a-process'."
   (cond
-   ((eq obj 'ess-last-eval-region)
-    (when (null gpb:ess-last-eval-region)
-      (error "No region has been evaluated yet."))
-    (let* ((beg (car gpb:ess-last-eval-region))
-           (buf (marker-buffer beg))
-           (end (cdr gpb:ess-last-eval-region)))
-      (with-current-buffer buf (gpb:ess-eval-region beg end))))
    ((eq obj 'ess-test-func)
     (let* ((cmd (format "cat(pkgload::pkg_name('%s'), fill = TRUE)\n"
                         (file-local-name (buffer-file-name))))
@@ -395,16 +354,25 @@ an ESS inferior buffer."
     (save-excursion
       (goto-char comint-last-output-start)
       (when (re-search-forward "^debug at \\([^#:]+\\)[#:]\\([0-9]+\\):" nil t)
+        (message "Found debug output")
         (let* ((tramp-prefix (file-remote-p default-directory))
-               (filename (match-string 1))
+               (filename (match-string-no-properties 1))
                (line-number (string-to-number (match-string 2)))
-               (buf (or (let ((path (concat (file-name-as-directory default-directory) filename)))
+               (buf (or (let ((path (concat (file-name-as-directory
+                                             default-directory)
+                                            filename)))
                           (and (file-exists-p path) (find-file-noselect path)))
+                        (ignore-errors
+                          (let ((path (concat (file-name-as-directory
+                                               default-directory2)
+                                              filename)))
+                            (and (file-exists-p path)
+                                 (find-file-noselect path))))
                         (let ((path (concat tramp-prefix filename)))
                           (and (file-exists-p path) (find-file-noselect path)))
                         (get-buffer (file-name-nondirectory filename))
-                        (error "Can't find %S" filename))))
-          (gpb::ess-show-line buf line-number)))))
+                        (progn (message "Can't find %S" filename) nil))))
+          (when buf (gpb::ess-show-line buf line-number))))))
   output)
 
 
@@ -430,11 +398,9 @@ an ESS inferior buffer."
          (cache-val (cdr (assoc remote gpb:ess-region-file-cache))))
     (if cache-val
         cache-val
-      (let* ((make-file (or (and (fboundp 'make-nearby-temp-file)
-                                 'make-nearby-temp-file)
-                            'make-temp-file))
-             (region-file (funcall make-file "emacs-region-" nil ".R"))
-             (wrapper-file (funcall make-file "emacs-region-wrapper-" nil ".R"))
+      (let* ((region-file (gpb:ess-get-tmp-file "r-data-" nil ".R"))
+             (wrapper-file (gpb:ess-get-tmp-file "emacs-region-wrapper-"
+                                                 nil ".R"))
              (new-val (list remote region-file wrapper-file)))
         (push new-val gpb:ess-region-file-cache)
         (cdr new-val)))))
@@ -530,19 +496,18 @@ to be the working directory."
          (proc-default-directory (with-current-buffer (process-buffer ess-proc)
                                    default-directory)))
 
-    (setq gpb:ess-last-eval-region (or gpb:ess-last-eval-region
-                                       `(,(make-marker) . ,(make-marker))))
-    (set-marker (car gpb:ess-last-eval-region) beg)
-    (set-marker (cdr gpb:ess-last-eval-region) end)
-
     (cond
      ;; If the regions is a single line, just send it directly to the
      ;; inferior process.
      ((and (= line1 line2) (null package) (null working-dir))
       (ess-send-string ess-proc (buffer-substring-no-properties beg end) t))
-     ;; If the file is up to date and the region is whole file, just source
-     ;; the file.
-     ((and whole-buffer-p (not (buffer-modified-p)))
+
+     ;; If the file is up to date, the region is whole file, and the file
+     ;; and inferior process are on the same machine, source the file.
+     ((and whole-buffer-p
+           (not (buffer-modified-p))
+           (string-equal (file-remote-p default-directory)
+                         (file-remote-p proc-default-directory)))
       (let* ((filename (buffer-file-name))
              (working-dir (ess-string-command
                            "cat(sprintf(\"%s\\n\", getwd()))\n"))
@@ -573,7 +538,9 @@ to be the working directory."
                           (prin1-to-string local-filename)))
              (text (format "[Evaluate lines %s-%s in %s]"
                            line1 line2 (buffer-name))))
-        (gpb:exit-all-browsers)
+        ;; Sometimes we want to execute a snippet while debugging, so maybe
+        ;; we don't want to exit all browsers?
+        ;; (gpb:exit-all-browsers)
         (ess-send-string ess-proc cmd text)
         (with-current-buffer (process-buffer ess-proc)
           (comint-add-to-input-history text)
@@ -656,191 +623,6 @@ displayed."
     (when pop-to (select-window window))))
 
 
-(defvar gpb:ess-helper-funcs "
-   getDebugEnv <- function (reset = FALSE) {
-       name <- '* breakpointInfo4 *'
-       if (!exists(name, globalenv(), inherit = FALSE)) {
-           env <- new.env()
-           env$nextFrame <- NULL
-           env$stepping <- FALSE
-           env$breakpoints <- NULL
-           assign(name, env, globalenv(), inherit = FALSE)
-       } else {
-           env <- get(name, globalenv(), inherit = FALSE)
-       }
-       env
-   }
-
-   getBreakpointString <- function(filename = NULL, line = NULL,
-                                   funcName = NULL)
-   {
-       if (!is.null(filename)) sprintf('%s#%s', filename, line)
-       else if (!is.null(funcName)) sprintf('func:%s', funcName)
-   }
-
-   addBreakpoint <- function(filename = NULL, line = NULL, funcName = NULL) {
-       env <- getDebugEnv()
-       string <- getBreakpointString(filename = filename,
-                                     line = line,
-                                     funcName = funcName)
-       env$breakpoints <- c(env$breakpoints, string)
-   }
-
-   removeBreakpoint <- function(filename = NULL, line = NULL, funcName = NULL) {
-       env <- getDebugEnv()
-       string <- getBreakpointString(filename = filename,
-                                     line = line,
-                                     funcName = funcName)
-       env$breakpoints <- Filter(function(bp) bp != string, env$breakpoints)
-   }
-
-   listBreakpoints <- function(filename, line) {
-       env <- getDebugEnv()
-       if (length(env$breakpoints) == 0) {
-           cat('No breakpoints set\n')
-       } else {
-           cat('Breakpoints:\n')
-           for (i in seq_along(env$breakpoints)) {
-               cat(sprintf('%4i %s\n', i, env$breakpoints[[i]]))
-           }
-       }
-   }
-
-   instrument <- function(x) {
-       name <- deparse(substitute(x))
-       if (is.function(x)) {
-           body(x) <- instrument(body(x))
-           # Append the function name to the first srcline call.
-           firstSrclineCall <- c(as.list(body(x)[[2]]), name)
-           body(x)[[2]] <- as.call(firstSrclineCall)
-       } else if(is.call(x) && x[[1]] == as.name('{')) {
-           # An compound expression wrapped in curly braces.
-           srcrefs <- attr(x, 'srcref')
-           subexprs <- vector('list', 2 * length(x) - 1)
-           subexprs[[1]] <- as.name('{')
-           for (i in 2:length(x)) {
-               srcref <- srcrefs[[i]]
-               line <- srcref[[1]]
-               filename <- attr(srcref, 'srcfile')$filename
-               expr <- x[[i]]
-
-               subexprs[[(i - 1) * 2]] <- call('srcline', filename, line,
-                                               deparse(expr))
-               if (is.call(expr) && expr[[1]] == as.name('for')) {
-                   expr[[4]] <- instrument(expr[[4]])
-               }
-               subexprs[[1 + (i - 1) * 2]] <- expr
-           }
-           stopifnot(length(subexprs) == 2 * length(x) - 1)
-           x <- as.call(subexprs)
-       }
-       x
-   }
-
-
-   srcline <- function(filename, line, text, funcName = NULL) {
-       env <- getDebugEnv()
-
-       enterDebugger <- (
-           # Break if we hit a breakpoint
-           (sprintf('%s#%s', filename, line) %in% env$breakpoints)
-           # Break if we hit the next line in giveen function frame
-           || identical(env$nextFrame, frame)
-           # Break if stepping
-           || env$stepping
-           # Break on the first line of a function
-           || (!is.null(funcName)
-               && sprintf('func:%s', funcName) %in% env$breakpoints))
-
-       # Reset the variables used for 'n' and 's'
-       env$nextFrame <- NULL
-       env$stepping <- FALSE
-
-       if (enterDebugger) {
-           cat(sprintf('debug at %s#%s: %s\n', filename, line, text))
-           repeat {
-               cat('rdb> ')
-               cmd <- readLines(n = 1)
-               if (cmd == 's') {
-                   env$stepping <- TRUE
-                   break
-               }
-               else if(cmd == 'n') {
-                   env$nextFrame <- frame
-                   break
-               }
-               else if(cmd == 'c') {
-                   break
-               } else if(cmd == 'Q') {
-                   stop('Quit')
-               }
-               else cat('Bad command\n')
-           }
-       }
-   }
-
-   enterRepl <- function() {
-       # How may calls above this function are we?
-
-       calls <- sapply(sys.calls(), deparse)
-
-       # These don't seem that useful.
-       srcRefs <- sapply(sys.calls(), function (x) attr(x, 'srcref'))
-       srcLines <- sapply(srcRefs, function (srcref) srcref[[1]])
-       srcFiles <- sapply(srcRefs, function (srcref) attr(srcref, 'srcfile')$filename)
-
-       frames <- sys.frames()
-       stopifnot(length(calls) == length(frames))
-
-       where <- length(calls) - 1
-
-       repeat {
-           if (where > 0) {
-               prompt <- paste0(calls[[where]], '> ')
-               evalEnv <- frames[[where]]
-           }
-           else {
-               prompt <- 'globalenv> '
-               evalEnv <- globalenv()
-           }
-           # readline doesn't work in Rscript
-           cat('rdb> ')
-           cmd <- readLines('stdin', n=1)
-           if (cmd  == 'c') break
-           else if (cmd  == 'Q') stop('quit')
-           else if (cmd %in% c('u', 'd', 'w', 'where')) {
-               if (cmd  == 'u') {
-                   if(where == 0) cat('Already at the top of the stack.\n')
-                   else where <- where - 1
-               }
-               else if (cmd == 'd') {
-                   if(where == length(calls)) cat('Already at the bottom of the stack.\n')
-                   else where <- where + 1
-               }
-
-               # Print the call stack with an indication of the current level.
-               if (where == 0) marker <- '->'
-               else marker <- '  '
-               cat(sprintf('%s 0: globalenv()\n', marker))
-
-               for (i in seq_along(calls)) {
-                   if (i == where) marker <- '->'
-                   else marker <- '  '
-                   cat(sprintf('%s %i: %s\n', marker, i, calls[[i]]))
-               }
-           } else {
-               try({
-                   val <- eval(parse(text = cmd), envir = evalEnv)
-                   print(val)
-               })
-           }
-       }
-   }
-
-  "
-  "Various helper functions.  Mainly for debugging.")
-
-
 (defun gpb:ess-forward-test (arg)
   "Move to the beginning or end of the current test."
   (interactive "p")
@@ -881,11 +663,6 @@ displayed."
 
 ;; This guard may not matter due to eager macro expansion.
 (when (require 'gpb-text-objects nil t)
-  (gpb-tobj--define-text-object ess-last-eval-region (pos &rest modifiers)
-    "the last evaluated region"
-    ;; This is a just a placeholder object, so the position doesn't matter.
-    (list 1 1))
-
   (gpb-tobj--define-flat-text-object ess-test-func
     "A `test_that` test definition."
     :forward-func gpb:ess-forward-test)
@@ -920,9 +697,8 @@ displayed."
   (save-match-data
     (save-excursion
       (goto-char beg)
-      (while (re-search-forward "\\(?:at \\|from \\|\\[\\).*\\.[rR]\\(#\\)[0-9]+" end t)
-        ;; Mark the # that lies between a filename and a line number as
-        ;; punctation rather than the start of a comment.
+      (while (re-search-forward "#" end t)
+        ;; Mark # as punctation rather than the start of a comment.
         (put-text-property (match-beginning 1) (match-end 1)
                            'syntax-table (string-to-syntax "."))))))
 
@@ -1296,6 +1072,19 @@ DIR defaults to `default-directory'."
       symbol-name)))
 
 
+(defun gpb-ess:get-interpreter-buffer (&optional buf)
+  "Find the interpreter buffer associated with BUF.
+
+BUF defaults to the current buffer."
+  (let ((buf (or buf (current-buffer))) proc)
+    (with-current-buffer buf
+      (setq proc (or (get-buffer-process buf)
+                     (get-process ess-local-process-name)))
+      (if proc
+          (process-buffer proc)
+        gpb:ess-primary-interpeter-buffer))))
+
+
 (defun gpb-ess:show-help (object-name)
   "Show help on OBJECT-NAME.
 
@@ -1303,58 +1092,65 @@ This function doesn't not attempt to provided symbol completion,
 so it can be faster then calling `ess-display-help-on-object'
 interactively."
   (interactive (list (read-string "R Object: " (gpb-ess:symbol-at-point))))
-  (ess-force-buffer-current "Process: " nil t nil)
 
-  (let* ((command (format "help(\"%s\", try.all.packages = FALSE)"
-                          object-name))
+  (let* ((proc-buf (gpb-ess:get-interpreter-buffer))
+         (cmd (format "print(help(\"%s\", try.all.packages = FALSE))"
+                      object-name)))
+    (gpb:ess-send-command cmd 'gpb-ess:show-help--callback)))
+
+
+(defun gpb-ess:show-help--callback (complete)
+  (let* ((server-buf (current-buffer))
+         (proc (get-buffer-process server-buf))
          (help-buf (get-buffer-create "*R Help*"))
-         (proc (get-process ess-local-process-name))
-         (proc-buf (process-buffer proc))
-         (inhibit-read-only t))
-    (setq comint-redirect-filter-functions nil)
-    (with-current-buffer help-buf
-      (erase-buffer)
-      (help-mode)
-      (read-only-mode 1)
-      (setq comint-redirect-subvert-readonly t))
-    (with-current-buffer proc-buf
-      (setq-local comint-redirect-hook '(gpb-ess:show-help--comint-redirect-hook))
-      (comint-redirect-send-command command help-buf nil t)
-      (setq comint-redirect-finished-regexp "^\\(>\\|Selection:\\)"
-            comint-redirect-insert-matching-regexp t))))
+         ;; start is sometimes nil
+         (start (save-excursion (goto-char (point-max))
+                                (ignore-errors
+                                  (re-search-backward
+                                   (concat "^" gpb:ess-start-of-output-marker))
+                                  (forward-line 1)
+                                  (point))))
+         ;; end is never nil
+         (end (save-excursion (goto-char (point-max))
+                              (or (re-search-backward
+                                   (concat "^" gpb:ess-end-of-output-marker)
+                                   nil t)
+                                  (point-max))))
+         (inhibit-read-only t)
+         selection)
 
+    (if complete
+        (with-current-buffer help-buf
+          (erase-buffer)
+          (insert-buffer-substring server-buf start end)
+          (goto-char (point-min))
+          ;; This is some kind of terminal code for underlining text.
+          (while (search-forward "_" nil t)
+            (backward-delete-char 2)
+            (put-text-property (point) (1+ (point)) 'face 'underline))
+          (goto-char (point-min))
+          (help-mode)
+          (read-only-mode 1)
+          (pop-to-buffer help-buf))
 
-(defun gpb-ess:show-help--comint-redirect-hook ()
-  (let* ((proc-buf (current-buffer))
-         (help-buf (get-buffer "*R Help*"))
-         (prompt-p (with-current-buffer help-buf
-                     (looking-back "^Selection: *")))
-         (inhibit-read-only t))
-    (message "proc-buf: %S" proc-buf)
-    (pop-to-buffer help-buf)
-    (cond
-     ;; There are multiple matches, so we prompt the user to choose one.
-     (prompt-p
-      (let ((selection (or (with-local-quit
-                             (prin1-to-string (read-number "Selection: " 1)))
-                           "1")))
-        (with-current-buffer help-buf (erase-buffer))
-        (with-current-buffer proc-buf
-          (comint-redirect-send-command selection help-buf nil))))
-
-     ;; The help buffer now contains the help text.
-     (t
-      (with-current-buffer help-buf
-        (goto-char (point-max))
-        (when (re-search-backward "^> *" nil t) (replace-match ""))
-        (skip-chars-backward " \n")
-        (forward-line 1)
-        (delete-region (point) (point-max))
-        (goto-char (point-min))
-        (when (looking-at-p "^Rendering development")
-          (forward-line 1)
-          (delete-region (point-min) (point)))
-        (ess-help-underline))))))
+      ;; If the output is not complete, we look for a selection prompt.  We
+      ;; see this prompt when there are multiple matches.
+      (save-excursion
+        (goto-char (process-mark proc))
+        (when (and start (looking-back "^Selection: *" nil t))
+          (with-current-buffer help-buf
+            (erase-buffer)
+            (insert-buffer-substring server-buf start end)
+            (pop-to-buffer help-buf)
+            (setq selection (or (with-local-quit
+                                  (prin1-to-string (read-number
+                                                    "Selection: " 1)))
+                                "0")))
+          (insert "\n")
+          (insert gpb:ess-start-of-output-marker)
+          (insert "\n")
+          (set-marker (process-mark proc) (point))
+          (process-send-string proc (format "%s\n" selection)))))))
 
 
 (defun gpb-ess:save-and-load-command (arg)
@@ -1367,17 +1163,21 @@ Rmarkdown render expression."
          (localname (ignore-errors (file-local-name filename)))
          (ess-proc (ess-get-process))
          (ess-proc-buf (process-buffer ess-proc))
-         dir cmd)
-    ;; Get the name of the directory that contains filename.
-    (setq dir (ignore-errors (directory-file-name
+         (ess-proc-dir (with-current-buffer ess-proc-buf default-directory))
+         ;; Get the name of the directory that contains filename.
+         (dir (ignore-errors (directory-file-name
                               (file-name-directory localname))))
+         ;; Get the path relative to the interpreter's working directory
+         (relpath (with-current-buffer ess-proc-buf
+                    (file-relative-name filename)))
+         cmd)
     (when filename (save-buffer))
     (cond
      ((string-suffix-p ".Rmd" localname t)
       (let ((build-cmd
              (or (and (null arg) (boundp 'gpb-ess:build-cmd) gpb-ess:build-cmd)
                  (read-string "Build command: "
-                              (format "rmarkdown::render('%s')" localname)))))
+                              (format "rmarkdown::render('%s')" relpath)))))
         (setq-local gpb-ess:build-cmd build-cmd)
         (with-current-buffer ess-proc-buf
           (comint-add-to-input-history build-cmd)
@@ -1410,12 +1210,15 @@ Rmarkdown render expression."
      ((not (null arg))
       (save-buffer)
       (let* ((filename (buffer-file-name))
-             (proc (ess-get-process ess-local-process-name))
-             (proc-buf (process-buffer proc))
+             (proc-buf (gpb-ess:get-interpreter-buffer))
+             (proc (get-buffer-process proc-buf))
              (working-dir (with-current-buffer proc-buf default-directory))
              (relative-name (file-relative-name filename working-dir))
              (cmd (format "source('%s', chdir = TRUE)" relative-name)))
         (message "working-dir: %s" working-dir)
+        ;; See `gpb:ess-debug-track-comint-output-filter-function'
+        (with-current-buffer proc-buf
+          (setq-local default-directory2 (file-name-directory filename)))
         (ess-send-string proc cmd t)
         (display-buffer (process-buffer ess-proc))
         (with-current-buffer (process-buffer ess-proc)
@@ -1425,7 +1228,7 @@ Rmarkdown render expression."
      ;; Otherwise, just evaluate the buffer contents in the global
      ;; environment.
      (t
-      (save-buffer)
+      (when filename (save-buffer))
       (save-restriction
         (widen)
         (gpb:ess-eval-region (point-min) (point-max)))))))
@@ -1434,27 +1237,20 @@ Rmarkdown render expression."
 (defun gpb:ess-view-data-frame ()
   (interactive)
   (let* ((r-expr (funcall comint-get-old-input))
-         (tramp-prefix (or (file-remote-p default-directory) ""))
-         (cmd (format (concat "filename <- tempfile(fileext = \".xlsx\"); "
-                              "openxlsx::write.xlsx(%s, filename); "
-                              "cat(sprintf(\"Excel File: %%s\n\", filename))")
-                      r-expr))
-         (proc (get-buffer-process (current-buffer)))
+         (tmp-file (gpb:ess-get-tmp-file "r-data-" nil ".xlsx"))
+         (local-tmp-file (file-remote-p tmp-file 'localname))
+         (cmd (format (concat "openxlsx::write.xlsx(%s, \"%s\"); "
+                              "cat(sprintf(\"\nExcel File: %s\n\"))")
+                      r-expr local-tmp-file tmp-file))
+         (result-buf (gpb:ess-send-command cmd))
          file)
-    (message "cmd: %S" cmd)
-    (ess-send-string proc cmd)
-    (accept-process-output proc 1 nil t)
-    (save-excursion
-      (goto-char (point-max))
-      (beginning-of-line)
-      (re-search-backward "Excel File: \\(.*\\)$")
-      (setq file (concat tramp-prefix (match-string 1)))
-      (setq file (or (file-local-copy file) file))
-      (delete-region (match-beginning 0) (match-end 0))
-      (when (looking-back "+ > \n")
-        (delete-region (match-beginning 0) (match-end 0)))
-      (when (looking-back "> ")
-        (delete-region (match-beginning 0) (match-end 0)))
+    (with-current-buffer result-buf
+      (goto-char (point-min))
+      (when (re-search-forward "Error in loadNamespace" nil t)
+        (switch-to-buffer result-buf)
+        (error "Error in R command"))
+      (re-search-forward "Excel File: \\(.*\\)$")
+      (setq file (or (file-local-copy tmp-file) file))
       (let ((default-directory ""))
         (shell-command (format "cmd /C \"start %s\"" file))))))
 
@@ -1490,26 +1286,6 @@ x <- (
 
 (advice-add 'ess-behind-block-paren-p :override 'gpb:ess-behind-block-paren-p)
 
-;; This matches R Markdown build failures like:
-;;   Quitting from lines 257-329 (report.Rmd)
-;; If we see
-;;   Quitting from lines 257-329 (./report.Rmd)
-;; We don't include the "./" prefix in the file match as it confuses
-;; compilation mode.  Recall that rmarkdow::render changes the working
-;; directory.
-;;
-(aput 'compilation-error-regexp-alist-alist
-      'R-markdown
-      (list (format "Quitting from lines %s %s"
-                    ;; Matches 257-329 part
-                    "\\(\\([0-9]+\\)-[0-9]+"
-                    ;; Matches filename, excluding any initial "./"
-                    "([.]?/?\\(.*\\))\\)")
-            3 2 nil 1))
-
-(add-to-list 'ess-r-error-regexp-alist 'R-markdown)
-
-
 (defun gpb:ess-test-package ()
   (interactive)
   (let* ((procbuf (process-buffer (ess-get-process)))
@@ -1535,12 +1311,16 @@ x <- (
   (update-ess-process-name-list)
   (let* ((procbuf (get-buffer bufname))
          (procname (process-name (get-buffer-process procbuf)))
-         (tramp-prefix (with-current-buffer procbuf (file-remote-p default-directory)))
+         (tramp-prefix (with-current-buffer procbuf
+                         (file-remote-p default-directory)))
          ;; Find all the buffer visiting files on the same machine that the
          ;; interpreter is running.
          (buffer-list (remove-if-not
                        (lambda (buf) (with-current-buffer buf
-                                       (and (string= (file-remote-p default-directory) tramp-prefix)
+                                       (and (string=
+                                             (ignore-errors
+                                               (file-remote-p default-directory))
+                                             tramp-prefix)
                                             (not (null (buffer-file-name))))))
                        (buffer-list))))
     (dolist (buf buffer-list)
@@ -1673,9 +1453,122 @@ This filter removes that newline."
   (nconc imenu-generic-expression
          `(("observeEvents" ,(gpb:make-functionish-regex "observeEvent") 1))))
 
-
 (defun gpb:inferior-ess-input-sender (proc string)
   "Replacement for ESS version that doesn't add extra echoing."
   (inferior-ess--interrupt-subjob-maybe proc)
-  (let ((comint-input-filter-functions nil))
+  (let ((comint-input-filter-functions nil)
+        (buf (process-buffer proc))
+        ;; For whatever reason, the markers in compilation-shell-minor-mode
+        ;; slowly get stale and point to the wrong place.  Periodically
+        ;; clearing `compilation-locs' fixes this.
+        (clrhash-func  (lambda ()
+                         (clrhash compilation-locs)
+                         (message "Cleared compilation-locs"))))
+    (when (and (boundp 'gpb-clrhash-timer)
+               (timerp gpb-clrhash-timer))
+      (cancel-timer gpb-clrhash-timer))
+    ;; (setq-local gpb-clrhash-timer (run-with-timer 1 nil clrhash-func))
     (ess-send-string proc string)))
+
+
+(defun gpb:ess-get-tmp-file (prefix &optional dir-flag suffix where)
+  (let* ((where (or where default-directory))
+         (remote (file-remote-p default-directory))
+         (tmpdir-override (ignore-errors
+                            (file-name-as-directory
+                             (cdr (assoc remote gpb:ess-tmpdir-map)))))
+         (make-file (or (and (fboundp 'make-nearby-temp-file)
+                             'make-nearby-temp-file)
+                        'make-temp-file)))
+    (funcall make-file (concat remote tmpdir-override prefix) dir-flag suffix)))
+
+
+(defun gpb:ess-send-command (cmd &optional async buf)
+  "Send CMD to R process in BUF.
+
+If BUF is omitted, we use the current buffer.  If ASYNC is nil,
+we make the call, wait for the result, and return a buffer that
+contains the result.  When ASYNC is not nil, we operate
+asynchronously and return nil immediately.  If ASYNC is a
+function, we will call ASYNC from a buffer that contains the
+output of the call as it arrives.  In this case, ASYNC should
+accept a single boolean argument COMPLETE; it will be nil while
+the command is running and t when is it done."
+  (interactive "sR Command: ")
+  (let* ((buf (or buf (gpb-ess:get-interpreter-buffer)))
+         (proc (get-buffer-process buf))
+         (buf-name (concat (buffer-name buf) "[server]"))
+         (server-buf (get-buffer-create buf-name))
+         (inhibit-read-only t)
+         (full-cmd (format
+                    "cat('%s\\n'); tryCatch({ %s }, finally = cat('%s\\n'))\n"
+                    gpb:ess-start-of-output-marker
+                    cmd
+                    gpb:ess-end-of-output-marker)))
+
+    (with-current-buffer server-buf
+      (erase-buffer)
+      (setq-local callback-func (and (not (eq async t)) async))
+      (setq-local original-proc-buffer buf)
+      (setq-local original-sentinel-func (process-sentinel proc))
+      (setq-local original-filter-func (process-filter proc))
+      (setq-local original-mark-pos (marker-position (process-mark proc)))
+      (setq-local command-complete nil)
+
+      (set-process-buffer proc server-buf)
+      (set-process-sentinel proc nil)
+      (set-process-filter proc 'gpb:ess-send-command--process-filter)
+      (insert full-cmd)
+      (set-marker (process-mark proc) (point))
+      (send-string proc full-cmd)
+      (unless async
+        (while (null command-complete)
+          (accept-process-output proc 1))
+        (goto-char (point-min))
+        (re-search-forward (format "^%s" gpb:ess-start-of-output-marker))
+        (forward-line 1)
+        server-buf))))
+
+
+(defun gpb:ess-send-command--return-process ()
+  (let* ((buf (current-buffer))
+         (proc (get-buffer-process buf)))
+    (set-process-buffer proc original-proc-buffer)
+    (set-process-sentinel proc original-sentinel-func)
+    (set-process-filter proc original-filter-func)
+    (set-marker (process-mark proc)
+                original-mark-pos original-proc-buffer)))
+
+
+(defun gpb:ess-send-command--process-filter (proc string)
+  (let ((buf (process-buffer proc)))
+    (when (buffer-live-p buf)
+      (with-current-buffer buf
+        (save-excursion
+          (goto-char (process-mark proc))
+          (insert string)
+          (set-marker (process-mark proc) (point))
+          (when (re-search-backward
+                 (concat "^" gpb:ess-end-of-output-marker) nil t)
+            ;; (forward-line 0)
+            ;; (delete-region (point) (point-max))
+            (gpb:ess-send-command--return-process)
+            (setq-local command-complete t)))
+        (when callback-func (funcall callback-func command-complete))))))
+
+
+(defun gpb:ess-set-compilation-search-path ()
+  (directory-files-recursively default-directory "R" t))
+
+
+;; (setq next-error-function #'gpb:ess-next-error)
+(defun gpb:ess-next-error (n &optional reset)
+  (let* ((msg (compilation-next-error (or n 1) nil
+                                      (or compilation-current-error
+                                          compilation-messages-start
+                                          (point-min))))
+         (loc (compilation--message->loc msg))
+         (line (compilation--loc->line loc)))
+    (compilation-next-error-function n reset)
+    (goto-line line)))
+
