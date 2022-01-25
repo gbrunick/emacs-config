@@ -1091,9 +1091,10 @@ buffer."
       (call-process "cal" nil t nil "--year" "2016")
       (call-process "cal" nil t nil "--year" "2017")
       (call-process "cal" nil t nil "--year" "2018")
+      (call-process "cal" nil t nil "--year" "2019")
       (save-excursion
-        (call-process "cal" nil t nil "--year" "2019")
-        (call-process "cal" nil t nil "--year" "2020"))
+        (call-process "cal" nil t nil "--year" "2020")
+        (call-process "cal" nil t nil "--year" "2021"))
       (recenter 10))))
 
 
