@@ -194,7 +194,8 @@
       bm-highlight-style                'bm-highlight-only-fringe
       bm-cycle-all-buffers              t
       apropos-do-all                    t
-      backup-by-copying t)
+      backup-by-copying                 t
+      enable-remote-dir-locals          t)
 
 
 (setq frame-title-format '(:eval (or (buffer-file-name) "emacs"))
@@ -219,7 +220,15 @@
 
 ;; Whitespace handling
 (add-hook 'text-mode-hook 'turn-on-auto-fill)
-(add-hook 'before-save-hook 'delete-trailing-whitespace)
+
+(defvar gpb-keep-trailing-whitespace nil)
+
+(defun gpb-maybe-delete-trailing-whitespace ()
+  (when (and (boundp 'gpb-keep-trailing-whitespace)
+             (not gpb-keep-trailing-whitespace))
+    (delete-trailing-whitespace)))
+
+(add-hook 'before-save-hook 'gpb-maybe-delete-trailing-whitespace)
 
 ;; Lots of syntax highlighting
 (global-font-lock-mode t)
