@@ -18,7 +18,8 @@ Used by `gpb-find-file-filtered'.")
 (defvar gpb-fl--current-list nil)
 (defvar gpb-fl--result nil)
 (defvar gpb-fl--timer nil)
-(defvar gpb-fl--echo-delay 2)
+(defvar gpb-fl--echo-delay 1)
+(defvar gpb-fl--do-find-file nil)
 
 (define-derived-mode gpb-filtered-list-mode fundamental-mode "Filtered List"
   "Major mode used in the buffer which displays the filtered list"
@@ -55,9 +56,10 @@ Used by `gpb-find-file-filtered'.")
 
     (define-key map [(prior)] 'gpb-fl--scroll-down)
     (define-key map [(next)] 'gpb-fl--scroll-up)
+
+    (define-key map [remap find-file] 'gpb-fl--find-file)
     map)
-  "The keymap that is used in the minibuffer during filtered list
-interaction.")
+  "The keymap used in the minibuffer during filtered list interactions.")
 
 (defmacro gpb-fl--define-command (name &rest body)
   "Define a command that is executed in the buffer showing the filtered list"
@@ -71,11 +73,11 @@ interaction.")
          (hl-line-highlight)))))
 
 (gpb-fl--define-command gpb-fl--previous-line
-  (previous-line)
+  (forward-line -1)
   (gpb-fl--echo-item))
 
 (gpb-fl--define-command gpb-fl--next-line
-  (next-line)
+  (forward-line 1)
   (gpb-fl--echo-item))
 
 (gpb-fl--define-command gpb-fl--beginning-of-buffer
@@ -94,8 +96,13 @@ interaction.")
 
 (gpb-fl--define-command gpb-fl--echo-item
   (let* ((item (get-text-property (point) 'item))
-         (echo (and item (plist-get (cdr-safe item) :echo))))
+         (echo (and item (plist-get (cdr-safe item) :echo)))
+         (message-log-max 0))
     (when echo (message "%s" echo))))
+
+(gpb-fl--define-command gpb-fl--find-file
+  (setq gpb-fl--do-find-file t)
+  (exit-minibuffer))
 
 
 (defun gpb-fl--update-filtered-list (&rest args)
@@ -130,8 +137,7 @@ interaction.")
                    'item item))
           (insert "\n"))))
     (goto-char (point-min))
-    (hl-line-highlight)
-    (gpb-fl--schedule-echo-timer))))
+    (hl-line-highlight))))
 
 
 (defun gpb-fl--read-choice (prompt list buf-name
@@ -150,7 +156,8 @@ of (display-string . result) cons cells."
       (message "Warning: %S already exists." (get-buffer buf-name)))
 
     (setq gpb-fl--buffer (get-buffer-create buf-name)
-          gpb-fl--current-list list)
+          gpb-fl--current-list list
+          gpb-fl--do-find-file nil)
 
     (set-window-buffer (selected-window) gpb-fl--buffer)
     (with-current-buffer gpb-fl--buffer
@@ -158,6 +165,7 @@ of (display-string . result) cons cells."
       ;; for packages and we don't want to trigger these.
       (setq default-directory nil)
       (gpb-filtered-list-mode)
+      (setq truncate-lines t)
       ;; Cancel the current minibuffer edit if we kill display buffer.
       (add-hook 'kill-buffer-hook 'abort-recursive-edit nil t))
     (gpb-fl--update-filtered-list)
@@ -180,7 +188,7 @@ of (display-string . result) cons cells."
           (gpb-fl--schedule-echo-timer)
           gpb-fl--result)
       ;; Remove all hooks and kill buffer
-      (cancel-timer gpb-fl--timer)
+      (ignore-errors (cancel-timer gpb-fl--timer))
       (remove-hook 'minibuffer-setup-hook 'gpb-fl--setup-minibuffer-hook)
       (remove-hook 'minibuffer-exit-hook 'gpb-fl--exit-minibuffer-hook)
       (with-current-buffer gpb-fl--buffer
@@ -194,7 +202,8 @@ of (display-string . result) cons cells."
 
 (defun gpb-fl--setup-minibuffer-hook ()
   "Setup the minibuffer to update the filtered list."
-  (add-hook 'after-change-functions 'gpb-fl--update-filtered-list nil t))
+  (add-hook 'after-change-functions 'gpb-fl--update-filtered-list nil t)
+  (add-hook 'after-change-functions 'gpb-fl--schedule-echo-timer nil t))
 
 
 (defun gpb-fl--exit-minibuffer-hook ()
@@ -202,6 +211,7 @@ of (display-string . result) cons cells."
   (gpb-log-forms 'gpb-fl--exit-minibuffer-hook
                  '(with-current-buffer gpb-fl--buffer (point)))
   (remove-hook 'after-change-functions 'gpb-fl--update-filtered-list t)
+  (remove-hook 'after-change-functions 'gpb-fl--schedule-echo-timer t)
   (let* ((item (with-current-buffer gpb-fl--buffer
                  (get-text-property (point) 'item)))
          (result (gpb-fl-get-item item)))
@@ -216,17 +226,19 @@ of (display-string . result) cons cells."
 (defun gpb-recentf-open-files-filtered ()
   (interactive)
   (let (file-list filename)
-    (setq file-list (mapcar (lambda (path)
-                              `(,path :display ,(gpb-fl--make-filename-pretty2
-                                                 path)
-                                      :echo ,path))
-                            recentf-list))
+    (setq file-list
+          (mapcar (lambda (path)
+                    `(,path :display ,(gpb-fl--make-filename-pretty2
+                                       (gpb-fl--truncate-path path))
+                            :echo ,path))
+                  recentf-list))
     (setq filename (gpb-fl--read-choice "Recent File: " file-list
                                         "*Recent Files*" "Recent Files"))
-    (setq filename (read-file-name "Find file: "
-                                   (file-name-directory filename)
-                                   nil t
-                                   (file-name-nondirectory filename)))
+    (when gpb-fl--do-find-file
+      (setq filename (read-file-name "Find file: "
+                                     (file-name-directory filename)
+                                     nil t
+                                     (file-name-nondirectory filename))))
     (find-file filename)))
 
 
@@ -257,13 +269,14 @@ hidden the buffers whose names begin with space."
                                '(face ((foreground-color . "gray61")))
                                  buf-name)
           (push `(,x :display ,buf-name
-                     :echo ,buf-name
+                     :echo ,(substring-no-properties buf-name)
                      :matcher ,buf-name)
                 hidden-bufs)))
 
        ;; show filename
        (buf-file-name
-        (push `(,x :display ,(gpb-fl--make-filename-pretty2 buf-file-name)
+        (push `(,x :display ,(gpb-fl--make-filename-pretty2
+                              (gpb-fl--truncate-path buf-file-name))
                    :echo ,buf-file-name
                    :matcher ,(format "%s %s" buf-name buf-file-name))
               bufs))
@@ -398,9 +411,10 @@ hidden the buffers whose names begin with space."
     (concat dir-prefix (substring file-name (length dir-prefix) nil))))
 
 
-(defun gpb-fl--truncate-path (file-name width)
+(defun gpb-fl--truncate-path (file-name &optional width)
+  (setq width (or width (window-width)))
   (let ((n (- (length file-name) width))
-        (tramp-prefix (file-remote-p file-name))
+        (tramp-prefix (or (file-remote-p file-name) ""))
         (ellipsis (let ((txt "..."))
                     (add-text-properties
                      0 3 '(face ((foreground-color . "gray67"))) txt)
@@ -518,7 +532,7 @@ With prefix argument, open file in other window"
 (defun gpb-fl-get-item (item)
   (or (car-safe item) item))
 
-(defun gpb-fl--schedule-echo-timer ()
+(defun gpb-fl--schedule-echo-timer (&rest args)
   (ignore-errors (cancel-timer gpb-fl--timer))
   (setq gpb-fl--timer
         (run-at-time gpb-fl--echo-delay nil #'gpb-fl--echo-item)))
