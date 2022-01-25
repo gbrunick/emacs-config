@@ -204,7 +204,8 @@
       open-paren-in-column-0-is-defun-start nil)
 
 (setq-default indent-tabs-mode nil
-              fill-column      75)
+              fill-column      75
+              c-basic-offset   4)
 
 ;; Setup ansi
 (require 'ansi-color)
@@ -484,8 +485,7 @@
         ;; ac-sources '(ac-source-clang-async)
         ac-sources '(ac-source-clang)
         ;;ac-clang-async-do-autocompletion-automatically nil
-        c-basic-offset 4
-        )
+        c-basic-offset 2)
   (c-set-offset 'inline-open 0)
   ;; (ac-clang-launch-completion-process)
   ;; (auto-complete-mode t)
@@ -496,6 +496,9 @@
 
 (add-hook 'c-mode-common-hook 'gpb-cc-mode-setup)
 
+(eval-after-load "cc-mode"
+  '(progn
+     (define-key c-mode-base-map ":" nil)))
 
 ;; unit testing -----------------------------------------------------------
 
