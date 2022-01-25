@@ -7,9 +7,15 @@
 (require 'edebug)
 
 (define-key lisp-mode-shared-map "\t" 'gpb-lisp-tab-command)
-(define-key emacs-lisp-mode-map "\C-c\C-c" 'eval-buffer)
+(define-key emacs-lisp-mode-map "\C-c\C-c" 'gpb-eval-buffer)
 (define-key emacs-lisp-mode-map "\C-c\C-u" 'gpb-lisp-run-unit-tests)
 (define-key edebug-mode-map [(control c)(w)] 'gpb-watch-variable-at-point)
+
+(defun gpb-eval-buffer ()
+  (interactive)
+  (eval-buffer)
+  (message "Evaluated %s" (buffer-name)))
+
 
 (defun gpb-lisp-eval-line ()
   (interactive)
