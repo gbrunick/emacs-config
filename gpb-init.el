@@ -626,9 +626,15 @@
 ;; (autoload 'gpb-rect--begin-rect-command "gpb-rect-commands")
 
 (recentf-mode 1)
-;; We append to the hook because we want to save the list after
-;; #`recentf-track-opened-file updates it.
-(add-hook 'find-file-hook #'recentf-save-list t)
+(defvar gpb-recentf-save-list-timer nil)
+
+(defun gpb-recentf-save-list-soon ()
+  (when gpb-recentf-save-list-timer
+    (cancel-timer gpb-recentf-save-list-timer))
+  (setq gpb-recentf-save-list-timer
+        (run-with-idle-timer 5 nil #'recentf-save-list)))
+
+(add-hook 'find-file-hook #'gpb-recentf-save-list-soon)
 (setq recentf-max-saved-items 100)
 
 ;; More convenience names for some interactive functions.
