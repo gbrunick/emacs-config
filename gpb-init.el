@@ -675,3 +675,33 @@
   '(define-key ess-mode-map [remap yank] nil))
 
 (setq debug-on-quit nil)
+
+
+;; See https://stackoverflow.com/questions/10787087/
+;;     https://debbugs.gnu.org/cgi/bugreport.cgi?bug=12069
+;; You may still need to call
+;;
+;;  (url-retrieve-synchronously "http://melpa.org/packages/archive-contents")
+;;
+;; before list packages will work on Windows.
+;;
+;; This becomes unnecessary when you get to Emacs 28.1
+;;
+(with-eval-after-load 'url-http
+  (defun url-https-proxy-connect (connection)
+    (setq url-http-after-change-function 'url-https-proxy-after-change-function)
+    (process-send-string
+     connection (format
+                 (concat "CONNECT %s:%d HTTP/1.1\r\n"
+                         "Host: %s\r\n"
+                         (let ((proxy-auth (let ((url-basic-auth-storage
+                                                  'url-http-proxy-basic-auth-storage))
+                                             (url-get-authentication url-http-proxy nil 'any nil))))
+                           (if proxy-auth (concat "Proxy-Authorization: " proxy-auth "\r\n")))
+                         "\r\n")
+                 (url-host url-current-object)
+                 (or (url-port url-current-object)
+                     url-https-default-port)
+                 (url-host url-current-object)))))
+
+(prefer-coding-system 'utf-8-unix)
