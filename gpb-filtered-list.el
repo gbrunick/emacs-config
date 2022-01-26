@@ -114,30 +114,31 @@ Used by `gpb-find-file-filtered'.")
                 (buffer-substring-no-properties
                  (minibuffer-prompt-end) (point-max)))
             "")))
-  (with-current-buffer gpb-fl--buffer
-    (erase-buffer)
-    (setq header-line-format (and gpb-fl--header
-                                  `(:propertize
-                                    ,(concat gpb-fl--header
-                                             (make-string 100 ?\ ))
-                                    face fringe)))
-    (let ((terms (split-string search-text "\\s +"))
-          (first t)
-          (width (1- (window-width (get-buffer-window)))))
-      (dolist (item gpb-fl--current-list)
-        ;; If all terms match the item.
-        (unless (member nil (mapcar (lambda (x)
-                                      (string-match-p
-                                       (regexp-quote x)
-                                       (gpb-fl-get-item-matcher item)))
-                                    terms))
-          (insert (propertize
-                   (gpb-fl-get-item-display item)
-                   'result (gpb-fl-get-item item)
-                   'item item))
-          (insert "\n"))))
-    (goto-char (point-min))
-    (hl-line-highlight))))
+    (with-current-buffer gpb-fl--buffer
+      (gpb-log-forms 'gpb-fl--update-filtered-list 'gpb-fl--buffer)
+      (erase-buffer)
+      (setq header-line-format (and gpb-fl--header
+                                    `(:propertize
+                                      ,(concat gpb-fl--header
+                                               (make-string 100 ?\ ))
+                                      face fringe)))
+      (let ((terms (split-string search-text "\\s +"))
+            (first t)
+            (width (1- (window-width (get-buffer-window)))))
+        (dolist (item gpb-fl--current-list)
+          ;; If all terms match the item.
+          (unless (member nil (mapcar (lambda (x)
+                                        (string-match-p
+                                         (regexp-quote x)
+                                         (gpb-fl-get-item-matcher item)))
+                                      terms))
+            (insert (propertize
+                     (gpb-fl-get-item-display item)
+                     'result (gpb-fl-get-item item)
+                     'item item))
+            (insert "\n"))))
+      (goto-char (point-min))
+      (hl-line-highlight))))
 
 
 (defun gpb-fl--read-choice (prompt list buf-name
