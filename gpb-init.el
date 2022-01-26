@@ -613,9 +613,6 @@
 (require 'gpb-yank-rigidly)
 (gpb-yank-rigidly-mode 1)
 
-;; (require 'gpb-mark-ring)
-;; (gpb-mark-ring-mode -1)
-
 (require 'gpb-modal)
 (gpb-modal-mode 1)
 
