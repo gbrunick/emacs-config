@@ -194,6 +194,9 @@ of (display-string . result) cons cells."
       (remove-hook 'minibuffer-exit-hook 'gpb-fl--exit-minibuffer-hook)
       (with-current-buffer gpb-fl--buffer
         (remove-hook 'kill-buffer-hook 'abort-recursive-edit t))
+      (gpb-log-forms 'gpb-fl--read-choice
+                     'gpb-fl--buffer
+                     'gpb-fl--result)
       (kill-buffer gpb-fl--buffer)
       (setq gpb-fl--buffer nil
             gpb-fl--header nil
@@ -210,6 +213,7 @@ of (display-string . result) cons cells."
 (defun gpb-fl--exit-minibuffer-hook ()
   "Clean up the minibuffer and kill the list buffer."
   (gpb-log-forms 'gpb-fl--exit-minibuffer-hook
+                 'gpb-fl--buffer
                  '(with-current-buffer gpb-fl--buffer (point)))
   (remove-hook 'after-change-functions 'gpb-fl--update-filtered-list t)
   (remove-hook 'after-change-functions 'gpb-fl--schedule-echo-timer t)
@@ -313,6 +317,7 @@ hidden the buffers whose names begin with space."
         (progn
           (switch-to-buffer-other-window "*imenu*")
           (with-current-buffer "*imenu*"
+            (gpb-log-forms 'gpb-fl--update-filtered-list '(current-buffer))
             (erase-buffer)
             (insert (format "%S" imenu-data))))
       (let ((choice (gpb-fl--read-choice "Index entry: " imenu-data
