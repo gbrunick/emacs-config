@@ -1,5 +1,10 @@
 ;; Simple logging functionality.
 ;;
+;; Use `gpb-log-forms' in a function; set `gpb-log--logging-enabled' to t;
+;; and then call `gpb-log--enable-logging' on the functions for which you
+;; would like to see logging output.
+;;
+;;
 ;; You need to remember to let bind deactivate-mark inside logging
 ;; functions so that the mark is not deactivated by the insert
 ;; commands.  If your don't do this then the logging functions affect
