@@ -97,7 +97,7 @@ Used by `gpb-find-file-filtered'.")
 (gpb-fl--define-command gpb-fl--echo-item
   (let* ((item (get-text-property (point) 'item))
          (echo (and item (plist-get (cdr-safe item) :echo)))
-         (message-log-max 0))
+         (message-log-max nil))
     (when echo (message "%s" echo))))
 
 (gpb-fl--define-command gpb-fl--find-file
