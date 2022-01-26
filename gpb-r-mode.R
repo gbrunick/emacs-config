@@ -1,3 +1,5 @@
+options(menu.graphics = FALSE, pager = "cat")
+
 .gpb_r_mode_get_completions <- function (position, currentLine) {
     utils:::.assignLinebuffer(currentLine)
     utils:::.assignEnd(nchar(currentLine))
