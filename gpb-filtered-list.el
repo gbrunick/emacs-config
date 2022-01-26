@@ -6,7 +6,6 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; (require 'gpb-recent-files)
 (require 'imenu)
 
 (defcustom gpb-fl--recent-file-list-symbol nil ;;'gpb-rf-recent-file-list
