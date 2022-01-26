@@ -616,9 +616,6 @@
 (require 'gpb-modal)
 (gpb-modal-mode 1)
 
-;; (require 'gpb-region)
-;; (gpb-region-keymap-mode 1)
-
 ;; Rectangle mark mode
 ;; (autoload 'gpb-rect--begin-rect-command "gpb-rect-commands")
 
