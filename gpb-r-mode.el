@@ -60,10 +60,6 @@ alist in an inferior R process buffer."
   :type '(alist :key-type symbol :value-type sexp)
   :group 'gpb-ess)
 
-(defvar gpb-r-start-of-output-marker
-  "START:75b30f72-85a0-483c-98ce-d24414394ff0"
-  "Arbitrary string used to denote the end of R output.")
-
 (defvar gpb-r-end-of-output-marker
   "END:75b30f72-85a0-483c-98ce-d24414394ff0"
   "Arbitrary string used to denote the end of R output.")
@@ -98,13 +94,11 @@ At the moment, there can only be one active process")
                         (insert-file-contents (locate-library "gpb-r-mode.R"))
                         (buffer-string))
                       (current-buffer))
-  ;; (setq-local comint-input-filter 'gpb:ess-comint-input-filter)
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
   (dolist (face '(underline compilation-error compilation-line-number))
     (face-remap-add-relative face :foreground "royal blue" :weight 'normal))
-  ;; (add-hook 'comint-output-filter-functions
-  ;;           #'gpb:ess-debug-track-comint-output-filter-function nil t)
-  )
+  (add-hook 'comint-output-filter-functions
+            #'gpb-r-mode-debug-filter-function nil t))
 
 (defvar gpb-r-code-minor-mode-map
   (let ((map (make-sparse-keymap)))
@@ -113,7 +107,8 @@ At the moment, there can only be one active process")
 
 (define-minor-mode gpb-r-code-mode
   "Minor mode for R code buffers."
-  :keymap gpb-r-code-minor-mode-map)
+  :keymap gpb-r-code-minor-mode-map
+  :lighter "gpb-r")
 
 (defun gpb-r-set-active-process ()
   (interactive)
@@ -178,27 +173,70 @@ At the moment, there can only be one active process")
         (backward-char))
       (insert old-input)))))
 
+
 (defun gpb-r-send-command (cmd &optional buf)
-  "Send CMD to R process in BUF.
+  "Send CMD to R process in BUF and the return the output as a string.
 
 If BUF is omitted, we use the current buffer.  We move the
 process into new buffer, send `cmd' to the R process, wait for
 the result, and return a buffer that contains the result."
   (interactive "sR Command: ")
-  (let* ((buf (or buf gpb-r-active-process-buffer))
-         (proc (get-buffer-process buf))
+  (let* ((buf (gpb-r-get-proc-buffer buf))
+         (full-cmd (format
+                    ;; Defining and immediately calling a function avoids
+                    ;; trigger a breakpoint in the R `browse()` debugger;
+                    ;; at least for `gpb-r-getwd' which is all we need at
+                    ;; this point.
+                    "tryCatch({ %s }, finally = cat('\\n%s\\n'))"
+                    cmd gpb-r-end-of-output-marker)))
+
+    (gpb-r-send-command-1 full-cmd buf)))
+
+
+(defun gpb-r-getwd (&optional buf)
+  "Get the TRAMP-qualified working directory of the current R process.
+
+Also updates `default-directory' in the process buffer.  This
+function is safe to call when the R process in the browser
+debugging state."
+  (interactive)
+  (let* ((buf (gpb-r-get-proc-buffer buf))
+         (local-wd (gpb-r-send-command-1
+                    ;; Wrapping the call in a function and immediately
+                    ;; calling that functions seems to avoid triggering a
+                    ;; breakpoint during browser() debugging.
+                    (format (concat "(function() { "
+                                    " cat(sprintf('%%s\\n', getwd()));"
+                                    " cat('\\n%s\\n') "
+                                    "})()")
+                            gpb-r-end-of-output-marker)
+                    buf))
+         tramp-prefix)
+    (with-current-buffer buf
+      (setq tramp-prefix (or (file-remote-p default-directory) "")
+            default-directory (concat tramp-prefix (file-name-as-directory
+                                                    local-wd)))
+      default-directory)))
+
+
+(defun gpb-r-send-command-1 (cmd buf)
+  "Send CMD to R process in BUF.
+
+Lower level function that `gpb-r-send-command'.  `cmd' should be
+constructed so as to always produce a line that starts with
+`gpb-r-end-of-output-marker' to input the end of the command.  If
+it does not, this call will hang and the user will need to
+manually `keyboard-quit' to regain control of Emacs."
+  (let* ((cmd (concat cmd "\n"))
+         (proc (or (get-buffer-process buf)
+                   (error "No R process available")))
          (server-buf-name (concat (buffer-name buf) " [command buffer]"))
          (server-buf (get-buffer-create server-buf-name))
          (inhibit-read-only t)
-         (full-cmd
-          (format
-           (concat "cat('\\n%s\\n'); "
-                   "tryCatch({ %s }, finally = cat('\\n%s\\n'))\n")
-           gpb-r-start-of-output-marker
-           cmd
-           gpb-r-end-of-output-marker)))
+         start end)
 
-    (accept-process-output proc 0.1 nil 1)
+    ;; Try to pull any pending output from the proces before we send `cmd'.
+    (while (accept-process-output proc 0.1 nil 1))
 
     (with-current-buffer server-buf
       (erase-buffer)
@@ -209,27 +247,33 @@ the result, and return a buffer that contains the result."
 
       (set-process-buffer proc server-buf)
       (set-process-sentinel proc nil)
-
-      (insert full-cmd)
-      (set-marker (process-mark proc) (point) server-buf)
-
       (set-process-filter proc nil)
-      (send-string proc full-cmd)
+
+      (insert cmd)
+      (insert "\n")
+      (set-marker (process-mark proc) (point) server-buf)
+      (setq start (point))
+      (send-string proc cmd)
+
       (condition-case
           error-var
           (unwind-protect
               (with-temp-message "Waiting on R process..."
                 ;; Accept output until we see the end-of-output marker
                 (while (not (save-excursion
-                              (goto-char (point-max))
-                              (re-search-backward
-                               (concat "^" gpb-r-end-of-output-marker "\n> ")
+                              (goto-char start)
+                              (re-search-forward
+                               (concat "^" gpb-r-end-of-output-marker
+                                       "\n\\(Browse.*\\)?> ")
                                nil t)))
-                  (accept-process-output proc 1))
-                (goto-char (point-min))
-                (re-search-forward (format "^%s" gpb-r-start-of-output-marker))
-                (forward-line 1)
-                server-buf)
+                  (accept-process-output proc 0.5 nil t))
+                (goto-char (match-beginning 0))
+                (skip-chars-backward " \n\t" start)
+                (setq end (point))
+                (goto-char start)
+                (skip-chars-forward " \n\t" end)
+                (setq start (point))
+                (buffer-substring-no-properties start end))
 
             ;; Return the process to its original buffer even if there is an
             ;; error.
@@ -239,6 +283,9 @@ the result, and return a buffer that contains the result."
             (set-marker (process-mark proc)
                         original-mark-pos original-proc-buffer))
 
+        ;; If there is an error, of the call hangs and the user has to
+        ;; `keyboard-quit' to get control of Emacs, we show the server
+        ;; buffer and raise an error.
         ((error quit)
          (pop-to-buffer server-buf)
          (error "`gpb-r-send-command' failed"))))))
@@ -253,15 +300,14 @@ Rmarkdown render expression."
   (let* ((filename (or (buffer-file-name)
                        (error "Buffer is not visiting a file")))
          (localname (ignore-errors (file-local-name filename)))
-         (r-proc-buf gpb-r-active-process-buffer)
+         (r-proc-buf (gpb-r-get-proc-buffer))
          (r-proc (get-buffer-process r-proc-buf))
-         (r-proc-dir (with-current-buffer r-proc-buf default-directory))
+         (r-proc-dir (gpb-r-getwd r-proc-buf))
          ;; Get the name of the directory that contains filename.
          (dir (ignore-errors (directory-file-name
                               (file-name-directory localname))))
          ;; Get the path relative to the interpreter's working directory
-         (relpath (with-current-buffer r-proc-buf
-                    (file-relative-name filename)))
+         (relpath (file-relative-name filename r-proc-dir))
          cmd)
 
     (save-buffer)
@@ -337,5 +383,90 @@ Rmarkdown render expression."
     (dolist (buf src-files)
       (when (buffer-modified-p buf)
         (with-current-buffer buf (save-buffer))))))
+
+
+(defun gpb-r-mode-debug-filter-function (output)
+  "Filter function that tracks debug output"
+  ;; This function is called with empty output at odd times that can lead
+  ;; to misleading highlighting if you don't ignore it those calls.
+  (when (> (string-width output) 0)
+    (save-match-data
+      (save-excursion
+        (goto-char comint-last-output-start)
+        (when (re-search-forward "^debug at \\([^#:]+\\)[#:]\\([0-9]+\\):" nil t)
+          (gpb-log-forms 'gpb-r-mode-debug-filter-function
+                         'comint-last-output-start
+                         '(match-beginning))
+          (message "Found debug output %s#%s"
+                   (match-string-no-properties 1)
+                   (match-string-no-properties 2))
+          ;; We grab the match substrings immediately as some of the later
+          ;; functions might reset the match data.
+          (let* ((filename (match-string-no-properties 1))
+                 (line-number (string-to-number (match-string-no-properties 2)))
+                 (tramp-prefix (or (file-remote-p default-directory) ""))
+                 buf)
+            (unless (file-name-absolute-p filename)
+              (setq filename (concat (gpb-r-getwd) filename)))
+            (setq filename (concat tramp-prefix filename))
+            (setq buf (ignore-errors
+                        (and (file-exists-p filename)
+                             (find-file-noselect filename t))))
+            (message "debug path: %s" filename)
+            (if buf
+                (gpb-r-show-line buf line-number)
+              (message "Can't find %S" filename) nil)))))))
+
+
+(defvar gpb-r-show-line--overlay nil
+  "Current highlighting overlay used in `gpb-r-show-line")
+
+
+(defun gpb-r-show-line (buf line-number &optional pop-to)
+  "Show line `line' in `buf' in some other window.
+
+If `pop-to' is non-nil, switch to the buffer in which the line is
+displayed."
+  (let* ((window (display-buffer buf 'other-window))
+         (vertical-margin (and window (/ (window-height window) 4))))
+    (with-current-buffer buf
+      ;; Force the window to scroll a bit.
+      (goto-line (- line-number vertical-margin))
+      (set-window-point window (point))
+      (redisplay)
+      (goto-line (+ line-number vertical-margin))
+      (set-window-point window (point))
+      (redisplay)
+
+      ;; Move to the
+      (goto-line line-number)
+      (skip-chars-forward " \t")
+      (set-window-point window (point))
+      (when (overlayp gpb-r-show-line--overlay)
+        (delete-overlay gpb-r-show-line--overlay))
+      (setq gpb-r-show-line--overlay (make-overlay (save-excursion
+                                                     (beginning-of-line)
+                                                     (point))
+                                                   (save-excursion
+                                                     (end-of-line)
+                                                     (when (looking-at-p "\n")
+                                                       (forward-char 1))
+                                                     (point))))
+      (overlay-put gpb-r-show-line--overlay 'face 'region)
+      (overlay-put gpb-r-show-line--overlay 'window window)
+      (run-at-time 0.5 nil (lambda ()
+                             (delete-overlay gpb-r-show-line--overlay)))))
+    (when pop-to (select-window window))))
+
+
+(defun gpb-r-get-proc-buffer (&optional buf)
+  "Get the currently active R process buffer"
+  (or buf gpb-r-active-process-buffer (current-buffer)))
+
+(defun gpb-r-get-proc (&optional buf)
+  "Get the currently active R process buffer"
+  (or (get-buffer-process (gpb-r-get-proc-buffer))
+      (error "No R process available")))
+
 
 (provide 'gpb-r-mode)

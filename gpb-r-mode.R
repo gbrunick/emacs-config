@@ -16,6 +16,10 @@ options(menu.graphics = FALSE, pager = "cat")
     cat(elisp)
 }
 
+source <- function(file, ...) {
+  base::source(file = base::normalizePath(file), ...)
+}
+
 
 traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
   n <- length(x <- .traceback(x))

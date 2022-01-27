@@ -44,14 +44,16 @@ code.")
 (defvar gpb:ess-primary-interpeter-buffer nil
   "The primary interpreter buffer")
 
-(add-hook 'R-mode-hook 'gpb:R-mode-hook)
+(add-hook 'ess-r-mode-hook 'gpb:ess-r-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 (add-hook 'ess-r-post-run-hook 'gpb:ess-post-run-hook)
 
 (setq ess-use-auto-complete nil
       ess-use-tracebug t)
 
-(defun gpb:R-mode-hook ()
+(defun gpb:ess-r-mode-hook ()
+  (gpb-r-code-mode 1)
+
   ;; Get rid of the annoying "smart underscore" behaviour.
   (local-set-key "_" 'self-insert-command)
 
@@ -62,7 +64,6 @@ code.")
 
   (local-set-key "\C-cb" 'gpb:ess-insert-browser)
   (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
-  (local-set-key "\C-c\C-c" 'gpb-ess:save-and-load-command)
   (local-set-key "\C-co" 'gpb:ess-view-data-frame)
   (local-set-key "\C-ct" 'gpb:ess-test-package)
   (local-set-key "\C-c\C-s" 'gpb:ess-choose-interpreter)
