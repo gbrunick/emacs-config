@@ -15,7 +15,7 @@ require any shell quoting.")
 (defvar gpb-git:windows-editor-temp-dir "c:\\Temp"
   "A path containing no spaces where we can write CMD.exe scripts.
 
-No amount of escaping or quoting appears to convince git to run a
+No amount of escaping or quoting appears to convince Git to run a
 script referenced in GIT_EDITOR or GIT_SEQUENCE_EDITOR that
 contains a space in its path, so we write a script to this
 directory so we can reference it when calling git for interactive
@@ -72,9 +72,15 @@ the worker."
        ;; running.
        (t
         (let ((script-file (locate-library "git-editor.bash"))
-              (tmpfile-name (gpb-git:get-temporary-file "git-editor.bash")))
+              (tmpfile-name (gpb-git:get-temporary-file "git-editor.bash"))
+              ;; If we are on windows, we still need to write a Bash script
+              ;; with Unix line endings.
+              (coding-system-for-write 'us-ascii-unix))
           (assert (not (null script-file)))
-          (with-temp-file tmpfile-name (insert-file-contents script-file))
+          (with-temp-file tmpfile-name
+            (insert-file-contents script-file)
+            ;; One more attept to avoid DOS line endings.
+            (delete-trailing-whitespace))
           ;; Set the permissions so the owner can read, write and execute.
           ;; 448 = 7 * 8 * 8
           (set-file-modes tmpfile-name 448)
