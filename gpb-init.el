@@ -597,7 +597,6 @@
 (load-safe "gpb-xml")
 
 (require 'gpb-comint)
-(add-hook 'comint-mode-hook 'gpb-comint:enable-bold-prompt-mode t)
 
 (let ((map comint-mode-map))
   (define-key map "\C-m" 'gpb-comint:goto-error-or-send)
