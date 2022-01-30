@@ -18,14 +18,13 @@
   "^R [vV]ersion [1-9][.][1-9]+[.][1-9]+"
   "The regex used to recognize the start of an R process in a shell buffer.")
 
-(defcustom gpb-r-inferior-compilation-error-regexp-alist
+(defcustom gpb-r-file-link-definitions
   `(;; Don't underline the " at " part of the traceback.
-    ("\\(?: at \\|(@\\)\\(\\([^#()\n]+\\)[#:]\\([0-9]+\\)\\)"
-     2 3 nil 2 1)
+    ("\\(?: at \\|(@\\)\\(\\([^#()\n]+\\)[#:]\\([0-9]+\\)\\)" 2 3 1)
 
     ;; This matches Shiny tracebacks like:
     ;;   <reactive> [CrossAssetBeta/R/module_tradeTable.R#136]
-    ("\\[?\\(\\([^[() \n]+\\)#\\([0-9]+\\)\\)" 2 3 nil 2 1)
+    ("\\[?\\(\\([^[() \n]+\\)#\\([0-9]+\\)\\)\\]" 2 3 1)
 
     ;; This matches parse errors like:
     ;;   Package/R/file.R:465:3: unexpected symbol
@@ -42,7 +41,7 @@
     ;;   Warning in tools::parse_Rd(path, macros = macros) :
     ;;     .../man/file.Rd:50: unknown macro '\item'
     ("\\(\\([^:\n ]+[.][Rr]\\(m?d\\)?\\):\\([0-9]+\\):\\([0-9]+:\\)?\\)"
-     2 3 4 2 1)
+     2 3 1)
 
     ;; This matches R Markdown build failures like:
     ;;   Quitting from lines 257-329 (report.Rmd)
@@ -56,11 +55,12 @@
               "\\(\\([0-9]+\\)-[0-9]+"
               ;; Matches filename, excluding any initial "./"
               "([.]?/?\\(.*\\))\\)")
-     3 2 nil 1))
-  "An alist of regular exprssions that match source code location output.
+     3 2 1))
+  "An alist of regular expressions that match source code location output.
 
-The value of `compilation-error-regexp-alist' is set to this
-alist in an inferior R process buffer."
+A simplified version of `compilation-error-regexp-alist'.  Each
+entry has the form (REGEXP FILE LINE HYPERLINK) where FILE, LINE,
+and HYPERLINK are integers giving match indices in REGEXP."
   :type '(alist :key-type symbol :value-type sexp)
   :group 'gpb-ess)
 
@@ -76,6 +76,7 @@ At the moment, there can only be one active process")
 (defvar gpb-inferior-r-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [?\t] 'gpb-r-tab-command)
+    (define-key map [(backtab)] 'gpb-r-backward-button)
     (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
     ;; (define-key map "\r" 'gpb-r-send-or-copy-input)
     ;; (define-key map "\C-ct" 'gpb:ess-send-traceback-command)
@@ -99,10 +100,12 @@ At the moment, there can only be one active process")
                         (buffer-string))
                       (current-buffer))
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
-  (dolist (face '(underline compilation-error compilation-line-number))
-    (face-remap-add-relative face :foreground "royal blue" :weight 'normal))
+
   (add-hook 'comint-output-filter-functions
-            #'gpb-r-mode-debug-filter-function nil t))
+            #'gpb-r-mode-debug-filter-function nil t)
+  (add-hook 'comint-output-filter-functions
+            #'gpb-r--add-links-filter-function nil t))
+
 
 (defvar gpb-r-code-minor-mode-map
   (let ((map (make-sparse-keymap)))
@@ -123,8 +126,18 @@ At the moment, there can only be one active process")
   (interactive)
   (setq this-command (if (comint-after-pmark-p)
                          'completion-at-point
-                       'gpb:inferior-ess-next-traceback))
+                       'gpb-r-forward-button))
   (call-interactively this-command))
+
+(defun gpb-r-forward-button ()
+  (interactive)
+  (condition-case exc
+      (forward-button 1 nil t)
+    (error (goto-char (point-max)))))
+
+(defun gpb-r-backward-button ()
+  (interactive)
+  (forward-button -1 nil t))
 
 (defun gpb-r-completion-at-point ()
   (save-excursion
@@ -458,9 +471,9 @@ displayed."
                                                      (point))))
       (overlay-put gpb-r-show-line--overlay 'face 'region)
       (overlay-put gpb-r-show-line--overlay 'window window)
-      (run-at-time 0.5 nil (lambda ()
-                             (delete-overlay gpb-r-show-line--overlay)))))
-    (when pop-to (select-window window))))
+      (run-at-time 0.25 nil (lambda ()
+                              (delete-overlay gpb-r-show-line--overlay)))))
+    (when pop-to (select-window window)))
 
 
 (defun gpb-r-get-proc-buffer (&optional buf)
@@ -535,6 +548,62 @@ when they see an R process start."
   (interactive)
   (add-hook 'comint-output-filter-functions
             'gpb-r--notice-r-process-start nil t))
+
+
+(defun gpb-r--add-links (beg end)
+  "Add buttons that allow one to jump to souce code locations."
+  (interactive "r")
+  (dolist (link-def gpb-r-file-link-definitions)
+    (let ((regex (car link-def))
+          (file-subexp (nth 1 link-def))
+          (line-subexp (nth 2 link-def))
+          (link-subexp (nth 3 link-def)))
+      (save-excursion
+        (save-match-data
+          (goto-char beg)
+          (while (re-search-forward regex end t)
+            (let ((file (buffer-substring-no-properties
+                         (match-beginning file-subexp) (match-end file-subexp)))
+                  (line (ignore-errors
+                          (string-to-number
+                           (buffer-substring-no-properties
+                            (match-beginning line-subexp)
+                            (match-end line-subexp))))))
+              (make-text-button
+               (match-beginning link-subexp) (match-end link-subexp)
+               'file file
+               'line line
+               'action #'gpb-r--visit-link
+               ;; Abbreviate the name in the buffer, but show the full path
+               ;; in the echo area when you tab to the button.
+               'display (format "%s#%s" (file-name-nondirectory file) line)
+               'help-echo (format "%s#%s" file line)))))))))
+
+
+(defun gpb-r--visit-link (button)
+  "Visit the line recorded in `button'"
+  (let* ((tramp-prefix (or (file-remote-p default-directory) ""))
+         (file (concat tramp-prefix (button-get button 'file)))
+         (line (button-get button 'line))
+         (buf (find-file-noselect file)))
+    (message "Visiting %s#%s" file line)
+    (gpb-r-show-line buf line)))
+
+
+(defun gpb-r--add-links-filter-function (output)
+  (gpb-log-forms 'gpb-r--add-links-filter-function
+                 'comint-last-output-start
+                 'output)
+  (when (> (string-width output) 0)
+    (let* ((proc (get-buffer-process (current-buffer)))
+           (start (or (and (boundp 'gpb-r--add-links-filter-function--start)
+                           gpb-r--add-links-filter-function--start)
+                      (point-min)))
+           (end (save-excursion (goto-char (process-mark proc))
+                                (forward-line 0)
+                                (point))))
+      (gpb-r--add-links start end)
+      (setq-local gpb-r--add-links-filter-function--start end))))
 
 
 (provide 'gpb-r-mode)
