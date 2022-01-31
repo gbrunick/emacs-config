@@ -704,3 +704,7 @@
                  (url-host url-current-object)))))
 
 (prefer-coding-system 'utf-8-unix)
+
+(eval-after-load 'shell
+  '(progn (require 'gpb-r-mode)
+          (add-hook 'shell-mode-hook #'gpb-r-watch-for-r-process)))
