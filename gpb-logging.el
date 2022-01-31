@@ -14,7 +14,12 @@
 (require 'trace)
 (require 'thingatpt)
 
-(defvar gpb-log--logging-enabled nil)
+(defcustom gpb-log--logging-enabled nil
+  "All logging is disable when this value is not t"
+  :type 'boolean
+  :group 'gpb-log)
+
+
 (defvar gpb-log--indent-level 0)
 (defvar gpb-log--indent-size 4)
 
@@ -53,7 +58,7 @@ so forms must be quoted to prevent premature evaluation."
                               form value)))))))))
 
 (defun gpb-log-form (func form)
-  (gpb-log-forms func func form))
+  (gpb-log-forms func form))
 
 
 (defun gpb-log-message (func &rest args)
