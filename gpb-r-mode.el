@@ -316,15 +316,12 @@ Rmarkdown render expression."
   (interactive "P")
   (let* ((filename (or (buffer-file-name)
                        (error "Buffer is not visiting a file")))
-         (localname (ignore-errors (file-local-name filename)))
-         (r-proc-buf (gpb-r-get-proc-buffer))
-         (r-proc (get-buffer-process r-proc-buf))
-         (r-proc-dir (gpb-r-getwd r-proc-buf))
+         (localname (file-local-name filename))
+         (r-proc-buf (or (gpb-r-get-proc-buffer)
+                         (error "No R process is associated with buffer")))
          ;; Get the name of the directory that contains filename.
          (dir (ignore-errors (directory-file-name
                               (file-name-directory localname))))
-         ;; Get the path relative to the interpreter's working directory
-         (relpath (file-relative-name filename r-proc-dir))
          cmd)
 
     (save-buffer)
@@ -338,19 +335,17 @@ Rmarkdown render expression."
      ;; We have an R markdown document, render it.
      ((string-suffix-p ".Rmd" localname t)
       (setq cmd (read-string "Render command: "
-                             (format "rmarkdown::render('%s')" relpath))))
+                             (format "rmarkdown::render('%s')" localname))))
 
      ;; If we are in a package, save any modified source files in the
      ;; package and reload the package.
      ((string-equal (ignore-errors (file-name-base dir)) "R")
       (gpb-r-mode-save-package)
       (let* ((pkg-dir (ignore-errors (directory-file-name
-                                      (file-name-directory dir))))
-             (pkg-relpath (with-current-buffer r-proc-buf
-                            (file-relative-name pkg-dir))))
+                                      (file-name-directory dir)))))
         (setq cmd (read-string "Load command: "
                                (format "pkgload::load_all('%s')"
-                                       pkg-relpath)))))
+                                       (file-local-name pkg-dir))))))
 
      ;; If we are in a test file, source the file but evaluate in the
      ;; current package namespace with the current directory as the working
@@ -364,7 +359,8 @@ Rmarkdown render expression."
      ;; Otherwise, source the file.
      (t
       (setq cmd (read-string "Load command: "
-                             (format "source('%s')" relpath)))))
+                             (format "source('%s')" localname)))))
+
 
     ;; Save the command in the buffer so you can easily reuse it.
     (setq-local gpb-r-exec-cmd cmd)
