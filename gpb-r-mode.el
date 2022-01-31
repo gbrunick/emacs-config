@@ -105,7 +105,13 @@ At the moment, there can only be one active process")
   (add-hook 'comint-output-filter-functions
             #'gpb-r-mode-debug-filter-function nil t)
   (add-hook 'comint-output-filter-functions
-            #'gpb-r--add-links-filter-function nil t))
+            #'gpb-r--add-links-filter-function nil t)
+
+  ;; We add the callback filter last as it may insert text in the buffer
+  ;; that we want the other filter functions to pick up (e.g. file link
+  ;; text).
+  (add-hook 'comint-output-filter-functions
+            #'gpb-r--callback-filter-function nil t))
 
 
 (defvar gpb-r-code-minor-mode-map
@@ -589,5 +595,52 @@ header output so it won't work if you pass the R process the
       (gpb-r--add-links start end)
       (setq-local gpb-r--add-links-filter-function--start end))))
 
+
+(defun gpb-r--callback-filter-function (output)
+  "Looks for specific callback requests for the R code.
+
+All callback requests look like gpb-r-callback: [lisp sexp]
+followed by `gpb-r-end-of-output-marker'.  the sexp is evaluated
+in the process buffer with point set to the start of the line
+that contains the callback."
+  (when (> (string-width output) 0)
+    (let ((proc (get-buffer-process (current-buffer)))
+          (marker (or (and (boundp 'gpb-r--callback-filter-function--marker)
+                           (markerp gpb-r--callback-filter-function--marker)
+                           gpb-r--callback-filter-function--marker)
+                      (copy-marker (point-min))))
+          (regex (format "^gpb-r-callback: \\(.*\\) %s\n"
+                         gpb-r-end-of-output-marker))
+          sexp)
+
+      (when comint-last-output-start
+        (set-marker marker (max comint-last-output-start marker)))
+
+      (gpb-log-forms 'gpb-r--callback-filter-function
+                     'comint-last-output-start
+                     'output 'marker 'regex)
+
+      (save-excursion
+        (goto-char marker)
+        (while (re-search-forward regex nil t)
+          (setq sexp (read (match-string-no-properties 1)))
+          (gpb-log-forms 'gpb-r--callback-filter-function 'sexp)
+          (save-excursion
+            (goto-char (match-beginning 0))
+            (delete-region (match-beginning 0) (match-end 0))
+            (eval sexp)))
+        (goto-char (process-mark proc))
+        (forward-line 0)
+        (move-marker marker (point)))
+
+      (setq-local gpb-r--callback-filter-function--marker marker))))
+
+
+;; Callback functions.  See gpb-r-mode.R.
+
+(defun gpb-r--add-error-info (file line)
+  (save-excursion
+    (skip-chars-backward " \n")
+    (insert (format " at %s#%s" file line))))
 
 (provide 'gpb-r-mode)

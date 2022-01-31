@@ -38,6 +38,13 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
 # We collect all our functions in single list to avoid poluting the R
 # global namespace too much.
 .gpb_r_mode <- local({
+
+  # This should agree with `gpb-r-end-of-output-marker` in gpb-r-mode.el.
+  start_marker <- 'gpb-r-callback:'
+  end_marker <- 'END:75b30f72-85a0-483c-98ce-d24414394ff0'
+
+  quote_string <- function(txt) deparse(txt)
+
   get_completions <- function (position, currentLine) {
     utils:::.assignLinebuffer(currentLine)
     utils:::.assignEnd(nchar(currentLine))
@@ -54,7 +61,25 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
     cat(elisp)
   }
 
-  options(menu.graphics = FALSE, pager = "cat")
+  invoke_callback <- function(...) {
+    cat(sprintf("%s %s %s\n", start_marker, sprintf(...), end_marker))
+  }
+
+  print_error_location <- function() {
+    srcref <- getSrcref(tail(sys.calls(), 1)[[1]])
+    if (is.null(srcref) && length(sys.calls()) > 1) {
+      srcref <- getSrcref(tail(sys.calls(), 2)[[1]])
+    }
+    if (!is.null(srcref)) {
+      file <- file.path(getSrcDirectory(srcref), getSrcFilename(srcref))
+      line <- getSrcLocation(srcref)
+      invoke_callback("(gpb-r--add-error-info %s %s)", deparse(file), line)
+    }
+  }
+
+  options(menu.graphics = FALSE,
+          pager = "cat",
+          error = print_error_location)
 
   list(get_completions = get_completions)
 })
