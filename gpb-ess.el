@@ -7,6 +7,7 @@
 (require 'cl-lib)
 (require 'ffap)
 (require 'tramp)
+(require 'ess-r-mode)
 (require 'gpb-r-mode)
 
 ;; For `string-trim'.
