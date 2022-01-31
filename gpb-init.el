@@ -112,7 +112,6 @@
 ;; Git integration bindings
 (autoload 'gpb-git:user-command-prefix-keymap "gitmodes" nil nil 'keymap)
 (global-set-key "\C-cv" 'gpb-git:user-command-prefix-keymap)
-(eval-after-load 'gitmodes '(global-set-key "\C-cvm" 'magit-status))
 
 
 ;; Remove useless printing options from menu
@@ -660,17 +659,6 @@
 
 (define-key minibuffer-local-filename-completion-map "\M-h"
   'gpb:delete-path-segment-backwards)
-
-(eval-after-load 'magit-mode
-  '(progn
-     (setq magit-display-buffer-function
-           'magit-display-buffer-same-window-except-diff-v1
-
-           magit-display-file-buffer-function
-           (lambda (buf)
-             (pop-to-buffer buf 'other-window)
-             (message "selected window: %s" (selected-window))
-             (run-at-time 0.1 nil 'recenter)))))
 
 (eval-after-load 'poly-markdown
   '(oset poly-markdown-root-innermode :adjust-face 5))
