@@ -3,6 +3,7 @@
 ;; editting R code.
 
 (require 'cl-lib)
+(require 'subr-x)
 
 (defgroup gpb-r-mode nil
   "Settings related to the Emacs 'gpb-r-mode' package/feature.")
@@ -285,12 +286,16 @@ manually `keyboard-quit' to regain control of Emacs."
                                nil t)))
                   (accept-process-output proc 0.5 nil t))
                 (goto-char (match-beginning 0))
-                (skip-chars-backward " \n\t" start)
-                (setq end (point))
+                ;; We use a marker for `end` so that it is not disturbed by
+                ;; the deletions below.
+                (setq end (copy-marker (point)))
                 (goto-char start)
-                (skip-chars-forward " \n\t" end)
-                (setq start (point))
-                (buffer-substring-no-properties start end))
+                ;; Remove any continuation prompts between `start' and
+                ;; `and' in the buffer
+                (save-excursion
+                  (while (re-search-forward "^+ " end t)
+                    (delete-region (match-beginning 0) (match-end 0))))
+                (string-trim (buffer-substring-no-properties start end)))
 
             ;; Return the process to its original buffer even if there is an
             ;; error.
