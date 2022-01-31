@@ -200,52 +200,8 @@ process into new buffer, send `cmd' to the R process, wait for
 the result, and return a buffer that contains the result."
   (interactive "sR Command: ")
   (let* ((buf (gpb-r-get-proc-buffer buf))
-         (full-cmd (format
-                    ;; Defining and immediately calling a function avoids
-                    ;; trigger a breakpoint in the R `browse()` debugger;
-                    ;; at least for `gpb-r-getwd' which is all we need at
-                    ;; this point.
-                    "tryCatch({ %s }, finally = cat('\\n%s\\n'))"
-                    cmd gpb-r-end-of-output-marker)))
-
-    (gpb-r-send-command-1 full-cmd buf)))
-
-
-(defun gpb-r-getwd (&optional buf)
-  "Get the TRAMP-qualified working directory of the current R process.
-
-Also updates `default-directory' in the process buffer.  This
-function is safe to call when the R process in the browser
-debugging state."
-  (interactive)
-  (let* ((buf (gpb-r-get-proc-buffer buf))
-         (local-wd (gpb-r-send-command-1
-                    ;; Wrapping the call in a function and immediately
-                    ;; calling that functions seems to avoid triggering a
-                    ;; breakpoint during browser() debugging.
-                    (format (concat "(function() { "
-                                    " cat(sprintf('%%s\\n', getwd()));"
-                                    " cat('\\n%s\\n') "
-                                    "})()")
-                            gpb-r-end-of-output-marker)
-                    buf))
-         tramp-prefix)
-    (with-current-buffer buf
-      (setq tramp-prefix (or (file-remote-p default-directory) "")
-            default-directory (concat tramp-prefix (file-name-as-directory
-                                                    local-wd)))
-      default-directory)))
-
-
-(defun gpb-r-send-command-1 (cmd buf)
-  "Send CMD to R process in BUF.
-
-Lower level function that `gpb-r-send-command'.  `cmd' should be
-constructed so as to always produce a line that starts with
-`gpb-r-end-of-output-marker' to input the end of the command.  If
-it does not, this call will hang and the user will need to
-manually `keyboard-quit' to regain control of Emacs."
-  (let* ((cmd (concat cmd "\n"))
+         (wrapped-cmd (format "tryCatch({ %s }, finally = cat('\\n%s\\n'))\n"
+                              cmd gpb-r-end-of-output-marker))
          (proc (or (get-buffer-process buf)
                    (error "No R process available")))
          (server-buf-name (concat (buffer-name buf) " [command buffer]"))
@@ -253,7 +209,8 @@ manually `keyboard-quit' to regain control of Emacs."
          (inhibit-read-only t)
          start end)
 
-    ;; Try to pull any pending output from the proces before we send `cmd'.
+    ;; Try to pull any pending output from the proces before we send
+    ;; `wrapped-cmd'.
     (while (accept-process-output proc 0.1 nil 1))
 
     (with-current-buffer server-buf
@@ -267,11 +224,10 @@ manually `keyboard-quit' to regain control of Emacs."
       (set-process-sentinel proc nil)
       (set-process-filter proc nil)
 
-      (insert cmd)
-      (insert "\n")
+      (insert wrapped-cmd)
       (set-marker (process-mark proc) (point) server-buf)
       (setq start (point))
-      (send-string proc cmd)
+      (send-string proc wrapped-cmd)
 
       (condition-case
           error-var
@@ -282,8 +238,20 @@ manually `keyboard-quit' to regain control of Emacs."
                               (goto-char start)
                               (re-search-forward
                                (concat "^" gpb-r-end-of-output-marker
-                                       "\n\\(Browse.*\\)?> ")
+                                       "\n\\(Browse.*\\)?>")
                                nil t)))
+                  ;; If we are trying to run a command when the prompt is
+                  ;; in a Browser state, we may need to send a few "n" to
+                  ;; complete the command.
+                  (when (save-excursion (goto-char start)
+                                        (forward-line 0)
+                                        (re-search-forward
+                                         "Browse\\[[0-9]+\\]> " nil t))
+                    (end-of-line)
+                    (insert "n\n")
+                    (move-marker (process-mark proc) (point))
+                    (setq start (point))
+                    (send-string proc "n\n"))
                   (accept-process-output proc 0.5 nil t))
                 (goto-char (match-beginning 0))
                 ;; We use a marker for `end` so that it is not disturbed by
@@ -296,6 +264,8 @@ manually `keyboard-quit' to regain control of Emacs."
                   (while (re-search-forward "^+ " end t)
                     (delete-region (match-beginning 0) (match-end 0))))
                 (string-trim (buffer-substring-no-properties start end)))
+
+            (let ((inhibit-message t)) (message "Waiting on R process...done"))
 
             ;; Return the process to its original buffer even if there is an
             ;; error.
@@ -311,6 +281,23 @@ manually `keyboard-quit' to regain control of Emacs."
         ((error quit)
          (pop-to-buffer server-buf)
          (error "`gpb-r-send-command' failed"))))))
+
+
+(defun gpb-r-getwd (&optional buf)
+  "Get the TRAMP-qualified working directory of the current R process.
+
+Also updates `default-directory' in the process buffer.  This
+function is safe to call when the R process in the browser
+debugging state."
+  (interactive)
+  (let* ((buf (gpb-r-get-proc-buffer buf))
+         (local-wd (gpb-r-send-command "cat(sprintf('%s\\n', getwd()))" buf))
+         tramp-prefix)
+    (with-current-buffer buf
+      (setq tramp-prefix (or (file-remote-p default-directory) "")
+            default-directory (concat tramp-prefix (file-name-as-directory
+                                                    local-wd)))
+      default-directory)))
 
 
 (defun gpb-r-save-and-exec-command (arg)
