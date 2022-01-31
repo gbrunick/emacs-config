@@ -1,26 +1,10 @@
-options(menu.graphics = FALSE, pager = "cat")
-
-.gpb_r_mode_get_completions <- function (position, currentLine) {
-    utils:::.assignLinebuffer(currentLine)
-    utils:::.assignEnd(nchar(currentLine))
-    utils:::.guessTokenFromLine()
-    utils:::.completeToken()
-
-    # Quote the strings..
-    completions <- vapply(utils:::.retrieveCompletions(), deparse, "")
-    completions <- paste(completions, collapse = " ")
-
-    string <- position + utils:::.CompletionEnv$start
-    end <- position + utils:::.CompletionEnv$end
-    elisp <- sprintf("\n(%s %s (%s))\n\n", string, end, completions)
-    cat(elisp)
-}
-
+# Always use absolute paths when sourcing files.  This makes file handling
+# much easier on the Emacs side.
 source <- function(file, ...) {
   base::source(file = base::normalizePath(file), ...)
 }
 
-
+# Show the full path in the traceback
 traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
   n <- length(x <- .traceback(x))
   if (n == 0L)
@@ -49,3 +33,28 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
   }
   invisible(x)
 }
+
+
+# We collect all our functions in single list to avoid poluting the R
+# global namespace too much.
+.gpb_r_mode <- local({
+  get_completions <- function (position, currentLine) {
+    utils:::.assignLinebuffer(currentLine)
+    utils:::.assignEnd(nchar(currentLine))
+    utils:::.guessTokenFromLine()
+    utils:::.completeToken()
+
+    # Quote the strings..
+    completions <- vapply(utils:::.retrieveCompletions(), deparse, "")
+    completions <- paste(completions, collapse = " ")
+
+    string <- position + utils:::.CompletionEnv$start
+    end <- position + utils:::.CompletionEnv$end
+    elisp <- sprintf("\n(%s %s (%s))\n\n", string, end, completions)
+    cat(elisp)
+  }
+
+  options(menu.graphics = FALSE, pager = "cat")
+
+  list(get_completions = get_completions)
+})

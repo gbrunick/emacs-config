@@ -144,7 +144,7 @@ At the moment, there can only be one active process")
     (let* ((buf (current-buffer))
            (proc (get-buffer-process buf))
            (line (buffer-substring-no-properties (process-mark proc) (point)))
-           (cmd (format ".gpb_r_mode_get_completions(%s, %S)"
+           (cmd (format ".gpb_r_mode$get_completions(%s, %S)"
                         (marker-position (process-mark proc)) line))
            (response (gpb-r-send-command cmd buf)))
       (read response))))
