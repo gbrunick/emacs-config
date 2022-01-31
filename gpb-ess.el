@@ -48,6 +48,9 @@ code.")
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 (add-hook 'ess-r-post-run-hook 'gpb:ess-post-run-hook)
 
+(eval-after-load 'ess-r-package
+  (remove-hook 'shell-mode-hook 'ess-r-package-activate-directory-tracker))
+
 (setq ess-use-auto-complete nil
       ess-use-tracebug t)
 
