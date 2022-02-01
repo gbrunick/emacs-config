@@ -108,95 +108,108 @@ names in the UI."
   "We save all commit messages so they can be recovered.")
 
 (defface gpb-git:title
-  '((t :background "#eeeeee" :inherit default))
+  '((t :background "#eeeeee" :inherit default :extend t))
   "Face used for coments and instructions")
 
 (defface gpb-git:file-name
-  '((t :background "#ffffff" :height 140))
+  '((t :background "#ffffff" :height 140 :extend t))
   "Face used for the file name header")
 
-(defface gpb-git:file-header '((t :background "grey95"))
+(defface gpb-git:file-header '((t :background "grey95" :extend t))
   "Face used for the hunk header in the pathc buffer")
 
 (defface gpb-git:hunk-header
-  '((t :background "gray65"))
+  '((t :background "gray65" :extend t))
   "Face used for the hunk header")
 
 (defface gpb-git:context-line
-  '((t :background "gray95"))
+  '((t :background "gray95" :extend t))
   "Face used for context lines in a hunk")
 
 (defface gpb-git:deleted-line
   `((t :foreground "#550000"
-       :background ,(gpb-git--blend-colors "#f0c0c0" "white" 0.6)))
+       :background ,(gpb-git--blend-colors "#f0c0c0" "white" 0.6)
+       :extend t))
   "Face used for the deleted lines in a hunk")
 
 (defface gpb-git:added-line
   `((t :foreground "#004400"
-       :background ,(gpb-git--blend-colors "#b8e0b8" "white" 0.6)))
+       :background ,(gpb-git--blend-colors "#b8e0b8" "white" 0.6)
+       :extend t))
   "Face used for the added lines in a hunk")
 
 ;; Focused faces
 
 (defface gpb-git:focused-hunk-header
-  '((t :background "cornflower blue"))
+  '((t :background "cornflower blue" :extend t))
   "Face used for context lines in the focused hunk")
 
 (defface gpb-git:focused-context-line
-  `((t :background ,(gpb-git--blend-colors "cornflower blue" "white" 0.25)))
+  `((t :background ,(gpb-git--blend-colors "cornflower blue" "white" 0.25)
+       :extend t))
   "Face used for context lines in the focused hunk")
 
 (defface gpb-git:focused-added-line
   '((t :foreground "#005500"
-       :background "#b8e0b8"))
+       :background "#b8e0b8"
+       :extend t))
   "Face used for the added lines in the focused hunk.")
 
 (defface gpb-git:focused-deleted-line
   '((t :foreground "#880000"
-       :background "#f0c0c0"))
+       :background "#f0c0c0"
+       :extend t))
   "Face used for deleted lines in the focused hunk.")
 
 ;; Marked faces
 
 (defface gpb-git:marked-hunk-header
-  `((t :background ,(gpb-git--blend-colors "khaki4" "white" 0.6)))
+  `((t :background ,(gpb-git--blend-colors "khaki4" "white" 0.6)
+       :extend t))
   "Face used for context lines in a marked hunk")
 
 (defface gpb-git:marked-context-line
-  `((t :background ,(gpb-git--blend-colors "khaki2" "white" 0.6)))
+  `((t :background ,(gpb-git--blend-colors "khaki2" "white" 0.6)
+       :extend t))
   "Face used for context lines in the marked hunk")
 
 (defface gpb-git:marked-added-line
-  `((t :background ,(gpb-git--blend-colors "khaki2" "white" 0.8)))
+  `((t :background ,(gpb-git--blend-colors "khaki2" "white" 0.8)
+       :extend t))
   "Face used for the added lines in the marked hunk.")
 
 (defface gpb-git:marked-deleted-line
-  `((t :background ,(gpb-git--blend-colors "khaki3" "white" 0.6)))
+  `((t :background ,(gpb-git--blend-colors "khaki3" "white" 0.6)
+       :extend t))
   "Face used for deleted lines in the marked hunk.")
 
 ;; Focused and marked faces
 
 (defface gpb-git:focused-and-marked-hunk-header
-  '((t :background "khaki4"))
+  '((t :background "khaki4" :extend t))
   "Face used for context lines in a marked hunk")
 
 (defface gpb-git:focused-and-marked-context-line
-  `((t :background ,(gpb-git--blend-colors "khaki2" "white" 0.72 0.22)))
+  `((t :background ,(gpb-git--blend-colors "khaki2" "white" 0.72 0.22)
+       :extend t))
   "Face used for context lines in the marked hunk")
 
 (defface gpb-git:focused-and-marked-added-line
   `((t ;; :foreground "#003000"
-       :background ,(gpb-git--blend-colors "khaki2" "black" 0.95)))
+       :background ,(gpb-git--blend-colors "khaki2" "black" 0.95)
+       :extend t))
   "Face used for the added lines in the marked hunk.")
 
 (defface gpb-git:focused-and-marked-deleted-line
   `((t ;; :foreground "#660000"
-       :background ,(gpb-git--blend-colors "#f0c0c0" "khaki3" 0)))
+       :background ,(gpb-git--blend-colors "#f0c0c0" "khaki3" 0)
+       :extend t))
   "Face used for deleted lines in the marked hunk.")
 
 
 (defface gpb-git:marked-line-face
-  `((t :background ,(gpb-git--blend-colors "khaki2" "white" 0.72 0.22)))
+  `((t :background ,(gpb-git--blend-colors "khaki2" "white" 0.72 0.22)
+       :extend t))
   "Face used for the marked revision in a log buffer.")
 
 
