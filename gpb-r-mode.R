@@ -77,9 +77,32 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
     }
   }
 
+  # `name` is a string giving a function name.
+  get_args <- function(name) {
+    func <- tryCatch({
+      f <- eval(parse(text = name))
+      stopifnot(is.function(f))
+      f
+    }, error = function(e) NULL)
+
+    if (is.null(func)) {
+      cat("NULL\n")
+      return(invisible(NULL))
+    }
+
+    lines <- deparse(args(func))
+    lines <- trimws(lines, "left")
+    # The last line is NULL
+    lines <- paste(head(lines, -1), collapse = "")
+    eldoc_info <- trimws(sub("^function +", name, lines))
+    cat(sprintf("\n%s\n", eldoc_info))
+    invisible(NULL)
+  }
+
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location)
 
-  list(get_completions = get_completions)
+  list(get_completions = get_completions,
+       get_args = get_args)
 })

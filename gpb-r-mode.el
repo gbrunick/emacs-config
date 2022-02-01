@@ -111,7 +111,12 @@ At the moment, there can only be one active process")
   ;; that we want the other filter functions to pick up (e.g. file link
   ;; text).
   (add-hook 'comint-output-filter-functions
-            #'gpb-r--callback-filter-function nil t))
+            #'gpb-r--callback-filter-function nil t)
+
+  ;; eldoc support
+  (setq-local eldoc-documentation-function
+              #'gpb-r--eldoc-documentation-function)
+  (eldoc-mode 1))
 
 
 (defvar gpb-r-code-minor-mode-map
@@ -122,7 +127,10 @@ At the moment, there can only be one active process")
 (define-minor-mode gpb-r-code-mode
   "Minor mode for R code buffers."
   :keymap gpb-r-code-minor-mode-map
-  :lighter "gpb-r")
+  :lighter "gpb-r"
+  (setq-local eldoc-documentation-function
+              #'gpb-r--eldoc-documentation-function)
+  (eldoc-mode 1))
 
 (defun gpb-r-set-active-process ()
   (interactive)
@@ -642,5 +650,65 @@ that contains the callback."
   (save-excursion
     (skip-chars-backward " \n")
     (insert (format " at %s#%s" file line))))
+
+
+;; eldoc integration
+
+(defvar-local gpb-r--eldoc-documentation-function-hash
+  (make-hash-table :test #'equal))
+
+(defun gpb-r-clear-eldoc-cache ()
+  "Clear the eldoc documentation cache.
+
+If the R function definitions have changed, call this function to
+clear the cache."
+  (interactive)
+  (with-current-buffer (gpb-r-get-proc-buffer)
+    (clrhash gpb-r--eldoc-documentation-function-hash)))
+
+(defun gpb-r--eldoc-documentation-function ()
+  "Identify the current function and return argument info.
+
+This function only recognizes a function once you enter the
+parenthesis for its arguments.  We don't try to highlight the
+current argument.  Handling this correctly in the presence of
+named arguments would be complicated and it's just not worth it.
+
+This function returns a string or nil"
+  ;; Only continue if point is strictly after the last output.
+  (when (not (eq (get-text-property (1- (point)) 'field) 'output))
+    (let ((lbound (save-excursion
+                    (if (derived-mode-p 'comint)
+                        (comint-next-prompt -1)
+                      (forward-line -25))
+                    (point)))
+          func-name into procbuf)
+      (when (< 0 (car (parse-partial-sexp lbound (point))))
+        (setq func-name (save-excursion
+                          (ignore-errors
+                            (up-list -1 t t)
+                            ;; If we are in a string, the first call to
+                            ;; `up-list' just moves us to the start of the
+                            ;; string.  We still need to move to the outer
+                            ;; parenthesis.
+                            (unless (looking-at "(") (up-list -1 t t))
+                            (backward-char)
+                            (when (>= (point) lbound)
+                              (thing-at-point 'symbol t)))))
+        (when (and func-name
+                   (not (member func-name '("if" "for" "function"))))
+          (with-current-buffer (gpb-r-get-proc-buffer)
+            ;; We associate a single buffer local cache with each process.
+            (setq info (or (gethash func-name
+                                    gpb-r--eldoc-documentation-function-hash)
+                           (puthash func-name
+                                    (gpb-r-send-command
+                                     (format ".gpb_r_mode$get_args(%S)" func-name)
+                                     (current-buffer))
+                                    gpb-r--eldoc-documentation-function-hash)))
+            (if (string= info "NULL")
+                nil
+              info)))))))
+
 
 (provide 'gpb-r-mode)
