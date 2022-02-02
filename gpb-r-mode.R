@@ -99,10 +99,28 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
     invisible(NULL)
   }
 
+  update_tags <- function(dirs_file) {
+    stopifnot(file.exists(dirs_file))
+    dir <- normalizePath(dirname(dirs_file))
+    tags_file <- file.path(dir, "TAGS")
+    cat("", file = tags_file)
+    cat(sprintf("\nTAGS file: %s\n", tags_file))
+    wd <- setwd(dir)
+    on.exit(setwd(wd))
+    relpaths <- readLines(dirs_file)
+
+    for (relpath in relpaths) {
+      path <- file.path(dir, relpath)
+      cat(sprintf("Source dir: %s\n", path))
+      rtags(path, ofile = tags_file, append = TRUE)
+    }
+  }
+
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location)
 
   list(get_completions = get_completions,
-       get_args = get_args)
+       get_args = get_args,
+       update_tags = update_tags)
 })
