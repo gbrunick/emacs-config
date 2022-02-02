@@ -487,12 +487,11 @@ displayed."
 
 (defun gpb-r-get-proc-buffer (&optional buf)
   "Get the currently active R process buffer"
-  (or buf gpb-r-active-process-buffer (current-buffer)))
-
-(defun gpb-r-get-proc (&optional buf)
-  "Get the currently active R process buffer"
-  (or (get-buffer-process (gpb-r-get-proc-buffer))
-      (error "No R process available")))
+  (or buf
+      (let ((proc (get-buffer-process (current-buffer))))
+        (and (process-live-p proc) (current-buffer)))
+      (let ((proc (get-buffer-process gpb-r-active-process-buffer)))
+        (and (process-live-p proc) gpb-r-active-process-buffer))))
 
 
 (defun gpb-r--notice-r-process-start (str)
