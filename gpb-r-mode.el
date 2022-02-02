@@ -91,6 +91,11 @@ At the moment, there can only be one active process")
     map)
   "Local keymap `gpb-inferior-r-mode'.")
 
+(defvar gpb-inferior-r-mode--syntax-table
+  (let ((st (make-syntax-table)))
+    (modify-syntax-entry ?. "_" st)
+    st))
+
 (define-derived-mode gpb-inferior-r-mode comint-mode "Inferior R Mode"
   "Major mode for an inferior R process.
 \\<gpb-inferior-r-mode-map>
@@ -101,6 +106,8 @@ At the moment, there can only be one active process")
                         (buffer-string))
                       (current-buffer))
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
+
+  (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
   (add-hook 'comint-output-filter-functions
             #'gpb-r-mode-debug-filter-function nil t)
