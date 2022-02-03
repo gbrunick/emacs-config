@@ -374,7 +374,7 @@
 (eval-after-load 'compile '(define-key compilation-mode-map "\C-o" nil))
 (eval-after-load 'latex '(load-safe "gpb-latex"))
 (eval-after-load 'python '(load-safe "gpb-python2"))
-(eval-after-load 'ess-site '(load-safe "gpb-ess"))
+(eval-after-load 'ess-r-mode '(load-safe "gpb-ess"))
 (eval-after-load 'git-commit '(global-git-commit-mode -1))
 
 ;; Minibuffer customization -----------------------------------------------

@@ -45,6 +45,7 @@ code.")
 (defvar gpb:ess-primary-interpeter-buffer nil
   "The primary interpreter buffer")
 
+(setq ess-r-mode-hook nil)
 (add-hook 'ess-r-mode-hook 'gpb:ess-r-mode-hook)
 (add-hook 'inferior-ess-mode-hook 'gpb:inferior-ess-mode-hook)
 (add-hook 'ess-r-post-run-hook 'gpb:ess-post-run-hook)
