@@ -116,11 +116,36 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
     }
   }
 
+  # We pass this temp file to Emacs for region evaluation.
+  region_file <- tempfile("region-", fileext = ".R")
+
+  eval_region_file <- function(buffer_name, wd = NULL, namespace = NULL) {
+    lines <- readLines(region_file)
+    src <- srcfilecopy(sprintf("[%s]", buffer_name), lines,
+                       timestamp = Sys.time(), isFile = FALSE)
+    expr <- parse(text = lines, srcfile = src)
+
+    if (!is.null(wd)) {
+      save_dir <- setwd(wd)
+      on.exit(setwd(save_dir))
+    }
+
+    if (is.null(namespace)) {
+      eval(expr, globalenv())
+    } else {
+      eval(expr, asNamespace(namespace))
+    }
+
+    invisible(NULL)
+  }
+
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location)
 
   list(get_completions = get_completions,
        get_args = get_args,
-       update_tags = update_tags)
+       update_tags = update_tags,
+       region_file = region_file,
+       eval_region_file = eval_region_file)
 })

@@ -109,6 +109,9 @@ At the moment, there can only be one active process")
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
+  (add-hook 'comint-input-filter-functions
+            #'gpb-r--region-eval-input-filter)
+
   (add-hook 'comint-output-filter-functions
             #'gpb-r-mode-debug-filter-function nil t)
   (add-hook 'comint-output-filter-functions
@@ -588,9 +591,10 @@ header output so it won't work if you pass the R process the
   "Visit the line recorded in `button'"
   (let* ((tramp-prefix (or (file-remote-p default-directory) ""))
          (file (concat tramp-prefix (button-get button 'file)))
-         (line (button-get button 'line))
-         (buf (find-file-noselect file)))
-    (message "Visiting %s#%s" file line)
+         (line (button-get button 'line)))
+    (setq buf (if (string-match "^\\[\\(.*\\)\\]$" (file-name-nondirectory file))
+                  (get-buffer (match-string 1 (file-name-nondirectory file)))
+                (find-file-noselect file)))
     (gpb-r-show-line buf line)))
 
 
@@ -731,5 +735,97 @@ Looks for the TAGS_DIR file and then calls underyling R code."
     (when (file-exists-p file)
       (gpb-r-send-command (format ".gpb_r_mode$update_tags(%S)" file)))))
 
+
+(defun gpb-r-eval-region (beg end)
+  (interactive "r")
+  (let* ((srcbuf (buffer-name))
+         (procbuf (or (gpb-r-get-proc-buffer)
+                      (error "No R process buffer")))
+         (line1 (line-number-at-pos beg t))
+         (line2 (save-excursion
+                  (goto-char end)
+                  (when (bolp) (forward-line -1))
+                  (line-number-at-pos (point) t)))
+         (text (buffer-substring-no-properties beg end)))
+
+  (with-current-buffer procbuf
+    (save-excursion
+      (comint-goto-process-mark)
+      (if (= line1 line2)
+          ;; If the region is a single line, we just insert it directly.
+          (insert (string-trim text))
+        (insert (format "# eval region: %S %s-%s" srcbuf line1 line2)))
+      (comint-send-input)))
+
+  (pop-to-buffer procbuf)
+  (with-current-buffer procbuf
+    (goto-char (point-max)))))
+
+
+(defun gpb-r-eval-text-object (obj start end)
+  (gpb-r-eval-region start end))
+
+
+(defvar-local gpb-r--region-file nil
+  "Holds the region file in an inferior R process buffer")
+
+(defun gpb-r--get-region-file ()
+  "Should be called from an R process buffer"
+
+  (let ((file gpb-r--region-file))
+    (when (null file)
+      (setq file (concat (gpb-r--get-tramp-prefix)
+                         (gpb-r-send-command
+                          "cat(sprintf('%s\n', .gpb_r_mode$region_file))")))
+      (setq-local gpb-r--region-file file))
+    file))
+
+(defun gpb-r--region-eval-input-filter (line)
+  "Input filter that looks for eval region commands"
+  (when (string-match "# *eval region: +\\(\".*\"\\) +\\([0-9]+\\)-\\([0-9]+\\)$"
+                      line)
+    (let ((srcbuf (read (match-string 1 line)))
+          (line1 (string-to-number (match-string 2 line)))
+          (line2 (string-to-number (match-string 3 line)))
+          (procbuf (current-buffer))
+          (region-filename (gpb-r--get-region-file))
+          text)
+
+      (with-current-buffer srcbuf
+        (save-restriction
+          (widen)
+          (setq text (buffer-substring-no-properties
+                      (save-excursion
+                        (goto-char (point-min))
+                        (forward-line (1- line1))
+                        (point))
+                      (save-excursion
+                        (goto-char (point-min))
+                        (forward-line (1- line2))
+                        (end-of-line)
+                        (point))))
+
+          (with-temp-file region-filename
+            (insert text)
+            ;; If all the lines are in a roxygen comment, remove the comment
+            ;; prefix.
+            (goto-char (point-min))
+            (while (looking-at "^#'") (forward-line))
+            (when (eobp)
+              (goto-char (point-min))
+              (while (looking-at "^#'")
+                (replace-match "  ")
+                (forward-line)))
+
+            (goto-char (point-min))
+            (insert (make-string (1- line1) ?\n))
+            (goto-char (point-max))
+            (insert "\n\n"))
+
+          ;; Only write tothe message buffer to avoid flicker
+          (let ((inhibit-message t)) (message "Wrote %s" region-filename))
+
+          (gpb-r-send-command
+           (format ".gpb_r_mode$eval_region_file(%S)\n" srcbuf)))))))
 
 (provide 'gpb-r-mode)
