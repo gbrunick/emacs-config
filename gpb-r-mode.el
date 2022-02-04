@@ -79,7 +79,6 @@ At the moment, there can only be one active process")
     (define-key map [?\t] 'gpb-r-tab-command)
     (define-key map [(backtab)] 'gpb-r-backward-button)
     (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
-    ;; (define-key map "\r" 'gpb-r-send-or-copy-input)
     ;; (define-key map "\C-ct" 'gpb:ess-send-traceback-command)
     ;; (define-key map "\C-cq" 'gpb:ess-send-quit-command)
     ;; (define-key map [(backtab)] 'gpb:inferior-ess-previous-traceback)
@@ -174,48 +173,6 @@ At the moment, there can only be one active process")
                         (marker-position (process-mark proc)) line))
            (response (gpb-r-send-command cmd buf)))
       (read response))))
-
-(defun gpb-r-send-or-copy-input ()
-  "Send the current line or copy a previous line to the current line."
-  (interactive)
-  (cond
-   ;; If the input looks like "[Evaluate lines 11-22 in scratch.R]"
-   ;; evaluate the region.
-   ((and (comint-after-pmark-p)
-         (save-excursion
-           (beginning-of-line)
-           (looking-at-p "^> *\\[Evaluate lines [0-9]+-[0-9]+ in .*\\]")))
-    (save-excursion
-      (beginning-of-line)
-      (save-match-data
-        (re-search-forward
-         "^> *\\[Evaluate lines \\([0-9]+\\)-\\([0-9]+\\) in \\(.*\\)\\]")
-        (let* ((proc (get-buffer-process (current-buffer)))
-               (pmark (process-mark proc))
-               (initial-pmark (marker-position pmark))
-               (line1 (string-to-number (match-string 1)))
-               (line2 (string-to-number (match-string 2)))
-               (buf-name (match-string 3))
-               beg end)
-          (delete-region initial-pmark (save-excursion (end-of-line) (point)))
-          (with-current-buffer buf-name
-            (goto-line line1)
-            (setq beg (point))
-            (goto-line line2)
-            (end-of-line)
-            (setq end (point))
-            (gpb:ess-eval-region beg end))))))
-
-   ((comint-after-pmark-p)
-    (comint-send-input))
-
-   (t
-    (let ((old-input (funcall comint-get-old-input)))
-      (goto-char (point-max))
-      (while (looking-back "\n")
-        (backward-char))
-      (insert old-input)))))
-
 
 (defun gpb-r-send-command (cmd &optional buf)
   "Send CMD to R process in BUF and the return the output as a string.
