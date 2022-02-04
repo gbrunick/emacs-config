@@ -273,12 +273,10 @@ function is safe to call when the R process in the browser
 debugging state."
   (interactive)
   (let* ((buf (gpb-r-get-proc-buffer buf))
-         (local-wd (gpb-r-send-command "cat(sprintf('%s\\n', getwd()))" buf))
-         tramp-prefix)
+         (local-wd (gpb-r-send-command "cat(sprintf('%s\\n', getwd()))" buf)))
     (with-current-buffer buf
-      (setq tramp-prefix (or (file-remote-p default-directory) "")
-            default-directory (concat tramp-prefix (file-name-as-directory
-                                                    local-wd)))
+      (setq default-directory (concat (gpb-r--get-tramp-prefix)
+                                      (file-name-as-directory local-wd)))
       default-directory)))
 
 
@@ -391,11 +389,10 @@ Rmarkdown render expression."
           ;; functions might reset the match data.
           (let* ((filename (match-string-no-properties 1))
                  (line-number (string-to-number (match-string-no-properties 2)))
-                 (tramp-prefix (or (file-remote-p default-directory) ""))
                  buf)
             (unless (file-name-absolute-p filename)
               (setq filename (concat (gpb-r-getwd) filename)))
-            (setq filename (concat tramp-prefix filename))
+            (setq filename (concat (gpb-r--get-tramp-prefix) filename))
             (setq buf (ignore-errors
                         (and (file-exists-p filename)
                              (find-file-noselect filename t))))
@@ -547,8 +544,8 @@ header output so it won't work if you pass the R process the
 
 (defun gpb-r--visit-link (button)
   "Visit the line recorded in `button'"
-  (let* ((tramp-prefix (or (file-remote-p default-directory) ""))
-         (file (concat tramp-prefix (button-get button 'file)))
+  (let* ((file (concat (gpb-r--get-tramp-prefix)
+                       (button-get button 'file)))
          (line (button-get button 'line)))
     (setq buf (if (string-match "^\\[\\(.*\\)\\]$" (file-name-nondirectory file))
                   (get-buffer (match-string 1 (file-name-nondirectory file)))
@@ -692,6 +689,11 @@ Looks for the TAGS_DIR file and then calls underyling R code."
     (setq file (concat dir "TAG_DIRS"))
     (when (file-exists-p file)
       (gpb-r-send-command (format ".gpb_r_mode$update_tags(%S)" file)))))
+
+
+(defun gpb-r--get-tramp-prefix (&optional dir)
+  (let ((dir (or dir default-directory)))
+    (or (file-remote-p dir) "")))
 
 
 (defun gpb-r-eval-region (beg end)
