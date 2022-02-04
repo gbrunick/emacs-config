@@ -106,6 +106,7 @@ At the moment, there can only be one active process")
                         (buffer-string))
                       (current-buffer))
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
+  (setq-local comint-input-autoexpand nil)
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
