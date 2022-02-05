@@ -110,12 +110,17 @@ At the moment, there can only be one active process")
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
   (add-hook 'comint-input-filter-functions
-            #'gpb-r--region-eval-input-filter)
+            #'gpb-r--region-eval-input-filter nil t)
+  (add-hook 'comint-input-filter-functions
+            #'gpb-r--busy-state-input-filter nil t)
 
   (add-hook 'comint-output-filter-functions
             #'gpb-r-mode-debug-filter-function nil t)
   (add-hook 'comint-output-filter-functions
             #'gpb-r--add-links-filter-function nil t)
+  (add-hook 'comint-output-filter-functions
+            #'gpb-r--busy-state-output-filter nil t)
+
 
   ;; We add the callback filter last as it may insert text in the buffer
   ;; that we want the other filter functions to pick up (e.g. file link
@@ -619,7 +624,7 @@ that contains the callback."
 
 ;; eldoc integration
 
-(defvar-local gpb-r--eldoc-documentation-function-hash
+(defvar-local gpb-r--eldoc-hash
   (make-hash-table :test #'equal))
 
 (defun gpb-r-clear-eldoc-cache ()
@@ -629,7 +634,7 @@ If the R function definitions have changed, call this function to
 clear the cache."
   (interactive)
   (with-current-buffer (gpb-r-get-proc-buffer)
-    (clrhash gpb-r--eldoc-documentation-function-hash)))
+    (clrhash gpb-r--eldoc-hash)))
 
 (defun gpb-r--eldoc-documentation-function ()
   "Identify the current function and return argument info.
@@ -640,37 +645,49 @@ current argument.  Handling this correctly in the presence of
 named arguments would be complicated and it's just not worth it.
 
 This function returns a string or nil"
-  ;; Only continue if point is strictly after the last output.
-  (when (not (eq (get-text-property (1- (point)) 'field) 'output))
-    (let ((lbound (save-excursion
-                    (if (derived-mode-p 'comint)
-                        (comint-next-prompt -1)
-                      (forward-line -25))
-                    (point)))
-          func-name into procbuf)
-      (when (< 0 (car (parse-partial-sexp lbound (point))))
+  ;; We bound how far we search to look for an opening parenthesis.  In an
+  ;; inferion process buffer, you want to ignore any previous input or
+  ;; error output before the current prompt.  In an R code buffer, you want
+  ;; to avoid invalid code that is far away from the point.
+  (save-match-data
+    (let* ((lbound (if (derived-mode-p 'comint)
+                       (comint-line-beginning-position)
+                     (save-excursion (forward-line -25) (point))))
+           (parse-info (parse-partial-sexp lbound (point)))
+           end func-name)
+
+      ;; Only proceed if we are inside a parenthetical expression that starts
+      ;; on or after `lbound'.  A half-open expression counts.
+      (when (> (car parse-info) 0)
+
+        ;; Find the function name immediately before the openning
+        ;; parenthesis, including any module prefix.
         (setq func-name (save-excursion
-                          (ignore-errors
-                            (up-list -1 t t)
-                            ;; If we are in a string, the first call to
-                            ;; `up-list' just moves us to the start of the
-                            ;; string.  We still need to move to the outer
-                            ;; parenthesis.
-                            (unless (looking-at "(") (up-list -1 t t))
-                            (backward-char)
-                            (when (>= (point) lbound)
-                              (thing-at-point 'symbol t)))))
+                          ;; Go to opening parenthesis
+                          (goto-char (cadr parse-info))
+                          (skip-chars-backward " \t")
+                          (setq end (point))
+                          (skip-chars-backward "a-zA-Z0-9_.")
+                          (when (looking-back "::")
+                            (backward-char 2)
+                            (skip-chars-backward "a-zA-Z0-9_."))
+                          (buffer-substring-no-properties (point) end)))
+
         (when (and func-name
                    (not (member func-name '("if" "for" "function"))))
           (with-current-buffer (gpb-r-get-proc-buffer)
             ;; We associate a single buffer local cache with each process.
             (setq info (or (gethash func-name
-                                    gpb-r--eldoc-documentation-function-hash)
-                           (puthash func-name
-                                    (gpb-r-send-command
-                                     (format ".gpb_r_mode$get_args(%S)" func-name)
-                                     (current-buffer))
-                                    gpb-r--eldoc-documentation-function-hash)))
+                                    gpb-r--eldoc-hash)
+                           ;; If the inferior process is busy, we don't try
+                           ;; to get eldoc info now.
+                           (and (not gpb-r--inferior-process-busy)
+                                (puthash func-name
+                                         (gpb-r-send-command
+                                          (format ".gpb_r_mode$get_args(%S)"
+                                                  func-name)
+                                          (current-buffer))
+                                         gpb-r--eldoc-hash))))
             (if (string= info "NULL")
                 nil
               info)))))))
@@ -787,5 +804,28 @@ Looks for the TAGS_DIR file and then calls underyling R code."
 
           (gpb-r-send-command
            (format ".gpb_r_mode$eval_region_file(%S)\n" srcbuf)))))))
+
+
+;; Track the busy state of the inferior process
+
+(defvar-local gpb-r--inferior-process-busy nil
+  "Is the inferrior process currently running.
+
+We track this so we know when we can send commands (e.g. eldoc
+info).  The mark the process buffer as busy after each input
+until we see the next prompt.")
+
+(defun gpb-r--busy-state-input-filter (line)
+  (setq-local gpb-r--inferior-process-busy t))
+
+(defun gpb-r--busy-state-output-filter (line)
+  (save-restriction
+    (widen)
+    (when (save-excursion
+            (goto-char (point-max))
+            (forward-line 0)
+            (looking-at-p "^> *$"))
+      (setq-local gpb-r--inferior-process-busy nil))))
+
 
 (provide 'gpb-r-mode)
