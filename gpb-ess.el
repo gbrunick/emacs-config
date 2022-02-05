@@ -100,8 +100,9 @@ code.")
 
   (setq-local indent-line-function #'gpb:ess-indent-line)
 
-  (when (require 'yasnippet nil t)
-    (yas-minor-mode 1))
+  ;; (when (require 'yasnippet nil t)
+  ;;   (yas-minor-mode 1))
+
   (when (require 'gpb-text-objects nil t)
     (setq-local execute-text-object-function 'gpb-r-eval-text-object)
     (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
