@@ -17,7 +17,16 @@
 
 (defcustom gpb-r-process-header-regex
   "^R [vV]ersion [1-9][.][1-9]+[.][1-9]+"
-  "The regex used to recognize the start of an R process in a shell buffer.")
+  "The regex used to recognize the start of an R process in a shell buffer."
+  :type 'string
+  :group 'gpb-r-mode)
+
+(defcustom gpb-r-history-save-frequency (* 5 60)
+  "The frequency with which we save the history of the R process in seconds.
+
+Set to nil or zero to disable auto-saving history."
+  :type 'integer
+  :group 'gpb-r-mode)
 
 (defcustom gpb-r-file-link-definitions
   `(;; Don't underline the " at " part of the traceback.
@@ -100,6 +109,25 @@ At the moment, there can only be one active process")
 \\<gpb-inferior-r-mode-map>
 \\{gpb-inferior-r-mode-map}"
   (setq truncate-lines t)
+
+  ;; History setup
+  ;;
+  ;; Use an absolute path for `comint-input-ring-file-name' so it is not
+  ;; impacted by changes to the R working.
+  (setq-local comint-input-ring-file-name (expand-file-name ".Rhistory"))
+  (setq-local comint-input-ring-separator "\n")
+  (setq-local comint-input-filter #'gpb-r--comint-input-filter)
+
+  ;; Keep comments in the history as we use comments for some special
+  ;; commands like eval region that are actually handled by input filter
+  ;; functions.
+  (setq-local comint-input-history-ignore "^$")
+  (comint-read-input-ring t)
+  (gpb-r--maybe-save-history-later)
+
+  ;; Try to shutdown gracefully when the buffer is killed.
+  (add-hook 'kill-buffer-hook #'gpb-r--kill-buffer-hook nil t)
+
   (gpb-r-send-command (with-temp-buffer
                         (insert-file-contents (locate-library "gpb-r-mode.R"))
                         (buffer-string))
@@ -830,3 +858,57 @@ until we see the next prompt.")
 
 
 (provide 'gpb-r-mode)
+
+
+;; History file management
+
+(defvar-local gpb-r--history-file nil
+  "The file that store the inferior R history.
+
+This value is set in `gpb-inferior-r-mode' based on the
+`default-directory' when the interpreter is started.")
+
+(defun gpb-r--maybe-save-history-later ()
+  "Save history later when `gpb-r-history-save-frequency' is set"
+  (when (and gpb-r-history-save-frequency
+             (> gpb-r-history-save-frequency 0))
+    (run-at-time gpb-r-history-save-frequency nil
+                 'gpb-r--maybe-save-history-later-1 (current-buffer))))
+
+(defun gpb-r--maybe-save-history-later-1 (buf)
+  "Save the history ring in `buf'"
+  (when (buffer-live-p buf)
+    (with-current-buffer buf
+      (comint-write-input-ring)
+      (gpb-r--maybe-save-history-later))))
+
+
+;; Filter comint ring history
+
+(defun gpb-r--comint-input-filter (input)
+  "Returns t if  `input' should be included in history."
+  (and (comint-nonblank-p input)
+       ;; Don't recordd browser() commands.
+       (not (string-match "Q *" input))
+       (not (string-match "q(.*) *" input))))
+
+
+;; Shut down gracefully
+
+(defun gpb-r--close-inferior-process (&optional buf)
+  "Attempt to close inferior process gracefully."
+  (let* ((buf (or buf (current-buffer)))
+         (proc (get-buffer-process buf)))
+    (when (and (buffer-live-p buf) (process-live-p proc))
+      (with-current-buffer buf
+        (save-excursion
+          (goto-char (process-mark proc))
+          (forward-line 0)
+          (when (looking-at-p "^Browse\\[[0-9]+\\]> *")
+            (send-string proc "Q\n"))
+          (send-string proc "q(save = 'no')\n")
+          (accept-process-output proc 0.1 nil t))))))
+
+(defun gpb-r--kill-buffer-hook ()
+  (comint-write-input-ring)
+  (gpb-r--close-inferior-process))
