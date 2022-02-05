@@ -21,27 +21,6 @@
   "END: 75b30f72-85a0-483c-98ce-d24414394ff9"
   "Arbitrary string used to denote the end of R output.")
 
-(defcustom gpb:ess-tmpdir-map nil
-  "Override the default temporary directory location.
-
-The value is a alist where the keys are TRAMP prefix strings as
-returned by `file-remote-p' and the values are paths to a
-temporary directory.  If set, this location is used when writing
-region code to a temporary file for execution."
-  :type '(alist :key-type (string :tag "TRAMP Prefix")
-                :value-type (string :tag "Temp Dir"))
-  :group 'gpb-ess)
-
-
-(defvar gpb:ess-region-file-cache nil
-  "An alist mapping from TRAMP remotes to region files.
-
-Each entry has a key corresponding to the TRAMP prefix string as
-returned by `file-remote-p' and a value that is a list containing
-two filenames for temporary files that are used by
-`gpb:ess-eval-region' to allow for evaluation of regions of
-code.")
-
 (defvar gpb:ess-primary-interpeter-buffer nil
   "The primary interpreter buffer")
 
@@ -398,165 +377,11 @@ an ESS inferior buffer."
   (ess-send-string (ess-get-process) "Q" t))
 
 
-(defun gpb:ess-get-region-file-names (&optional where)
-  "Get the names of the file used for execution of the region."
-  (let* ((default-directory (or where default-directory))
-         (remote (file-remote-p default-directory))
-         (cache-val (cdr (assoc remote gpb:ess-region-file-cache))))
-    (if cache-val
-        cache-val
-      (let* ((region-file (gpb:ess-get-tmp-file "r-data-" nil ".R"))
-             (wrapper-file (gpb:ess-get-tmp-file "emacs-region-wrapper-"
-                                                 nil ".R"))
-             (new-val (list remote region-file wrapper-file)))
-        (push new-val gpb:ess-region-file-cache)
-        (cdr new-val)))))
-
-
 (defun gpb:ess-get-local-filename (filename)
   "Remote any TRAMP prefix from `FILENAME'"
   (if (tramp-tramp-file-p filename)
       (tramp-file-name-localname (tramp-dissect-file-name filename))
     filename))
-
-
-(defun gpb:ess-make-region-file (beg end &optional where package working-dir)
-  "Create an R source file containing a region of code.
-
-We jump through some hoops to ensure that the R source code
-references refer to the current buffer, rather than to the
-temporary file that is produced.
-
-If PACKAGE is provided, the code is evaluated with the package
-namespace.  Otherwise, it is evaluated in the global environment.
-If WORKING-DIR, the code is evaluate with the given directory set
-to be the working directory."
-  (interactive "r")
-  (let* ((line-number (line-number-at-pos beg))
-         (text (buffer-substring-no-properties
-                (save-excursion
-                  (goto-char beg)
-                  (beginning-of-line)
-                  (point))
-                (save-excursion
-                  (goto-char end)
-                  (end-of-line)
-                  (point))))
-         (region-wrapper-filenames (gpb:ess-get-region-file-names where))
-         (region-filename (first region-wrapper-filenames))
-         (wrapper-filename (second region-wrapper-filenames))
-         (source-filename (or (and (buffer-file-name)
-                                   (gpb:ess-get-local-filename
-                                    (buffer-file-name)))
-                              (buffer-name))))
-    (with-temp-file region-filename
-      (insert text)
-
-      ;; If all the lines are in a roxygen comment, remove the comment
-      ;; prefix.
-      (goto-char (point-min))
-      (while (looking-at "^#'") (forward-line))
-      (when (eobp)
-        (goto-char (point-min))
-        (while (looking-at "^#'")
-          (replace-match "  ")
-          (forward-line)))
-
-      (goto-char (point-min))
-      (insert (make-string (1- line-number) ?\n))
-      (goto-char (point-max))
-      (insert "\n\n"))
-    (message "Wrote %s" region-filename)
-    (with-temp-file wrapper-filename
-      ;; Wrap everything in local() so our temporary variables don't clash
-      ;; with anthing.
-      (insert (format "local({\n"))
-      (insert (format "    srcFile <- %s\n" (prin1-to-string source-filename)))
-      (insert (format "    regionFile <- %s\n"
-                      (prin1-to-string
-                       (gpb:ess-get-local-filename region-filename))))
-      (insert "    src <- srcfilecopy(srcFile, readLines(regionFile),\n")
-      (insert "                       timestamp = Sys.time(), isFile = TRUE)\n")
-      (insert "    expr <- parse(text = readLines(regionFile), srcfile = src)\n")
-      (when working-dir
-        (insert (format "wd <- setwd('%s')\n" (file-local-name working-dir)))
-        (insert "on.exit(setwd(wd))\n"))
-      ;; Eval outside of the local() wrapper, so the code being evaluated
-      ;; can change the global environment.
-      (if package
-          (insert (format "    eval(expr, asNamespace('%s'))\n" package))
-        (insert "    eval.parent(expr, 2)\n"))
-      (insert (format "})\n")))
-    (message "Wrote %s" wrapper-filename)
-    wrapper-filename))
-
-
-(defun gpb:ess-eval-region (beg end &optional package working-dir)
-  (interactive "r")
-  (let* ((whole-buffer-p (save-restriction (widen) (and (= beg (point-min))
-                                                        (= end (point-max)))))
-         (end (save-excursion
-                (goto-char end) (skip-chars-backward " \n\t") (point)))
-         (line1 (line-number-at-pos beg))
-         (line2 (line-number-at-pos end))
-         (ess-proc (ess-get-process))
-         (proc-default-directory (with-current-buffer (process-buffer ess-proc)
-                                   default-directory)))
-
-    (cond
-     ;; If the regions is a single line, just send it directly to the
-     ;; inferior process.
-     ((and (= line1 line2) (null package) (null working-dir))
-      (ess-send-string ess-proc (buffer-substring-no-properties beg end) t))
-
-     ;; If the file is up to date, the region is whole file, and the file
-     ;; and inferior process are on the same machine, source the file.
-     ((and whole-buffer-p
-           (not (buffer-modified-p))
-           (string-equal (file-remote-p default-directory)
-                         (file-remote-p proc-default-directory)))
-      (let* ((filename (buffer-file-name))
-             (working-dir (ess-string-command
-                           "cat(sprintf(\"%s\\n\", getwd()))\n"))
-             (localname (or (file-remote-p filename 'localname) filename))
-             (relative-name (file-relative-name localname working-dir))
-             (dir (ignore-errors (directory-file-name
-                                  (file-name-directory localname))))
-             (in-test-file (string-equal (ignore-errors (file-name-base dir))
-                                         "testthat"))
-             (cmd (format (cond
-                           ((and in-test-file (not (null package)))
-                            (format "testthat::test_file(%%s, env = new.env(parent = loadNamespace(\"%s\")))"
-                                    package))
-                           (in-test-file "testthat::test_file(%s)")
-                           (t "source(%s)"))
-                          (prin1-to-string relative-name))))
-        (ess-send-string ess-proc cmd t)
-        (display-buffer (process-buffer ess-proc))
-        (with-current-buffer (process-buffer ess-proc)
-          (goto-char (point-max)))))
-     ;; Otherwise, write temp files (we actually use two files for this see
-     ;; `gpb:ess-make-region-file') and source the appropriate temp file.
-     (t
-      (let* ((filename (gpb:ess-make-region-file beg end proc-default-directory
-                                                 package working-dir))
-             (local-filename (or (file-remote-p filename 'localname) filename))
-             (cmd (format "source(%s, print.eval = TRUE)"
-                          (prin1-to-string local-filename)))
-             (text (format "[Evaluate lines %s-%s in %s]"
-                           line1 line2 (buffer-name))))
-        ;; Sometimes we want to execute a snippet while debugging, so maybe
-        ;; we don't want to exit all browsers?
-        ;; (gpb:exit-all-browsers)
-        (ess-send-string ess-proc cmd text)
-        (with-current-buffer (process-buffer ess-proc)
-          (comint-add-to-input-history text)
-          (setq comint-input-ring-index nil)))))
-
-    (display-buffer (process-buffer ess-proc))
-    (with-current-buffer (process-buffer ess-proc)
-      (goto-char (point-max)))))
-
 
 (defun gpb:ess-save-package ()
   "Save all files in the current package that have been edited."
@@ -1476,18 +1301,6 @@ This filter removes that newline."
       (cancel-timer gpb-clrhash-timer))
     ;; (setq-local gpb-clrhash-timer (run-with-timer 1 nil clrhash-func))
     (ess-send-string proc string)))
-
-
-(defun gpb:ess-get-tmp-file (prefix &optional dir-flag suffix where)
-  (let* ((where (or where default-directory))
-         (remote (file-remote-p default-directory))
-         (tmpdir-override (ignore-errors
-                            (file-name-as-directory
-                             (cdr (assoc remote gpb:ess-tmpdir-map)))))
-         (make-file (or (and (fboundp 'make-nearby-temp-file)
-                             'make-nearby-temp-file)
-                        'make-temp-file)))
-    (funcall make-file (concat remote tmpdir-override prefix) dir-flag suffix)))
 
 
 (defun gpb:ess-send-command (cmd &optional async buf)
