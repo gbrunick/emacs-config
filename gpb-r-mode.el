@@ -558,20 +558,21 @@ header output so it won't work if you pass the R process the
     (gpb-r-show-line buf line)))
 
 
+(defvar-local gpb-r--add-links-marker nil
+  "We have already looked for source links prior to this marker")
+
 (defun gpb-r--add-links-filter-function (output)
   (gpb-log-forms 'gpb-r--add-links-filter-function
                  'comint-last-output-start
                  'output)
   (when (> (string-width output) 0)
     (let* ((proc (get-buffer-process (current-buffer)))
-           (start (or (and (boundp 'gpb-r--add-links-filter-function--start)
-                           gpb-r--add-links-filter-function--start)
-                      (point-min)))
+           (start (or gpb-r--add-links-marker (point-min)))
            (end (save-excursion (goto-char (process-mark proc))
                                 (forward-line 0)
                                 (point))))
       (gpb-r--add-links start end)
-      (setq-local gpb-r--add-links-filter-function--start end))))
+      (setq-local gpb-r--add-links-marker (copy-marker end)))))
 
 
 (defun gpb-r--callback-filter-function (output)
