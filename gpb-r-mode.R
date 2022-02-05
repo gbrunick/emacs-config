@@ -110,9 +110,13 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
     relpaths <- readLines(dirs_file)
 
     for (relpath in relpaths) {
-      path <- file.path(dir, relpath)
-      cat(sprintf("Source dir: %s\n", path))
-      rtags(path, ofile = tags_file, append = TRUE)
+      cat(sprintf("Source dir: %s\n", relpath))
+      files <- file.path(relpath, list.files(path = relpath,
+                                             pattern = "\\.[Rr]$",
+                                             full.names = FALSE,
+                                             recursive = FALSE))
+      cat(paste(sprintf("Source file: %s\n", files), collapse = ""))
+      rtags(src = files, ofile = tags_file, append = TRUE)
     }
   }
 
