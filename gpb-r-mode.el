@@ -679,7 +679,7 @@ This function returns a string or nil"
   ;; error output before the current prompt.  In an R code buffer, you want
   ;; to avoid invalid code that is far away from the point.
   (save-match-data
-    (let* ((lbound (if (derived-mode-p 'comint)
+    (let* ((lbound (if (derived-mode-p 'comint-mode)
                        (comint-line-beginning-position)
                      (save-excursion (forward-line -25) (point))))
            (parse-info (parse-partial-sexp lbound (point)))
@@ -703,11 +703,11 @@ This function returns a string or nil"
                           (buffer-substring-no-properties (point) end)))
 
         (when (and func-name
-                   (not (member func-name '("if" "for" "function"))))
+                   (not (member func-name '("if" "for" "function")))
+                   (gpb-r-get-proc-buffer))
           (with-current-buffer (gpb-r-get-proc-buffer)
             ;; We associate a single buffer local cache with each process.
-            (setq info (or (gethash func-name
-                                    gpb-r--eldoc-hash)
+            (setq info (or (gethash func-name gpb-r--eldoc-hash)
                            ;; If the inferior process is busy, we don't try
                            ;; to get eldoc info now.
                            (and (not gpb-r--inferior-process-busy)
