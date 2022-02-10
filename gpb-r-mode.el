@@ -222,7 +222,7 @@ the result, and return a buffer that contains the result."
                               cmd gpb-r-end-of-output-marker))
          (proc (or (get-buffer-process buf)
                    (error "No R process available")))
-         (server-buf-name (concat (buffer-name buf) " [command buffer]"))
+         (server-buf-name (concat (buffer-name buf) " [commands]"))
          (server-buf (get-buffer-create server-buf-name))
          (inhibit-read-only t)
          start end)
