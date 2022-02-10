@@ -91,6 +91,8 @@ defualts to the symbol at the current point."
                                 (and fn (symbol-name fn))))
      (list (if (equal val "") fn (intern val)))))
 
+  (setq gpb-log--logging-enabled t)
+
   (ad-add-advice
    function
    (ad-make-advice
