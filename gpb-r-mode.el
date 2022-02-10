@@ -270,7 +270,8 @@ the result, and return a buffer that contains the result."
                     (move-marker (process-mark proc) (point))
                     (setq start (point))
                     (send-string proc "n\n"))
-                  (accept-process-output proc 0.5 nil t))
+                  (accept-process-output proc 0.5 nil t)
+                  (ansi-color-filter-region (point-min) (point-max)))
                 (goto-char (match-beginning 0))
                 ;; We use a marker for `end` so that it is not disturbed by
                 ;; the deletions below.
