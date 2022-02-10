@@ -443,13 +443,14 @@ Rmarkdown render expression."
   "Current highlighting overlay used in `gpb-r-show-line")
 
 
-(defun gpb-r-show-line (buf line-number &optional pop-to)
+(defun gpb-r-show-line (buf line-number &optional pop-to face)
   "Show line `line' in `buf' in some other window.
 
 If `pop-to' is non-nil, switch to the buffer in which the line is
 displayed."
   (let* ((window (display-buffer buf 'other-window))
-         (vertical-margin (and window (/ (window-height window) 4))))
+         (vertical-margin (and window (/ (window-height window) 4)))
+         (face (or face 'next-error)))
     (with-current-buffer buf
       ;; Force the window to scroll a bit.
       (goto-line (- line-number vertical-margin))
@@ -473,7 +474,7 @@ displayed."
                                                      (when (looking-at-p "\n")
                                                        (forward-char 1))
                                                      (point))))
-      (overlay-put gpb-r-show-line--overlay 'face 'region)
+      (overlay-put gpb-r-show-line--overlay 'face face)
       (overlay-put gpb-r-show-line--overlay 'window window)
       (run-at-time 0.25 nil (lambda ()
                               (delete-overlay gpb-r-show-line--overlay)))))
