@@ -72,7 +72,7 @@ A simplified version of `compilation-error-regexp-alist'.  Each
 entry has the form (REGEXP FILE LINE HYPERLINK) where FILE, LINE,
 and HYPERLINK are integers giving match indices in REGEXP."
   :type '(alist :key-type symbol :value-type sexp)
-  :group 'gpb-ess)
+  :group 'gpb-r-mode)
 
 (defvar gpb-r-end-of-output-marker
   "END:75b30f72-85a0-483c-98ce-d24414394ff0"
