@@ -139,8 +139,11 @@ At the moment, there can only be one active process")
 
   (add-hook 'comint-input-filter-functions
             #'gpb-r--region-eval-input-filter nil t)
+
+  ;; Append `gpb-r--busy-state-input-filter' so it runs after and escape
+  ;; sequences have been processed.
   (add-hook 'comint-input-filter-functions
-            #'gpb-r--busy-state-input-filter nil t)
+            #'gpb-r--busy-state-input-filter t t)
 
   (add-hook 'comint-output-filter-functions
             #'gpb-r-mode-debug-filter-function nil t)
