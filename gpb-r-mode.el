@@ -420,25 +420,13 @@ Rmarkdown render expression."
         (when (re-search-forward "^debug at \\([^#:]+\\)[#:]\\([0-9]+\\):" nil t)
           (gpb-log-forms 'gpb-r-mode-debug-filter-function
                          'comint-last-output-start
-                         '(match-beginning))
-          (message "Found debug output %s#%s"
-                   (match-string-no-properties 1)
-                   (match-string-no-properties 2))
+                         '(match-beginning 0))
           ;; We grab the match substrings immediately as some of the later
           ;; functions might reset the match data.
           (let* ((filename (match-string-no-properties 1))
                  (line-number (string-to-number (match-string-no-properties 2)))
-                 buf)
-            (unless (file-name-absolute-p filename)
-              (setq filename (concat (gpb-r-getwd) filename)))
-            (setq filename (concat (gpb-r--get-tramp-prefix) filename))
-            (setq buf (ignore-errors
-                        (and (file-exists-p filename)
-                             (find-file-noselect filename t))))
-            (message "debug path: %s" filename)
-            (if buf
-                (gpb-r-show-line buf line-number)
-              (message "Can't find %S" filename) nil)))))))
+                 (buf (gpb-r--find-buffer filename)))
+            (gpb-r-show-line buf line-number)))))))
 
 
 (defvar gpb-r-show-line--overlay nil
@@ -450,37 +438,38 @@ Rmarkdown render expression."
 
 If `pop-to' is non-nil, switch to the buffer in which the line is
 displayed."
-  (let* ((window (display-buffer buf 'other-window))
-         (vertical-margin (and window (/ (window-height window) 4)))
-         (face (or face 'next-error)))
-    (with-current-buffer buf
-      ;; Force the window to scroll a bit.
-      (goto-line (- line-number vertical-margin))
-      (set-window-point window (point))
-      (redisplay)
-      (goto-line (+ line-number vertical-margin))
-      (set-window-point window (point))
-      (redisplay)
+  (when (and buf (buffer-live-p buf))
+    (let* ((window (display-buffer buf 'other-window))
+           (vertical-margin (and window (/ (window-height window) 4)))
+           (face (or face 'next-error)))
+      (with-current-buffer buf
+        ;; Force the window to scroll a bit.
+        (goto-line (- line-number vertical-margin))
+        (set-window-point window (point))
+        (redisplay)
+        (goto-line (+ line-number vertical-margin))
+        (set-window-point window (point))
+        (redisplay)
 
-      ;; Move to the
-      (goto-line line-number)
-      (skip-chars-forward " \t")
-      (set-window-point window (point))
-      (when (overlayp gpb-r-show-line--overlay)
-        (delete-overlay gpb-r-show-line--overlay))
-      (setq gpb-r-show-line--overlay (make-overlay (save-excursion
-                                                     (beginning-of-line)
-                                                     (point))
-                                                   (save-excursion
-                                                     (end-of-line)
-                                                     (when (looking-at-p "\n")
-                                                       (forward-char 1))
-                                                     (point))))
-      (overlay-put gpb-r-show-line--overlay 'face face)
-      (overlay-put gpb-r-show-line--overlay 'window window)
-      (run-at-time 0.25 nil (lambda ()
-                              (delete-overlay gpb-r-show-line--overlay)))))
-    (when pop-to (select-window window)))
+        ;; Move to the
+        (goto-line line-number)
+        (skip-chars-forward " \t")
+        (set-window-point window (point))
+        (when (overlayp gpb-r-show-line--overlay)
+          (delete-overlay gpb-r-show-line--overlay))
+        (setq gpb-r-show-line--overlay (make-overlay (save-excursion
+                                                       (beginning-of-line)
+                                                       (point))
+                                                     (save-excursion
+                                                       (end-of-line)
+                                                       (when (looking-at-p "\n")
+                                                         (forward-char 1))
+                                                       (point))))
+        (overlay-put gpb-r-show-line--overlay 'face face)
+        (overlay-put gpb-r-show-line--overlay 'window window)
+        (run-at-time 0.25 nil (lambda ()
+                                (delete-overlay gpb-r-show-line--overlay)))))
+    (when pop-to (select-window window))))
 
 
 (defun gpb-r-get-proc-buffer (&optional buf)
@@ -587,9 +576,7 @@ header output so it won't work if you pass the R process the
   (let* ((file (concat (gpb-r--get-tramp-prefix)
                        (button-get button 'file)))
          (line (button-get button 'line)))
-    (setq buf (if (string-match "^\\[\\(.*\\)\\]$" (file-name-nondirectory file))
-                  (get-buffer (match-string 1 (file-name-nondirectory file)))
-                (find-file-noselect file)))
+    (setq buf (gpb-r--find-buffer file t))
     (gpb-r-show-line buf line)))
 
 
@@ -931,3 +918,55 @@ send the resulting string to `comint-simple-send'."
   (dolist (f gpb-r-preinput-filter-functions)
     (setq input (funcall f input))
   (comint-simple-send proc input)))
+
+
+;; Utility functions
+
+(defvar gpb-r--find-buffer--last-buf nil
+  "Implementation detail of `gpb-r--find-buffer'")
+
+(defun gpb-r--find-buffer (path &optional cycle)
+  "Return a buffer visiting `path'
+
+If `cycle' is t and we can't find a match to the full path of
+`path', we cycle through the buffers with the same filename
+ignoring the directory."
+  (let ((file-name (file-name-nondirectory path))
+        ;; Keys are filenames and values are buffers.
+        buf buf-file-name bufs dir)
+    (cond
+     ;; When we eval a buffer that has no file attached, we wrap the buffer
+     ;; name in square braces and pretend that is the file name.
+     ((string-match "^\\[\\(.*\\)\\]$" (file-name-nondirectory path))
+      (setq gpb-r--find-buffer--last-buf nil)
+      (get-buffer (match-string 1 (file-name-nondirectory path))))
+
+     ;; If the file path exists, visit that file.
+     ((file-exists-p (concat (gpb-r--get-tramp-prefix) path))
+      (setq gpb-r--find-buffer--last-buf nil)
+      (find-file-noselect path))
+
+     ;; Otherwise, look for the first buffer with the same filename as
+     ;; `path', ignoring the directory information.  If `cycle' is t and
+     ;; `gpb-r--find-buffer--last-buf' is set, we look for the first buffer
+     ;; strictly after `gpb-r--find-buffer--last-buf'.
+     (t
+      (setq bufs (nconc
+                  (when (and cycle gpb-r--find-buffer--last-buf)
+                    ;; The buffers after `gpb-r--find-buffer--last-buf'
+                    (cdr (member gpb-r--find-buffer--last-buf (buffer-list))))
+                  (buffer-list)))
+      (while bufs
+        (setq buf-file-name (buffer-file-name (car bufs)))
+        (if (and buf-file-name
+                 (string= (file-name-nondirectory buf-file-name) file-name))
+            (setq buf (car bufs)
+                  bufs nil)
+          (setq bufs (cdr bufs))))
+
+      ;; If we still haven't found a buffer, prompt the user.
+      (unless buf (message "Can't find %s" path))
+
+      (setq gpb-r--find-buffer--last-buf buf)
+
+      buf))))
