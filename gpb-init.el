@@ -612,9 +612,6 @@
 (require 'gpb-modal)
 (gpb-modal-mode 1)
 
-;; Rectangle mark mode
-;; (autoload 'gpb-rect--begin-rect-command "gpb-rect-commands")
-
 (recentf-mode 1)
 (defvar gpb-recentf-save-list-timer nil)
 
