@@ -65,7 +65,7 @@
 (global-set-key "\C-ci" 'gpb:create-imenu-index-buffer)
 (global-set-key "\C-c4i" 'gpb:create-imenu-index-buffer-other-window)
 (global-set-key "\C-cn" 'gpb-new-document)
-(global-set-key "\C-c$" 'gpb-ispell)
+(global-set-key "\C-c$" 'ispell)
 (global-set-key "\C-cg" 'gpb-grep)
 (global-set-key "\C-cr" 'gpb-recentf-open-files-filtered)
 
@@ -361,7 +361,6 @@
 (add-to-list 'auto-mode-alist '("\\.xrc\\'" . xml-mode))
 (add-to-list 'auto-mode-alist '("\\.m\\'" . octave-mode))
 
-(autoload 'gpb-ispell "gpb-ispell" "" 'interactive)
 (autoload 'gpb-open-ielm-here "gpb-lisp-init" "" t)
 (autoload 'octave-mode "octave-mode" nil t)
 (autoload 'run-bash "gpb-readline" "Run bash" t)
@@ -370,7 +369,6 @@
 
 (eval-after-load 'dired  '(load-safe "gpb-dired"))
 (eval-after-load 'help-mode '(load-safe "gpb-help"))
-(eval-after-load 'ispell '(load-safe "gpb-ispell"))
 (eval-after-load 'compile '(define-key compilation-mode-map "\C-o" nil))
 (eval-after-load 'latex '(load-safe "gpb-latex"))
 (eval-after-load 'python '(load-safe "gpb-python2"))
