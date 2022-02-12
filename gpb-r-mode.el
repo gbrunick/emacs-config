@@ -30,18 +30,11 @@ Set to nil or zero to disable auto-saving history."
 
 (defcustom gpb-r-file-link-definitions
   `(;; Don't underline the " at " part of the traceback.
-    ("\\(?: at \\|(@\\)\\(\\([^#()\n]+\\)[#:]\\([0-9]+\\)\\)" 2 3 1)
+    ("\\(?: at \\|(@\\)\\(\\([^#():\n]+\\)[#:]\\([0-9]+\\)\\)" 2 3 1)
 
     ;; This matches Shiny tracebacks like:
     ;;   <reactive> [CrossAssetBeta/R/module_tradeTable.R#136]
     ("\\[?\\(\\([^[() \n]+\\)#\\([0-9]+\\)\\)\\]" 2 3 1)
-
-    ;; This matches parse errors like:
-    ;;   Package/R/file.R:465:3: unexpected symbol
-    ;; (,(format "%s %s"
-    ;;           "^ *\\(\\([^:\n]+\\):\\([0-9]+\\):\\([0-9]+:\\)?\\)"
-    ;;           "\\(unexpected\\|failure\\|error\\)")
-    ;;  2 3 4 2 1)
 
     ;; This matches parse errors like:
     ;;   Package/R/file.R:465:3: unexpected symbol
@@ -50,8 +43,8 @@ Set to nil or zero to disable auto-saving history."
     ;; and documentation errors like:
     ;;   Warning in tools::parse_Rd(path, macros = macros) :
     ;;     .../man/file.Rd:50: unknown macro '\item'
-    ("\\(\\([^:\n ]+[.][Rr]\\(m?d\\)?\\):\\([0-9]+\\):\\([0-9]+:\\)?\\)"
-     2 3 1)
+    ("\\(\\([^:\n ]+[.][Rr]\\(m?d\\)?\\):\\([0-9]+\\):\\)"
+     2 4 1)
 
     ;; This matches R Markdown build failures like:
     ;;   Quitting from lines 257-329 (report.Rmd)
