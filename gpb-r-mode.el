@@ -74,6 +74,16 @@ and HYPERLINK are integers giving match indices in REGEXP."
   :type '(alist :key-type symbol :value-type sexp)
   :group 'gpb-r-mode)
 
+(defcustom gpb-r-preinput-filter-functions
+  '(gpb-r--region-eval-preinput-filter)
+  "A list of functions that modify R process input.
+
+These functions are called after the input is added to the input
+ring and immediately before the input is sent to the inferior R
+process.  The current use case is to interpret 'magic' commands
+that are imbedded in R comments that require coordination with
+Emacs.")
+
 (defvar gpb-r-end-of-output-marker
   "END:75b30f72-85a0-483c-98ce-d24414394ff0"
   "Arbitrary string used to denote the end of R output.")
@@ -134,11 +144,10 @@ At the moment, there can only be one active process")
                       (current-buffer))
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
   (setq-local comint-input-autoexpand nil)
+  (setq-local comint-input-sender #'gpb-r--input-sender)
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
-  (add-hook 'comint-input-filter-functions
-            #'gpb-r--region-eval-input-filter nil t)
 
   ;; Append `gpb-r--busy-state-input-filter' so it runs after and escape
   ;; sequences have been processed.
@@ -791,7 +800,7 @@ Looks for the TAGS_DIR file and then calls underyling R code."
       (setq-local gpb-r--region-file file))
     file))
 
-(defun gpb-r--region-eval-input-filter (line)
+(defun gpb-r--region-eval-preinput-filter (line)
   "Input filter that looks for eval region commands"
   (when (string-match "# *eval region: +\\(\".*\"\\) +\\([0-9]+\\)-\\([0-9]+\\)$"
                       line)
@@ -836,8 +845,8 @@ Looks for the TAGS_DIR file and then calls underyling R code."
           ;; Only write tothe message buffer to avoid flicker
           (let ((inhibit-message t)) (message "Wrote %s" region-filename))
 
-          (gpb-r-send-command
-           (format ".gpb_r_mode$eval_region_file(%S)\n" srcbuf)))))))
+          (setq line (format ".gpb_r_mode$eval_region_file(%S)" srcbuf))))))
+  line)
 
 
 ;; Track the busy state of the inferior process
@@ -917,3 +926,15 @@ This value is set in `gpb-inferior-r-mode' based on the
 (defun gpb-r--kill-buffer-hook ()
   (comint-write-input-ring)
   (gpb-r--close-inferior-process))
+
+
+;; Input preprocessing
+
+(defun gpb-r--input-sender (proc input)
+  "This function is bound to `comint-input-sender'.
+
+Apply each function in `gpb-r-preinput-filter-functions' and then
+send the resulting string to `comint-simple-send'."
+  (dolist (f gpb-r-preinput-filter-functions)
+    (setq input (funcall f input))
+  (comint-simple-send proc input)))
