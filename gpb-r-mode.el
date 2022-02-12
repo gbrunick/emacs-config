@@ -91,12 +91,8 @@ At the moment, there can only be one active process")
     (define-key map [?\t] 'gpb-r-tab-command)
     (define-key map [(backtab)] 'gpb-r-backward-button)
     (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
-    ;; (define-key map "\C-ct" 'gpb:ess-send-traceback-command)
-    ;; (define-key map "\C-cq" 'gpb:ess-send-quit-command)
-    ;; (define-key map [(backtab)] 'gpb:inferior-ess-previous-traceback)
+    (define-key map "\C-c\C-t" 'gpb-r-send-traceback)
     ;; (define-key map "\C-co" 'gpb:ess-view-data-frame)
-    ;; (when (require 'gpb-text-objects nil t)
-    ;;   (define-key map "g" 'gpb:ess-goto-line))
     ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
 
     map)
@@ -739,28 +735,18 @@ Looks for the TAGS_DIR file and then calls underyling R code."
 (defun gpb-r-eval-region (beg end)
   (interactive "r")
   (let* ((srcbuf (buffer-name))
-         (procbuf (or (gpb-r-get-proc-buffer)
-                      (error "No R process buffer")))
          (line1 (line-number-at-pos beg t))
          (line2 (save-excursion
                   (goto-char end)
                   (when (bolp) (forward-line -1))
                   (line-number-at-pos (point) t)))
-         (text (buffer-substring-no-properties beg end)))
+         (text (buffer-substring-no-properties beg end))
+         (cmd (if (= line1 line2)
+                  ;; If the region is a single line, we just insert it directly.
+                  (string-trim text)
+                (format "# eval region: %S %s-%s" srcbuf line1 line2))))
 
-  (with-current-buffer procbuf
-    (save-excursion
-      (comint-goto-process-mark)
-      (if (= line1 line2)
-          ;; If the region is a single line, we just insert it directly.
-          (insert (string-trim text))
-        (insert (format "# eval region: %S %s-%s" srcbuf line1 line2)))
-      (comint-send-input)))
-
-  (pop-to-buffer procbuf)
-  (with-current-buffer procbuf
-    (goto-char (point-max)))))
-
+    (gpb-r-send-input cmd t)))
 
 (defun gpb-r-eval-text-object (obj start end)
   (gpb-r-eval-region start end))
@@ -918,6 +904,30 @@ send the resulting string to `comint-simple-send'."
   (dolist (f gpb-r-preinput-filter-functions)
     (setq input (funcall f input))
   (comint-simple-send proc input)))
+
+
+;; Shortcuts for commands
+
+(defun gpb-r-send-input (cmd &optional pop buf)
+  "Insert `cmd' into R process buffer and send."
+  (let* ((procbuf (gpb-r-get-proc-buffer buf)))
+
+    (or (process-live-p (get-buffer-process procbuf))
+        (error "No R process available"))
+
+    (with-current-buffer procbuf
+      (save-excursion
+        (comint-goto-process-mark)
+        (insert (string-trim cmd))
+        (comint-send-input)))
+
+    (when pop
+      (pop-to-buffer procbuf)
+      (with-current-buffer procbuf (goto-char (point-max))))))
+
+(defun gpb-r-send-traceback (&optional buf)
+  (interactive)
+  (gpb-r-send-input "traceback()" t buf))
 
 
 ;; Utility functions
