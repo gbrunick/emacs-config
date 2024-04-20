@@ -459,7 +459,7 @@ displayed."
   "Move to the beginning or end of the current test."
   (interactive "p")
   (let ((pt (point)))
-    (case arg
+    (cl-case arg
       (1 (or
           ;; First handle the case where the point is inside a test function
           ;; definition.
@@ -485,7 +485,7 @@ displayed."
 (defun gpb:ess-forward-chunk (arg)
   "Move to the beginning or end of the current R Markdown chunk."
   (let ((pt (point)))
-    (case arg
+    (cl-case arg
       (1 (re-search-forward "```\n")
          (forward-line -1))
       (-1 (re-search-backward "```{")
@@ -542,7 +542,7 @@ displayed."
       (goto-char (point-min))
       (while (not (eobp))
         (when (= (- (current-indentation) prev-indent) 2)
-          (incf two-space-count))
+          (cl-incf two-space-count))
         (setq prev-indent (current-indentation))
         (forward-line 1)))
 
@@ -651,7 +651,7 @@ currently installed."
             (file-name-directory file)
             file)))))
 
-  (assert (string-match ".tar.gz$" url))
+  (cl-assert (string-match ".tar.gz$" url))
   (let* ((package-file (file-name-nondirectory url))
          (package-name (car (split-string package-file "_")))
          (package-name-as-dir (file-name-as-directory package-name))

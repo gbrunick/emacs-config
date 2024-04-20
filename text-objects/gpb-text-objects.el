@@ -8,7 +8,7 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require 'cl)
+;; (require 'cl)
 (require 'gpb-text-objects-base)
 (require 'gpb-text-objects-util)
 
@@ -79,7 +79,7 @@ points.  Used by `execute-text-object'.")
   (interactive)
   (let ((count (gpb-tobj--get-text-object-modifier :count))
         (key-sequence (this-command-keys)))
-    (assert (= (length key-sequence) 1))
+    (cl-assert (= (length key-sequence) 1))
     (let ((digit (- (elt key-sequence 0) ?0)))
       (gpb-log-forms 'gpb-tobj--update-count 'count 'key-sequence 'digit)
       (cond
@@ -117,8 +117,8 @@ points.  Used by `execute-text-object'.")
          (extend-region-func (gpb-tobj--get-text-object-property
                               obj :extend-region-func))
          beg end)
-    (assert (member dir '(1 -1)))
-    (multiple-value-bind (beg end)
+    (cl-assert (member dir '(1 -1)))
+    (cl-multiple-value-bind (beg end)
         (cond
          ;; If the region is active and :extend-region-func is defined,
          ;; use this function to extend the region.
@@ -135,7 +135,7 @@ points.  Used by `execute-text-object'.")
                  obj (point)
                  gpb-tobj--current-text-object-modifiers)))
       (push-mark (point) t nil)
-      (case dir
+      (cl-case dir
         (1
          (push-mark beg nil t)
          (goto-char end))
@@ -317,7 +317,7 @@ See `gpb-tobj--define-text-object' for more info."
           `(lambda (beg end &rest modifiers)
              (let ((dir (if (plist-get modifiers :backwards) -1 1))
                    (count (or (plist-get modifiers :count) 1)))
-               (case dir
+               (cl-case dir
                  (1
                   (list beg
                         (cadr (gpb-tobj--find-flat-text-object
@@ -350,10 +350,10 @@ See `gpb-tobj--define-text-object' for more info."
         (dir (or dir 1))
         (count (or count 1))
         beg end)
-    (assert (and (integerp count) (> count 0)))
+    (cl-assert (and (integerp count) (> count 0)))
         (save-excursion
           (goto-char pos)
-          (case dir
+          (cl-case dir
             (1
              (funcall forward-func 1)
              (when (eq (point) pos) (signal 'search-failed "Forward function did not move point"))
@@ -372,9 +372,9 @@ See `gpb-tobj--define-text-object' for more info."
 
 (defun gpb-tobj--find-next-flat-text-object (pos dir forward-func count)
   "Find the first text object which does not contain the point."
-  (multiple-value-bind (beg end)
+  (cl-multiple-value-bind (beg end)
       (gpb-tobj--find-flat-text-object pos dir forward-func 1)
-    (case dir
+    (cl-case dir
       (1
        (if (< pos beg)
            (gpb-tobj--find-flat-text-object pos 1 forward-func count)
@@ -420,14 +420,14 @@ See `gpb-tobj--define-text-object' for more info."
 
 ;; (defun gpb-tobj--forward-word (arg)
 ;;   (interactive "p")
-;;   (case arg
+;;   (cl-case arg
 ;;     (1 (re-search-forward "\\w\\b"))
 ;;     (-1 (re-search-backward "\\b\\w"))
 ;;     (t (error "Runtime error"))))
 
 (defun gpb-tobj--forward-word (arg)
   (interactive "p")
-  (case arg
+  (cl-case arg
     (1 (forward-word 1))
     (-1 (forward-word -1))
     (t (error "Runtime error"))))
@@ -472,7 +472,7 @@ This is a modified version of the function from thing-at-pt."
     (while (< arg 0)
       (re-search-backward "\\sw\\|\\s_")
       (skip-syntax-backward "w_")
-      (incf arg))))
+      (cl-incf arg))))
 
     ;; (while (not (= arg 0))
     ;;   (forward-thing 'symbol (signum arg))
@@ -546,7 +546,7 @@ This is a modified version of the function from thing-at-pt."
       (when (nth 3 (syntax-ppss))
         (skip-syntax-backward "^\"|")
         (skip-syntax-backward "\"|"))
-      (incf arg)))))
+      (cl-incf arg)))))
 
 
 (gpb-tobj--define-text-object line (pos &rest modifiers)
@@ -657,7 +657,7 @@ outer: the full line including and prompt and the trailing newline."
         (while (not (or (bobp) (looking-back "^[ \t]*\n")))
           (forward-line -1))
         (when (>= (point) pt) (signal 'search-failed "First paragraphs"))
-        (incf arg))))
+        (cl-incf arg))))
   (when (> arg 0)
     (let ((pt (point)))
       (forward-line 0)
@@ -701,7 +701,7 @@ outer: the full line including and prompt and the trailing newline."
         ;; skip to end of WORD
         (skip-chars-backward "^ \t\n")
         (when (eq (point) pt) (signal 'search-failed "Beginning of buffer"))
-        (incf arg))))))
+        (cl-incf arg))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -725,11 +725,11 @@ If PROPERTIES plist contains a :predicate key/value pair...
 See also `gpb-tobj--define-text-object' for more info.
 "
   (declare (indent 1) (doc-string 2))
-  (assert (stringp doc))
+  (cl-assert (stringp doc))
   (let* ((forward-func (plist-get properties :forward-func))
          (inner-forward-func (plist-get properties :inner-forward-func))
          (pred (plist-get properties :predicate)))
-    (assert (functionp forward-func))
+    (cl-assert (functionp forward-func))
     `(gpb-tobj--define-text-object ,symbol (pos &rest modifiers)
        ,doc
        ,@properties
@@ -783,15 +783,15 @@ The default algorithm for finding a text object.  When DIR=1
 
 5. Return the smallest remaining text object.
 "
-  (assert (number-or-marker-p pos))
-  (assert (functionp forward-func))
+  (cl-assert (number-or-marker-p pos))
+  (cl-assert (functionp forward-func))
   (let ((dir (if (plist-get modifiers :backwards) -1 1))
         (count (or (plist-get modifiers :count) 1))
         (next (plist-get modifiers :next))
         (outer (plist-get modifiers :outer)))
-    (assert (member dir '(1 -1)))
-    (assert (integerp count))
-    (multiple-value-bind (beg end)
+    (cl-assert (member dir '(1 -1)))
+    (cl-assert (integerp count))
+    (cl-multiple-value-bind (beg end)
         (cond
          (outer
           ;; Find the smallest text object that contains the character
@@ -852,15 +852,15 @@ The default algorithm for finding a text object.  When DIR=1
 
 (defun gpb-tobj--extend-nested-text-object (beg end forward-func &rest modifiers)
   "Returns a new (beg end) list."
-  (assert (number-or-marker-p beg))
-  (assert (number-or-marker-p end))
-  (assert (functionp forward-func))
+  (cl-assert (number-or-marker-p beg))
+  (cl-assert (number-or-marker-p end))
+  (cl-assert (functionp forward-func))
   (let ((dir (if (plist-get modifiers :backwards) -1 1))
         (count (or (plist-get modifiers :count) 1))
         (next (plist-get modifiers :next))
         (outer (plist-get modifiers :outer)))
-    (assert (member dir '(1 -1)))
-    (assert (integerp count))
+    (cl-assert (member dir '(1 -1)))
+    (cl-assert (integerp count))
     (cond
      ((<= count 0)
       (list beg end))
@@ -876,8 +876,8 @@ The default algorithm for finding a text object.  When DIR=1
          (gpb-tobj--find-minimal-nested-text-object
           beg 1 forward-func pred count))))
      (t
-      (multiple-value-bind (beg2 end2)
-          (case dir
+      (cl-multiple-value-bind (beg2 end2)
+          (cl-case dir
             (1  (apply 'gpb-tobj--find-nested-text-object
                        end forward-func nil (plist-put modifiers :count 1)))
             (-1 (apply 'gpb-tobj--find-nested-text-object
@@ -947,7 +947,7 @@ The default algorithm for finding a text object.  When DIR=1
 (defmacro gpb-tobj--define-regex-text-object (symbol doc &rest kwargs)
   "Define a forward function based text object."
   (declare (indent 1) (doc-string 2))
-  (assert (stringp doc))
+  (cl-assert (stringp doc))
   (let ((begin-regex (gpb-tobj--remove-keyword-arg kwargs :begin-regex t))
         (end-regex (gpb-tobj--remove-keyword-arg kwargs :end-regex t))
         (predicate (gpb-tobj--remove-keyword-arg kwargs :predicate)))
@@ -1061,7 +1061,7 @@ The default algorithm for finding a text object.  When DIR=1
           (when (and (not (TeX-in-comment))
                      (eq env-end (save-excursion (LaTeX-find-matching-end)
                                                  (point))))
-            (assert (looking-back "\\\\item"))
+            (cl-assert (looking-back "\\\\item"))
             (goto-char (match-beginning 0))
             (setq item-end (point)))))
       (goto-char item-end)
@@ -1103,7 +1103,7 @@ The default algorithm for finding a text object.  When DIR=1
   ;;     (when (save-excursion (backward-char)
   ;;                           (font-latex-faces-present-p '(font-latex-math-face)))
   ;;       (re-search-backward "\\$"))
-  ;;     (incf arg)))
+  ;;     (cl-incf arg)))
 
   ;; (gpb-tobj--define-nested-text-object inner-inline-math "$"
   ;;   :keymap inner :local t
@@ -1124,7 +1124,7 @@ The default algorithm for finding a text object.  When DIR=1
   ;;               (backward-char)
   ;;               (font-latex-faces-present-p '(font-latex-math-face)))
   ;;         (re-search-backward "\\$"))
-  ;;       (incf arg))
+  ;;       (cl-incf arg))
   ;;       (goto-char (match-end 0))))
 
   ;; (gpb-tobj--define-regex-text-object environment
@@ -1142,7 +1142,7 @@ The default algorithm for finding a text object.  When DIR=1
 ;;           `(lambda (beg end &rest modifiers)
 ;;              (let ((dir (if (plist-get modifiers :backwards) -1 1))
 ;;                    (count (or (plist-get modifiers :count) 1)))
-;;                (case dir
+;;                (cl-case dir
 ;;                  (1
 ;;                   (list beg
 ;;                         (cadr (gpb-tobj--find-next-nested-text-object

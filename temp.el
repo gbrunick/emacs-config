@@ -4,7 +4,7 @@
   (let (result)
     (message "test-file-handler: %S %S" operation args)
     (setq result
-          (case operation
+          (cl-case operation
             ;; (get-file-buffer (with-current-buffer (get-buffer-create "*test*")
             ;;                    (setq buffer-file-name (car args))))
             (substitute-in-file-name (car args))
@@ -20,7 +20,7 @@
             (file-modes (tramp-mode-string-to-int "-rw-------"))
             (insert-file-contents
              (multiple-value-bind (filename visit beg end replace) args
-               (assert (and visit (null beg) (null end) (null replace)))
+               (cl-assert (and visit (null beg) (null end) (null replace)))
                (let ((text "this is a test..."))
                  (insert text)
                  (when visit

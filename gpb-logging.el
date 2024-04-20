@@ -110,7 +110,7 @@ defualts to the symbol at the current point."
                (lexical-let ((gpb-log--logging-enabled t))
                  (unwind-protect
                      (progn
-                       (incf gpb-log--indent-level)
+                       (cl-incf gpb-log--indent-level)
                        ad-do-it)
                    (decf gpb-log--indent-level)))
                (with-current-buffer trace-buffer

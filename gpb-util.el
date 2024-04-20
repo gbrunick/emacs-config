@@ -3,8 +3,8 @@
 ;; To run unit tests:  "\C-c\C-u"
 ;;
 
-(eval-when-compile '(require cl))
-(require 'assoc)
+;; (eval-when-compile '(require cl))
+;; (require 'assoc)
 
 (defvar gpb-debug-flag nil
   "Set to enable debugging info messages.")
@@ -155,7 +155,7 @@ Keyword arguments are:
         comint buf-name jump-to-error scroll-output)
     (while args
       (let ((key (pop args)) (value (pop args)))
-        (case key
+        (cl-case key
           (:comint (setq comint t))
           (:buffer-name (setq buf-name value))
           (:jump-to-first-error (setq jump-to-error value))
@@ -164,7 +164,7 @@ Keyword arguments are:
           (t (error "gpb-compile: bad arg: %S %S" key value)))))
 
     (let ((compilation-auto-jump-to-first-error jump-to-error)
-          (compilation-error-regexp-alist (case error-alist
+          (compilation-error-regexp-alist (cl-case error-alist
                                             (:use-global
                                              compilation-error-regexp-alist)
                                             (t
@@ -220,7 +220,7 @@ immediately preceeding it."
 
 (defun gpb-util-center-string (string width &optional truncate-left)
   "Center STRING in a string of width WIDTH"
-  (assert (> width 3))
+  (cl-assert (> width 3))
   (let* ((length (length string)) left-margin right-margin)
     (if (<= length width)
         ;; Center it
@@ -316,8 +316,8 @@ immediately preceeding it."
 
 (defun gpb-util-raise-minor-mode-keymap-priority (minor-mode)
   "Move the minor mode keymap to the front of minor-mode-map-alist"
-  (let ((lighter (aget minor-mode-alist minor-mode t))
-        (keymap (aget minor-mode-map-alist minor-mode t)))
+  (let ((lighter (cdr (assoc minor-mode minor-mode-alist)))
+        (keymap (cdr (assoc minor-modeminor-mode-map-alist ))))
     ;; (setq minor-mode-alist (cons minor-mode
     ;;                              (remove minor-mode minor-mode-alist)))
     (adelete 'minor-mode-alist minor-mode)
@@ -436,15 +436,15 @@ value stored in the symbol that is passed in."
 
 (defun gpb-util-ensure-newline (string)
   "Ensure string end with a newline."
-  (assert (stringp string))
+  (cl-assert (stringp string))
   (if (or (equal (length string) 0)
           (not (equal (elt string (1- (length string))) ?\n)))
       (concat string "\n")
     string))
 
 (defun gpb-util-insert-item (item list pos)
-  (assert (and (<= pos (length list))
-              (>= pos 0)))
+  (cl-assert (and (<= pos (length list))
+                  (>= pos 0)))
   (setq list (copy-sequence list))
   (if (eq pos 0)
       (if (null list)

@@ -76,7 +76,7 @@ the worker."
               ;; If we are on windows, we still need to write a Bash script
               ;; with Unix line endings.
               (coding-system-for-write 'us-ascii-unix))
-          (assert (not (null script-file)))
+          (cl-assert (not (null script-file)))
           (with-temp-file tmpfile-name
             (insert-file-contents script-file)
             ;; One more attept to avoid DOS line endings.
@@ -151,7 +151,7 @@ are deleted."
       (save-excursion
         (save-match-data
           (goto-char start)
-          (assert (bolp))
+          (cl-assert (bolp))
           (while (< (point) end)
             (cond
              ;; Skip over any initial output that is later overwritten

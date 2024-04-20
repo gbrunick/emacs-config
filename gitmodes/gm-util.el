@@ -39,7 +39,7 @@ directory."
   (let ((repo-root (gpb-git--find-repo-root default-directory)))
     (if (and repo-root (not force))
         repo-root
-      (let* ((file-name-history (copy-list gpb-git--repo-dir-history))
+      (let* ((file-name-history (cl-copy-list gpb-git--repo-dir-history))
              (repo-dir (read-directory-name "Repo root: " default-directory
                                             default-directory nil "")))
         (unless (gpb-git--repo-root-p repo-dir)
@@ -60,14 +60,14 @@ directory."
 Returns buffers with names of the form PREFIX<i>SUFFIX."
   (let ((i 1))
     (while (get-buffer (concat prefix "<" (int-to-string i) ">" suffix))
-      (incf i))
+      (cl-incf i))
     (get-buffer-create (concat prefix "<" (int-to-string i) ">" suffix))))
 
 
 (defun gpb-git--abbreviate-file-name (dir)
   (dolist (remote-dir gpb-git:remote-home-dirs)
     (when (string-prefix-p remote-dir dir)
-      (assert (file-remote-p remote-dir))
+      (cl-assert (file-remote-p remote-dir))
       (setq dir (replace-regexp-in-string (regexp-quote remote-dir)
                                           (file-remote-p remote-dir)
                                           dir))))
@@ -125,7 +125,7 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
     ;; `file-directory-p' checks for existence.
     (unless (and tmpdir (file-directory-p tmpdir))
       (setq tmpdir (file-name-as-directory (make-nearby-temp-file nil t)))
-      (aput 'gpb-git:temporary-dirs remote tmpdir))
+      (push (cons remote tmpdir) gpb-git:temporary-dirs))
     tmpdir))
 
 (defun gpb-git:get-temporary-file (name)

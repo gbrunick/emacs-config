@@ -140,7 +140,7 @@ Returns a list of the form (BEG END)."
 (defun gpb-comint:mark-interaction ()
   "Mark the prompt + input + output that contains the point."
   (interactive)
-  (multiple-value-bind (beg end) (gpb-comint:current-interaction)
+  (cl-multiple-value-bind (beg end) (gpb-comint:current-interaction)
     (push-mark beg nil t)
     (goto-char end)))
 

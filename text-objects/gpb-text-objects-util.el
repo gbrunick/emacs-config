@@ -80,7 +80,7 @@ for more information.")
 
 
 (defun gpb-tobj--apply-predicate (pred boundary-list &optional count)
-  (assert (>= (length boundary-list) 2))
+  (cl-assert (>= (length boundary-list) 2))
   (if count
       (let ((true-count 0))
         ;; Count the number of text object in boundary-list
@@ -88,7 +88,7 @@ for more information.")
         ;; and end.
         (while boundary-list
           (when (funcall pred (pop boundary-list) (pop boundary-list))
-            (incf true-count)))
+            (cl-incf true-count)))
         (>= true-count count))
     (condition-case exc
         (funcall pred (car boundary-list) (cadr boundary-list))
@@ -123,7 +123,7 @@ If POS is not provided, then the function uses the current point."
             (forward-line -1))
           (when (and (<= next-indent (current-indentation))
                      (< (current-indentation) indent))
-            (incf count)
+            (cl-incf count)
             (setq indent (current-indentation))))
         count))))
 
@@ -149,12 +149,12 @@ strictly before BEG and end at END."
    ((< common-boundaries 0)
     (save-excursion
       (goto-char beg)
-      (incf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object -1 forward-func t))
+      (cl-incf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object -1 forward-func t))
       (list (point) end common-boundaries)))
    ((= common-boundaries 0)
     (save-excursion
       (goto-char beg)
-      (incf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object -1 forward-func t))
+      (cl-incf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object -1 forward-func t))
       (setq beg (point))
       (goto-char end)
       (decf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object 1 forward-func t))
@@ -183,13 +183,13 @@ of an indented block of text."
 
 ;; (defun gpb-tobj--find-nested-text-objects (pos dir forward-func &optional pred)
 ;;   "Returns a list of nested text objects."
-;;   (assert (member dir '(1 -1)))
+;;   (cl-assert (member dir '(1 -1)))
 ;;   (save-excursion
 ;;     (let (boundary1 boundary2 balance result)
 ;;       (goto-char pos)
 ;;       (setq balance (- (catch 'multiple-boundaries (funcall forward-func dir) 1))
 ;;             boundary1 (point))
-;;       (incf balance (gpb-tobj--move-to-boundary-of-nested-text-object
+;;       (cl-incf balance (gpb-tobj--move-to-boundary-of-nested-text-object
 ;;                      (- dir) forward-func))
 ;;       (setq boundary2 (point))
 ;;       (let ((beg (min boundary1 boundary2))
@@ -197,7 +197,7 @@ of an indented block of text."
 ;;         (ignore-errors
 ;;           (while (or (null pred) (funcall pred beg end))
 ;;             (setq obj-list (append obj-list `((,beg ,end))))
-;;             (multiple-value-bind (beg end balance)
+;;             (cl-multiple-value-bind (beg end balance)
 ;;                 (gpb-tobj--expand-nested-text-object
 ;;                  beg end balance forward-func))))
 ;;         obj-list))))
@@ -225,13 +225,13 @@ text object.  If this fails due to the error condition
 `wrong-number-of-arguments', then PRED is passed the entire list
 of boundaries described above as a single argument.  See
 `gpb-tobj--apply-predicate' for the details."
-  (assert (member dir '(1 -1)))
+  (cl-assert (member dir '(1 -1)))
   (save-excursion
     (let (boundary1 boundary2 balance)
       (goto-char pos)
       (setq balance (- (catch 'multiple-boundaries (funcall forward-func dir) 1))
             boundary1 (point))
-      (incf balance (gpb-tobj--move-to-boundary-of-nested-text-object
+      (cl-incf balance (gpb-tobj--move-to-boundary-of-nested-text-object
                      (- dir) forward-func))
       (setq boundary2 (point))
       (let ((beg (min boundary1 boundary2))
@@ -246,7 +246,7 @@ of boundaries described above as a single argument.  See
 (defun gpb-tobj--find-maximal-nested-text-object-1 (boundary-list balance
                                                     forward-func pred)
   (condition-case exc
-      (multiple-value-bind (next-beg next-end next-balance)
+      (cl-multiple-value-bind (next-beg next-end next-balance)
           (gpb-tobj--expand-nested-text-object (first (car boundary-list))
                                                (second (car boundary-list))
                                                balance forward-func)
@@ -285,14 +285,14 @@ text object.  If this fails due to the error condition
 `wrong-number-of-arguments', then PRED is passed the entire list
 of boundaries described above as a single argument.  See
 `gpb-tobj--apply-predicate' for the details."
-  (assert (member dir '(1 -1)))
+  (cl-assert (member dir '(1 -1)))
   (save-excursion
     (let (boundary1 boundary2 balance)
       (goto-char pos)
       (setq balance (- (catch 'multiple-boundaries
                          (funcall forward-func dir) 1))
             boundary1 (point))
-      (incf balance (gpb-tobj--move-to-boundary-of-nested-text-object
+      (cl-incf balance (gpb-tobj--move-to-boundary-of-nested-text-object
                      (- dir) forward-func))
       (setq boundary2 (point))
       (let ((beg (min boundary1 boundary2))
@@ -308,7 +308,7 @@ of boundaries described above as a single argument.  See
 
 (defun gpb-tobj--find-minimal-nested-text-object-1 (boundary-list bal ffunc pred
                                                     &optional count)
-  (multiple-value-bind (next-beg next-end next-bal)
+  (cl-multiple-value-bind (next-beg next-end next-bal)
       (gpb-tobj--expand-nested-text-object
        (first (car boundary-list)) (second (car boundary-list)) bal ffunc)
     (let ((next-list (append `((,next-beg ,next-end)) boundary-list)))
@@ -406,14 +406,14 @@ cases:
   ;; Remark: all the variables and comments below are given for the
   ;; case where DIR is 1, but the code also handles the case where DIR
   ;; is -1.
-  (assert (member dir '(-1 1)))
+  (cl-assert (member dir '(-1 1)))
   (setq bound (or bound (if (eq dir 1) (point-max) (point-min))))
   (let ((unmatched-ends 0) (initial-point (point)) pos)
     (while (and (<= unmatched-ends 0) (>= (* dir (- bound (point))) 0))
       (setq pos (point))
       ;; If FORWARD-FUNC throws an error, then this function should fail.
       (condition-case e
-          (incf unmatched-ends (catch 'multiple-boundaries
+          (cl-incf unmatched-ends (catch 'multiple-boundaries
                                  (funcall forward-func dir)
                                  1))
         ('error (signal 'search-failed

@@ -265,7 +265,7 @@ User-facing; attempts to preserve window position."
                                             (min ,ws (point-max)))
                           (forward-line 0)
                           (gpb-git--post-command-hook))))
-    (assert (equal buf window-buf))
+    (cl-assert (equal buf window-buf))
     (message "gpb-git:refresh-buffer: %s %s" (current-buffer) major-mode)
     (eval `(,@refresh-cmd reset-window))))
 

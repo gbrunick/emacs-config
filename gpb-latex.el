@@ -310,14 +310,14 @@ If an environment appears in both lists, it is excluded.
       (cons (progn (goto-char (match-beginning 0))
                    (LaTeX-find-matching-begin)
                    (point))
-            (progn (assert (looking-at "\\\\begin"))
+            (progn (cl-assert (looking-at "\\\\begin"))
                    (goto-char (match-end 0))
                    (LaTeX-find-matching-end)
                    (point))))
      (t
       (cons (progn (LaTeX-find-matching-begin)
                    (point))
-            (progn (assert (looking-at "\\\\begin"))
+            (progn (cl-assert (looking-at "\\\\begin"))
                    (goto-char (match-end 0))
                    (LaTeX-find-matching-end)
                    (point)))))))
@@ -423,7 +423,7 @@ If an environment appears in both lists, it is excluded.
 ;;                      (apply 'min
 ;;                             (remove nil (list (save-excursion
 ;;                                                 (LaTeX-find-matching-end)
-;;                                                 (assert (looking-back
+;;                                                 (cl-assert (looking-back
 ;;                                                          "\\\\end{[^}\n]+}"))
 ;;                                                 (goto-char (match-beginning 0))
 ;;                                                 (skip-chars-backward " \t\n")
@@ -490,7 +490,7 @@ If an environment appears in both lists, it is excluded.
           (when (and (not (TeX-in-comment))
                      (eq env-end (save-excursion (LaTeX-find-matching-end)
                                                  (point))))
-            (assert (looking-back "\\\\item"))
+            (cl-assert (looking-back "\\\\item"))
             (goto-char (match-beginning 0))
             (setq item-end (point)))))
       (goto-char item-end)
@@ -1825,7 +1825,7 @@ we use reftex to generate a list of possibilities."
       (delete-region gpb-company-list--initial-point (point)))
     ;; Remove "newdoc"
     (replace-match "")
-    (assert (file-exists-p filename))
+    (cl-assert (file-exists-p filename))
     (with-temp-buffer
       (insert-file-contents filename)
       (setq file-contents (buffer-substring-no-properties (point-min)
@@ -1953,7 +1953,7 @@ we use reftex to generate a list of possibilities."
 (defun gpb-latex-dabbrev-backend (command &optional arg &rest ignored)
   "A dabbrev-like `company-mode' back-end for latex."
   (interactive (list 'interactive))
-  (case command
+  (cl-case command
     ('interactive (company-begin-backend 'company-dabbrev-code))
     ('prefix (gpb-latex-get-completion-prefix))
     ('candidates (gpb-latex-get-completion-candidates arg))
@@ -2535,7 +2535,7 @@ we use reftex to generate a list of possibilities."
 (defun gpb-latex-make-environment-changer (new-env)
   `(lambda ()
       (interactive)
-      (assert (looking-back "\\(\\\\begin\\|\\\\end\\){[[:word:]*]*"))
+      (cl-assert (looking-back "\\(\\\\begin\\|\\\\end\\){[[:word:]*]*"))
       (save-excursion
         (goto-char (match-beginning 0))
         (forward-char)

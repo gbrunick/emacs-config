@@ -449,12 +449,13 @@
 ;; Improve alignment for dollar amounts
 
 (eval-after-load "align"
-  '(aput 'align-rules-list 'text-dollar-figure
-         '((regexp . "\\$?\\(\\s-+-?[0-9,]+\\)\\.")
+  '(push (text-dollar-figure
+          ((regexp . "\\$?\\(\\s-+-?[0-9,]+\\)\\.")
            (modes . align-text-modes)
            (justify . t)
            (run-if lambda nil
-                   (eq '- current-prefix-arg)))))
+                   (eq '- current-prefix-arg))))
+         align-rules-list))
 
 
 ;; CC mode ----------------------------------------------------------------
@@ -576,7 +577,7 @@
      ;; The following keybindings are available in a buffers where
      ;; `server-buffer-clients' is non-nil.
      (define-key map [(control c)(control c)] 'server-edit)
-     (aput 'minor-mode-map-alist 'server-buffer-clients map)))
+     (push (cons server-buffer-clients map) minor-mode-map-alist)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

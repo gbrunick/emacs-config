@@ -500,7 +500,7 @@ This code is taken from fx-misc.el by Dave Love"
                                     (format "--exclude=\"%s\" " x))
                                   gpb-grep-exclude-files
                                   ""))
-         (cmd (case (window-system)
+         (cmd (cl-case (window-system)
                 (w32
                  (concat "grep -RinHI "
                          exclude-dirs
@@ -677,8 +677,8 @@ argument is given."
       (let* ((wins (window-list))
              (bufs (mapcar (lambda (x) (window-buffer x)) wins)))
         (setq bufs (append (cdr bufs) (list (car bufs))))
-        (mapcar* (lambda (w b) (set-window-buffer w b))
-                 wins bufs)))
+        (cl-mapcar (lambda (w b) (set-window-buffer w b))
+                   wins bufs)))
   (other-window 1 t)
   (when (memq (window-system) '(x w32 ns))
     (x-focus-frame (selected-frame))))
@@ -948,7 +948,7 @@ Returns t on success and nil on failure."
     (when (null buf) (user-error "Buffer has been deleted"))
     ;; If called using the button, switch in the current window.
     ;; Otherwise, show in the other window.
-    (case how
+    (cl-case how
       (:here
        (switch-to-buffer buf)
        (goto-char marker)

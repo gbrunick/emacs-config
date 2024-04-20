@@ -348,7 +348,7 @@ MODE should be the symbol insert or command.  The map returned is
 the top-level keymap that is added to the overlay keymap in each
 buffer."
   (gpb-modal--with-disabled-overlay-keymap
-    (case (or mode gpb-modal--current-mode)
+    (cl-case (or mode gpb-modal--current-mode)
       (insert
        (make-composed-keymap `(gpb-modal--insert-mode-map)
                              (get-char-property (point) 'keymap)))
@@ -520,7 +520,7 @@ will be reset in the post-command-hook."
                 gpb-modal--mode-changed nil)
 
           (with-current-buffer next-buffer
-            (setq cursor-type (case gpb-modal--current-mode
+            (setq cursor-type (cl-case gpb-modal--current-mode
                                 (command gpb-modal-command-cursor-type)
                                 (insert gpb-modal-insert-cursor-type)
                                 (t (error "Runtime error"))))

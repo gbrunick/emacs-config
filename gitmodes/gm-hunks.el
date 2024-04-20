@@ -4,6 +4,49 @@
 
 (require 'gm-util)
 
+;; workaround for removal of assoc.
+(defun gpb-aget (alist key &optional keynil-p)
+  "Return the value in ALIST that is associated with KEY.
+Optional KEYNIL-P describes what to do if the value associated with
+KEY is nil.  If KEYNIL-P is not supplied or is nil, and the value is
+nil, then KEY is returned.  If KEYNIL-P is non-nil, then nil would be
+returned.
+
+If no key-value pair matching KEY could be found in ALIST, or ALIST is
+nil then nil is returned.  ALIST is not altered."
+  (defvar assoc--copy)
+  (let ((assoc--copy (copy-alist alist)))
+    (cond ((null alist) nil)
+          ((progn (asort 'assoc--copy key) ; dynamic binding
+                  (anot-head-p assoc--copy key)) nil)
+          ((cdr (car assoc--copy)))
+          (keynil-p nil)
+          ((car (car assoc--copy)))
+          (t nil))))
+
+(defun asort (alist-symbol key)
+  "Move a specified key-value pair to the head of an alist.
+The alist is referenced by ALIST-SYMBOL.  Key-value pair to move to
+head is one matching KEY.  Returns the sorted list and doesn't affect
+the order of any other key-value pair.  Side effect sets alist to new
+sorted list."
+  (set alist-symbol
+       (sort (copy-alist (symbol-value alist-symbol))
+             (lambda (a _b) (equal (car a) key)))))
+
+(defun anot-head-p (alist key)
+  "Find out if a specified key-value pair is not at the head of an alist.
+The alist to check is specified by ALIST and the key-value pair is the
+one matching the supplied KEY.  Returns nil if ALIST is nil, or if
+key-value pair is at the head of the alist.  Returns t if key-value
+pair is not at the head of alist.  ALIST is not altered."
+  (not (equal (aheadsym alist) key)))
+
+(defun aheadsym (alist)
+  "Return the key symbol at the head of ALIST."
+  (car (car alist)))
+
+
 (defvar gpb-git:hunk-view-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'gpb-git:forward-command)
@@ -224,7 +267,7 @@ been updated (i.e., asyncronously)."
        (hunks
         ;; Add a text button for each filename
         (insert "Files: ")
-        (let* ((filenames (mapcar (lambda (hunk) (aget hunk :filename1 t))
+        (let* ((filenames (mapcar (lambda (hunk) (gpb-aget hunk :filename1 t))
                                   hunks))
                (max-length (apply 'max (mapcar 'length filenames))))
           (dolist (filename (sort (delete-dups (delq nil filenames)) 'string<))
@@ -235,7 +278,8 @@ been updated (i.e., asyncronously)."
             (insert (make-string (max (- max-length (length filename)) 0)
                                  ?\ ))
             (let ((file-hunks (cl-remove-if-not
-                               (lambda (h) (equal (aget h :filename1 t) filename))
+                               (lambda (h)
+                                 (equal (gpb-aget h :filename1 t) filename))
                                hunks)))
               (insert (cond
                        ((= (length file-hunks) 1) " (1 hunk)")
@@ -257,7 +301,7 @@ been updated (i.e., asyncronously)."
   "Apply faces to hunk text.
 HUNK is an overlay with properties summarized at the top of this
 file.  If FOCUSED is non-nil, we use alternative faces."
-  (assert (and (overlayp hunk) (overlay-buffer hunk)))
+  (cl-assert (and (overlayp hunk) (overlay-buffer hunk)))
   (with-current-buffer (overlay-buffer hunk)
     (let* ((beg (overlay-start hunk))
            (end (copy-marker (overlay-end hunk)))
@@ -324,7 +368,7 @@ file.  If FOCUSED is non-nil, we use alternative faces."
                                       (line-marked 'gpb-git:marked-context-line)
                                       (focused 'gpb-git:focused-context-line)
                                       (t 'gpb-git:context-line)))))
-          (incf i))))))
+          (cl-incf i))))))
 
 
 (defun gpb-git:forward-hunk ()
@@ -352,7 +396,7 @@ file.  If FOCUSED is non-nil, we use alternative faces."
     (let ((ov (gpb-git:get-current-hunk))
           (win (selected-window)))
       (when (and ov (overlay-buffer ov) win)
-        (assert (eq (window-buffer win) (current-buffer)))
+        (cl-assert (eq (window-buffer win) (current-buffer)))
         ;; Ensure that the full hunk is visible when possible.
         (save-excursion
           (save-match-data
@@ -374,7 +418,7 @@ the start of the current hunk."
       (goto-char pt)
       (error "No earlier hunks"))
     (setq hunk (gpb-git:get-current-hunk))
-    (assert hunk)
+    (cl-assert hunk)
     (goto-char (overlay-start hunk))
     (point)))
 
@@ -413,7 +457,7 @@ the start of the current hunk."
       (ignore-errors
         (while (equal (funcall get-file-at-point) filename)
           (gpb-git:backward-hunk)))
-      (assert (not (null (funcall get-file-at-point))))
+      (cl-assert (not (null (funcall get-file-at-point))))
 
       ;; Unless we are on the first hunk, we moved back one-to-far.
       (if (equal (funcall get-file-at-point) filename)
@@ -482,7 +526,7 @@ region is not active."
             (when (and (>= (point) beg) (< (point) end))
               (aset line-is-marked i (not unmark)))
             (forward-line 1)
-            (incf i)))
+            (cl-incf i)))
         (if (cl-some (lambda (x) x) line-is-marked)
             (overlay-put hunk :marked `(:partial . ,line-is-marked))
           (overlay-put hunk :marked nil))
@@ -558,14 +602,14 @@ name."
   (with-current-buffer (or buf (current-buffer))
     (when (region-active-p) (gpb-git:mark-hunk))
     (let ((hunks (or
-                  (remove-if-not 'gpb-git--marked-p
-                                 (overlays-in (point-min) (point-max)))
+                  (cl-remove-if-not 'gpb-git--marked-p
+                                    (overlays-in (point-min) (point-max)))
                   (progn
                     ;; If nothing was marked, mark the current hunk and try
                     ;; again.
                     (gpb-git:mark-hunk)
-                    (remove-if-not 'gpb-git--marked-p
-                                   (overlays-in (point-min) (point-max))))))
+                    (cl-remove-if-not 'gpb-git--marked-p
+                                      (overlays-in (point-min) (point-max))))))
           (pred (lambda (ov1 ov2) (< (overlay-start ov1) (overlay-start ov2)))))
       (when hunks
         (sort hunks pred)))))
@@ -759,12 +803,12 @@ start of the reigon, if the region is active.
 
      ;; New file
      ((overlay-get hunk :insertion)
-      (assert (string= filename1 filename2))
+      (cl-assert (string= filename1 filename2))
       (format "%s: %s\n" filename1 (if staged "added" "add")))
 
      ;; Deleted file
      ((overlay-get hunk :deletion)
-      (assert (string= filename1 filename2))
+      (cl-assert (string= filename1 filename2))
       (format "%s: %s\n" filename1 (if staged "deleted" "delete")))
 
      ;; A standard hunk with diff lines.
@@ -817,7 +861,7 @@ Returns a buffer whose name is determined by
         (let* ((filename1 (overlay-get hunk :filename1))
                (filename2 (overlay-get hunk :filename2))
                (new-name (gpb-git--get-new-name hunk)))
-          (assert (string= filename1 filename2))
+          (cl-assert (string= filename1 filename2))
           (with-current-buffer patch-buf
             (insert (format
                      (concat "diff --git a/%s b/%s\n"
@@ -877,7 +921,7 @@ This function is an implemenation detail of `gpb-git:make-patch'."
               i (1+ i))
 
         (when reverse
-          (setq first-char (aget `((" " . " ") ("+" . "-") ("-" . "+"))
+          (setq first-char (gpb-aget `((" " . " ") ("+" . "-") ("-" . "+"))
                                  first-char)))
 
         ;; We have a removed line in the diff that we don't want to
@@ -891,16 +935,16 @@ This function is an implemenation detail of `gpb-git:make-patch'."
          ;; input and ouput files.
          ((equal first-char " ")
           (with-current-buffer patch-buf (insert diff-line))
-          (incf input-lines)
-          (incf output-lines))
+          (cl-incf input-lines)
+          (cl-incf output-lines))
 
          ;; We have an added or removed line that we want to include.
          (include-line
           (with-current-buffer patch-buf (insert diff-line))
           ;; A deleted line appears in the input, but not the output.
-          (when (equal first-char "-") (incf input-lines))
+          (when (equal first-char "-") (cl-incf input-lines))
           ;; An added line appears in the output, but not the input.
-          (when (equal first-char "+") (incf output-lines))
+          (when (equal first-char "+") (cl-incf output-lines))
           (setq has-no-changes nil)))))
 
     (with-current-buffer patch-buf
@@ -1003,7 +1047,7 @@ associated with the given file that lies after the button."
       (goto-char (overlay-start hunk))
       (forward-line 1)
       (while (< (point) pt)
-        (when (looking-at-p "^[ +]") (incf line-number))
+        (when (looking-at-p "^[ +]") (cl-incf line-number))
         (forward-line 1)))
 
     (find-file-other-window filename)
@@ -1069,12 +1113,12 @@ associated with the given file that lies after the button."
   (save-excursion
     (let* ((inhibit-read-only t))
       (dolist (diff-hunk diff-hunks)
-        (let* ((filename1 (aget diff-hunk :filename1 t))
-               (filename2 (aget diff-hunk :filename2 t)))
+        (let* ((filename1 (gpb-aget diff-hunk :filename1 t))
+               (filename2 (gpb-aget diff-hunk :filename2 t)))
           (setq ov (make-overlay (point)
                                  (progn
-                                   (insert (or (aget diff-hunk :diff t)
-                                               (aget diff-hunk :binary-info t)
+                                   (insert (or (gpb-aget diff-hunk :diff t)
+                                               (gpb-aget diff-hunk :binary-info t)
                                                " No differences\n"))
                                    (point))))
           (dolist (key-val diff-hunk)
@@ -1161,10 +1205,10 @@ the file for the structure of these alists."
                                (split-string (match-string 1) ",")))
                      (range2 (save-match-data
                                (split-string (match-string 2) ",")))
-                     (file1-start (string-to-number (first range1)))
-                     (file1-len (string-to-number (or (second range1) "1")))
-                     (file2-start (string-to-number (first range2)))
-                     (file2-len (string-to-number (or (second range2) "1")))
+                     (file1-start (string-to-number (car range1)))
+                     (file1-len (string-to-number (or (cadr range1) "1")))
+                     (file2-start (string-to-number (car range2)))
+                     (file2-len (string-to-number (or (cadr range2) "1")))
                      (diff (buffer-substring-no-properties
                             (progn (forward-line 1) (point))
                             (progn

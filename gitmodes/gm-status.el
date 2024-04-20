@@ -175,7 +175,7 @@ status output."
       (while (< (point) end)
         (message "%S" (point))
         (if (ignore-errors (gpb-git:show-status--mark-file) t)
-            (incf i)
+            (cl-incf i)
           (forward-line 1)))
       (message "Marked %s files" i))))
 
@@ -261,7 +261,7 @@ status output."
 (defun gpb-git:show-status--show-staged-changes (button)
   (let ((buf (get-buffer-create gpb-git:staged-buffer-name))
         (repo-dir default-directory))
-    (assert repo-dir)
+    (cl-assert repo-dir)
     (with-current-buffer buf
       (gpb-git--refresh-staged-changes repo-dir))
     (pop-to-buffer buf)))
@@ -270,7 +270,7 @@ status output."
 (defun gpb-git:show-status--show-unstaged-changes (button)
   (let ((buf (get-buffer-create gpb-git:unstaged-buffer-name))
         (repo-dir default-directory))
-    (assert repo-dir)
+    (cl-assert repo-dir)
     (with-current-buffer buf
       (gpb-git--refresh-unstaged-changes repo-dir))
     (pop-to-buffer buf)))
@@ -294,11 +294,11 @@ status output."
 
     (cond
      (staged-filenames
-      (assert (null unstaged-filenames))
+      (cl-assert (null unstaged-filenames))
       (setq staged t)
       (setq filenames staged-filenames))
      (unstaged-filenames
-      (assert (null staged-filenames))
+      (cl-assert (null staged-filenames))
       (setq staged nil)
       (setq filenames unstaged-filenames)))
 

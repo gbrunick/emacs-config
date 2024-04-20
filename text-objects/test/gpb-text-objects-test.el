@@ -6,7 +6,7 @@
 A \"b\" followed by a number and an \"e\" followed by a number
 begin and end text objects.  The number gives the number of text
 objects that share that boundary."
-  (case dir
+  (cl-case dir
     (1 (re-search-forward "e[0-9]+")
        (when (looking-back "e\\([0-9]+\\)")
          (signal 'multiple-boundaries (string-to-int (match-string 1)))))

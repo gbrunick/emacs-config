@@ -120,8 +120,8 @@ instrumented by `edebug-eval-defun' for testing."
 (defun gpb-tobj--declare-keymap (map-symbol doc)
   (let ((new-keymap (make-sparse-keymap doc)))
     (set-keymap-parent new-keymap gpb-tobj--base-keymap)
-    (aput 'gpb-tobj--global-keymap-alist map-symbol new-keymap)
-    ;; (aput 'gpb-tobj--keymap-doc-alist map-symbol doc)
+    (push (cons map-symbol new-keymap) gpb-tobj--global-keymap-alist)
+    ;; (push (cons map-symbol doc) gpb-tobj--keymap-doc-alist)
     (define-key new-keymap [(f1)]
       `(lambda () (interactive) (gpb-tobj--describe-keymap ',map-symbol)))
     (define-key new-keymap [(control h)]
@@ -188,7 +188,7 @@ still let bound."
     (while (keywordp (car-safe body))
       (let ((key (pop body))
             (value (pop body)))
-        (case key
+        (cl-case key
           (:keymap (setq keymap value))
           (:ignore-region (setq ignore-region value))
           (:object-modifiers (setq modifiers value))
@@ -209,14 +209,14 @@ still let bound."
           ;; command directly in Emacs LISP code without prompting the
           ;; user for a text object.
           (obj
-           (assert (symbolp obj))
+           (cl-assert (symbolp obj))
            (setq pos (or pos (point))
                  modifiers (nconc modifiers ',modifiers))
            (let* ((body-function (lambda ,args ,@body)))
              ;; (plist (aget gpb-tobj--text-object-alist obj))
              ;; (find-func (plist-get plist :find-func)))
              (apply 'run-hooks ,pre-command-hook-symbol)
-             (multiple-value-bind (beg end)
+             (cl-multiple-value-bind (beg end)
                  (apply 'gpb-tobj--find-text-object obj pos modifiers)
                (condition-case exc
                    (apply body-function obj beg end modifiers)
@@ -239,7 +239,7 @@ still let bound."
           ;; Otherwise, prompt the user for a text object and any modifiers
           (t
            (gpb-tobj--read-text-object ',keymap)
-           (assert gpb-tobj--current-text-object)
+           (cl-assert gpb-tobj--current-text-object)
            (apply ',command-symbol gpb-tobj--current-text-object
                   (point) gpb-tobj--current-text-object-modifiers)
            ;; See http://stackoverflow.com/questions/7560094/two-key-shortcut-in-emacs-without-repressing-the-first-key
@@ -277,9 +277,9 @@ to`gpb-tobj--text-object-alist'.
   (declare (indent defun) (doc-string 2) (debug 0))
   (when gpb-tobj--enable-logging
     (message "gpb-tobj--define-text-object: body=%s" body))
-  (assert (stringp doc))
+  (cl-assert (stringp doc))
   (and gpb-tobj--enable-warnings
-       (aget gpb-tobj--text-object-alist symbol)
+       (assoc symbol gpb-tobj--text-object-alist)
        (message "Warning: text object %S is already defined." symbol))
   (let ((func-symbol (make-symbol (format "gpb-tobj:%s:find-func"
                                           (symbol-name symbol))))
@@ -288,7 +288,7 @@ to`gpb-tobj--text-object-alist'.
     (while (keywordp (car-safe body))
       (let ((key (pop body))
             (value (pop body)))
-        (case key
+        (cl-case key
           (:key-binding
            (add-to-list 'key-binding-cmds
                         `(gpb-tobj--define-key ',(nth 0 value)
@@ -302,7 +302,7 @@ to`gpb-tobj--text-object-alist'.
       (message "gpb-tobj--define-text-object: key-binding-cmds=%s"
                key-binding-cmds))
 
-    (setq text-obj-def `(:doc ,doc ,@kwargs :find-func ,func-symbol))
+    (setq text-obj-def `(,symbol :doc ,doc ,@kwargs :find-func ,func-symbol))
 
     ;; This is the form that is returned for further evaluation.
     `(progn
@@ -311,7 +311,7 @@ to`gpb-tobj--text-object-alist'.
        (defun ,func-symbol ,args ,@body)
 
        ;; Add text object info to main alist
-       (aput 'gpb-tobj--text-object-alist ',symbol ',text-obj-def)
+       (push ',text-obj-def gpb-tobj--text-object-alist)
 
        ;; Define any key bindings
        ,@key-binding-cmds
@@ -402,15 +402,15 @@ the :find-func which is associated with the text obj OBJ."
 
 (defun gpb-tobj--get-keymap (name &optional local)
   "Get the keymap which corresponds to NAME."
-  (let ((global-map (aget gpb-tobj--global-keymap-alist name))
-        (local-map (aget gpb-tobj--local-keymap-alist name)))
+  (let ((global-map (cdr (assoc name gpb-tobj--global-keymap-alist)))
+        (local-map (cdr (assoc name gpb-tobj--local-keymap-alist))))
     (unless global-map (error "Bad keymap name: %s" name))
     (cond
      ((not local) global-map)
      (local-map local-map)
      (t
       (let ((new-keymap (make-sparse-keymap)))
-        (aput 'gpb-tobj--local-keymap-alist name new-keymap)
+        (push (cons name new-keymap) gpb-tobj--local-keymap-alist)
         new-keymap)))))
 
 (defun gpb-tobj--get-text-object-property (obj prop &optional default)
@@ -421,7 +421,7 @@ defined when the text object is defined.  This is different than
 a text object \"modifier\".  A text object \"modifier\" is an
 option that is specified when the text object is being read from
 the user."
-  (or (plist-get (aget gpb-tobj--text-object-alist obj) prop) default))
+  (or (plist-get (cdr (assoc obj gpb-tobj--text-object-alist)) prop) default))
 
 
 (defun gpb-tobj--get-text-object-modifier (keyword &optional default)
@@ -461,7 +461,7 @@ very similiar to (and slightly more general than) the
                             (set-keymap-parent keymap global-map)
                             (cons name keymap)))
                         gpb-tobj--global-keymap-alist))
-         (overriding-terminal-local-map (aget keymap-alist map-symbol))
+         (overriding-terminal-local-map (cdr (assoc map-symbol keymap-alist)))
          key-sequence last-command-event command)
     (gpb-log-form 'gpb-tobj--read-text-object 'keymap-alist)
     (unless overriding-terminal-local-map
@@ -488,7 +488,7 @@ very similiar to (and slightly more general than) the
                  ((and (listp command) (assq 'text-object-keymap command))
                   (let* ((new-keymap-symbol (cadr (assq 'text-object-keymap
                                                         command)))
-                         (new-keymap (aget keymap-alist new-keymap-symbol)))
+                         (new-keymap (cdr (assoc new-keymap-symbol keymap-alist))))
                     (setq overriding-terminal-local-map new-keymap
                           txt (format "%s " new-keymap-symbol))))
                  ;; If the commmand corresponds to a text object we are done
@@ -537,7 +537,7 @@ during `gpb-tobj--read-text-object'.  See
   "Get a property value associated with a text object.
 
 See `gpb-tobj--get-text-object-property' for more information."
-  (plist-put (aget gpb-tobj--text-object-alist obj) prop value))
+  (plist-put (cdr (assoc obj gpb-tobj--text-object-alist) prop value)))
 
 
 ;; (defun gpb-tobj--switch-to-map (name)
@@ -545,11 +545,11 @@ See `gpb-tobj--get-text-object-property' for more information."
 
 ;; This command should only be called from the event loop inside
 ;; `gpb-tobj--read/mark-tobj'."
-;;   (assert (and (boundp 'inside-read/mark-tobj) inside-read/mark-tobj))
+;;   (cl-assert (and (boundp 'inside-read/mark-tobj) inside-read/mark-tobj))
 ;;   (let  ((global-map (gpb-tobj--get-keymap name))
 ;;          (local-map (gpb-tobj--get-keymap name t)))
-;;     (assert (keymapp global-map))
-;;     (assert (keymapp local-map))
+;;     (cl-assert (keymapp global-map))
+;;     (cl-assert (keymapp local-map))
 ;;     (let ((keymap (copy-keymap local-map)))
 ;;       (set-keymap-parent keymap global-map)
 ;;       (setq overriding-terminal-local-map keymap))))
