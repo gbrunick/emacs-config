@@ -78,7 +78,7 @@
 (global-set-key "\C-f" 'isearch-forward)
 (global-set-key "\C-s" 'save-buffer)
 (global-set-key [(control shift s)] 'write-file)
-(global-set-key "\C-w" 'gpb-kill-buffer)
+(global-set-key "\C-w" 'bury-buffer) ;; gpb-kill-buffer)
 (global-set-key [(f5)] 'gpb-reload-buffer)
 
 ;; Sexp movement
@@ -141,7 +141,7 @@
 
 (defun load-safe (filename)
   "Issue warnings rather than failing when things fail to load."
-  (condition-case-unless-debug err
+ (condition-case-unless-debug err
       (load filename)
     (error (message "Error loading %s: %S" filename err))))
 

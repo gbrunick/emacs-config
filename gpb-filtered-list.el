@@ -1,6 +1,7 @@
 (require 'imenu)
 (require 'subr-x)
 (require 'cl-extra)
+(require 'gpb-logging)
 
 (defcustom gpb-fl-echo-delay 1
   "Delay in seconds before echoing the current selection to the minibuffer."
@@ -140,8 +141,12 @@ If `text' is nil or the empty string, we show all entries."
     (define-key map "\C-m" 'gpb-fl--return-selected-item)
     (define-key map [remap previous-line] 'gpb-fl--goto-previous-item)
     (define-key map [remap next-line] 'gpb-fl--goto-next-item)
+    (define-key map [(meta p)] 'gpb-fl--goto-previous-item)
+    (define-key map [(meta n)] 'gpb-fl--goto-next-item)
     (define-key map [(control p)] 'gpb-fl--goto-previous-item)
     (define-key map [(control n)] 'gpb-fl--goto-next-item)
+    (define-key map [(meta p)] 'gpb-fl--goto-previous-item)
+    (define-key map [(meta n)] 'gpb-fl--goto-next-item)
     (define-key map [remap find-file] 'gpb-fl--find-file)
     map)
   "The keymap used in the minibuffer during filtered list interactions.")

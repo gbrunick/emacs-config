@@ -161,7 +161,9 @@ current active keybindings."
 
 (defvar gpb-modal--insert-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map [(control ?j)] 'gpb-modal-enter-command-mode)
+    (define-key map "\C-j" 'gpb-modal-enter-command-mode)
+    (define-key map "\C-g" 'gpb-modal-enter-command-mode)
+    (define-key map "\C-[" 'gpb-modal-enter-command-mode)
     (define-key map [?\C- ] 'gpb-modal-enter-command-mode)
     (fset 'gpb-modal--insert-mode-map map)
     map)
@@ -206,8 +208,8 @@ current active keybindings."
     (define-key map "a" 'repeat)
     (define-key map "^" 'back-to-indentation)
     (define-key map "%" 'gpb-modal--to-matching-delimiter)
-    (define-key map "J" 'scroll-up-command)
-    (define-key map "K" 'scroll-down-command)
+    (define-key map "\C-j" 'scroll-up-command)
+    (define-key map "\C-k" 'scroll-down-command)
     (define-key map "$" 'ispell-word)
     (define-key map "!" 'shell-command)
     (define-key map "&" 'async-shell-command)
@@ -256,6 +258,9 @@ current active keybindings."
     (define-key map "u" 'undo)
     (define-key map "v" 'yank)
     (define-key map "V" 'gpb-modal--yank-after)
+
+    (define-key map "gg" 'beginning-of-buffer)
+    (define-key map "G" 'end-of-buffer)
     ;; (define-key map "\t" 'indent-for-tab-command)
 
     (define-key map [remap describe-mode] 'gpb-modal--describe-mode)
