@@ -704,3 +704,6 @@
 (eval-after-load 'shell
   '(progn (require 'gpb-r-mode)
           (add-hook 'shell-mode-hook #'gpb-r-watch-for-r-process)))
+
+(when (require 'wgrep nil t)
+  (setq wgrep-auto-save-buffer t))
