@@ -144,7 +144,7 @@ strictly before BEG and end at END."
    ((> common-boundaries 0)
     (save-excursion
       (goto-char end)
-      (decf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object 1 forward-func t))
+      (cl-decf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object 1 forward-func t))
       (list beg (point) common-boundaries)))
    ((< common-boundaries 0)
     (save-excursion
@@ -157,7 +157,7 @@ strictly before BEG and end at END."
       (cl-incf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object -1 forward-func t))
       (setq beg (point))
       (goto-char end)
-      (decf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object 1 forward-func t))
+      (cl-decf common-boundaries (gpb-tobj--move-to-boundary-of-nested-text-object 1 forward-func t))
       (list beg (point) common-boundaries)))
    (t
     (error "Runtime error"))))
@@ -428,7 +428,7 @@ cases:
                             1)))
               (while (and (>= (* dir (- (point) pos)) 0)
                           (or interior-p (/= (point) initial-point)))
-                (decf unmatched-ends begins)
+                (cl-decf unmatched-ends begins)
                 (setq begins (catch 'multiple-boundaries
                                (funcall forward-func (- dir))
                                1)))))

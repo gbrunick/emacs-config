@@ -356,15 +356,15 @@ See `gpb-tobj--define-text-object' for more info."
           (cl-case dir
             (1
              (funcall forward-func 1)
-             (when (eq (point) pos) (signal 'search-failed "Forward function did not move point"))
+            (when (eq (point) pos) (signal 'search-failed "Forward function did not move point"))
              (setq beg (save-excursion (funcall forward-func -1) (point)))
-             (while (> count 1) (funcall forward-func 1) (decf count))
+             (while (> count 1) (funcall forward-func 1) (cl-decf count))
              (list beg (point)))
             (-1
              (funcall forward-func -1)
              (when (eq (point) pos) (signal 'search-failed "Forward function did not move point"))
              (setq end (save-excursion (funcall forward-func 1) (point)))
-             (while (> count 1) (funcall forward-func -1) (decf count))
+             (while (> count 1) (funcall forward-func -1) (cl-decf count))
              (list (point) end))
             (t
              (error "Runtime error"))))))
@@ -468,7 +468,7 @@ This is a modified version of the function from thing-at-pt."
     (while (> arg 0)
       (re-search-forward "\\sw\\|\\s_")
       (skip-syntax-forward "w_")
-      (decf arg))
+      (cl-decf arg))
     (while (< arg 0)
       (re-search-backward "\\sw\\|\\s_")
       (skip-syntax-backward "w_")
@@ -538,7 +538,7 @@ This is a modified version of the function from thing-at-pt."
       (when (nth 3 (syntax-ppss))
         (skip-syntax-forward "^\"|")
         (skip-syntax-forward "\"|"))
-      (decf arg)))
+      (cl-decf arg)))
    ((< arg 0)
     (while (< arg 0)
       (skip-syntax-backward "^\"|")
@@ -667,7 +667,7 @@ outer: the full line including and prompt and the trailing newline."
         ;; skip forwards over nonblank lines
         (while (not (or (eobp) (looking-at "[ \t]*\n"))) (forward-line))
         (when (<= (point) pt) (signal 'search-failed "Last paragraphs"))
-        (decf arg)))))
+        (cl-decf arg)))))
 
 
 (gpb-tobj--define-flat-text-object VIM-WORD
@@ -693,7 +693,7 @@ outer: the full line including and prompt and the trailing newline."
         ;; skip to end of WORD
         (skip-chars-forward "^ \t\n")
         (when (eq (point) pt) (signal 'search-failed "End of buffer"))
-        (decf arg)))
+        (cl-decf arg)))
      ((< arg 0)
       (while (< arg 0)
         ;; skip over space
@@ -1097,7 +1097,7 @@ The default algorithm for finding a text object.  When DIR=1
   ;;     (re-search-forward "\\$")
   ;;     (when (font-latex-faces-present-p '(font-latex-math-face))
   ;;       (re-search-forward "\\$"))
-  ;;     (decf arg))
+  ;;     (cl-decf arg))
   ;;   (while (< arg 0)
   ;;     (re-search-backward "\\$")
   ;;     (when (save-excursion (backward-char)
@@ -1113,7 +1113,7 @@ The default algorithm for finding a text object.  When DIR=1
   ;;       (re-search-forward "\\$")
   ;;       (when (font-latex-faces-present-p '(font-latex-math-face))
   ;;         (re-search-forward "\\$"))
-  ;;       (decf arg))
+  ;;       (cl-decf arg))
   ;;     (goto-char (match-beginning 0)))
 
   ;;   (when (< arg 0)
