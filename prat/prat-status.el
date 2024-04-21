@@ -1,23 +1,23 @@
-(defvar gpb-git:show-status-mode-map
+(defvar prat-show-status-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'forward-button)
     (define-key map [(backtab)] 'backward-button)
-    (define-key map "g" 'gpb-git:show-status--refresh)
-    (define-key map "m" 'gpb-git:show-status--mark-file)
-    (define-key map "u" 'gpb-git:show-status--unmark-file)
-    (define-key map "a" 'gpb-git:show-status--stage-files)
-    (define-key map "r" 'gpb-git:show-status--unstage-files)
-    (define-key map "d" 'gpb-git:show-status--show-diff)
-    (define-key map "!" 'gpb-git:shell-command)
+    (define-key map "g" 'prat-show-status--refresh)
+    (define-key map "m" 'prat-show-status--mark-file)
+    (define-key map "u" 'prat-show-status--unmark-file)
+    (define-key map "a" 'prat-show-status--stage-files)
+    (define-key map "r" 'prat-show-status--unstage-files)
+    (define-key map "d" 'prat-show-status--show-diff)
+    (define-key map "!" 'prat-shell-command)
     map)
   "The keymap used when viewing git status output.")
 
 
-(define-derived-mode gpb-git:show-status-mode special-mode
+(define-derived-mode prat-show-status-mode special-mode
   "Git Status"
   "\nMode for buffers displaying Git status output.
 
-\\{gpb-git:show-status-mode-map}\n"
+\\{prat-show-status-mode-map}\n"
   (read-only-mode 1)
   (setq tab-width 4)
 
@@ -26,27 +26,27 @@
                          (when fn (delete-overlay ov))))
           (overlays-in (point-min) (point-max))))
 
-(defun gpb-git:show-status (&optional repo-dir)
+(defun prat-show-status (&optional repo-dir)
   "Show the current Git status in a buffer."
   (interactive (list (gpb-git--read-repo-dir)))
   (let* ((repo-dir (or repo-dir default-directory))
-         (buf (get-buffer-create gpb-git:status-buffer-name)))
+         (buf (get-buffer-create prat-status-buffer-name)))
 
     (with-current-buffer buf
-      (gpb-git:show-status-mode)
+      (prat-show-status-mode)
       (setq default-directory repo-dir)
-      (gpb-git:show-status--refresh))
+      (prat-show-status--refresh))
 
     (switch-to-buffer buf)))
 
 
-(defun gpb-git:show-status--refresh (&optional buf)
+(defun prat-show-status--refresh (&optional buf)
   "Update the current Git status buffer."
   (interactive)
   (let* ((buf (or buf
-                  (and (derived-mode-p 'gpb-git:show-status-mode)
+                  (and (derived-mode-p 'prat-show-status-mode)
                        (current-buffer))
-                  (get-buffer gpb-git:status-buffer-name)))
+                  (get-buffer prat-status-buffer-name)))
          (cmd "git -c advice.statusHints=false status -u")
          (inhibit-read-only t)
          (root-dir (gpb-git--abbreviate-file-name default-directory))
@@ -55,19 +55,19 @@
     (when buf
       (with-current-buffer buf
         (setq pt (point))
-        (dolist (ov (gpb-git:show-status--get-overlays 'filename))
+        (dolist (ov (prat-show-status--get-overlays 'filename))
           (delete-overlay ov))
         (erase-buffer)
         (save-excursion
           (insert (format "Repo: %s\n\n%s\n\n" root-dir cmd))
           (setq-local original-point pt)
           (setq-local put-status-here (point))
-          (gpb-git:async-shell-command
-           cmd default-directory #'gpb-git:show-status--refresh-1))))))
+          (prat-async-shell-command
+           cmd default-directory #'prat-show-status--refresh-1))))))
 
 
-(defun gpb-git:show-status--refresh-1 (buf start end complete)
-  "Implementation detail of `gpb-git:show-status--refresh'.
+(defun prat-show-status--refresh-1 (buf start end complete)
+  "Implementation detail of `prat-show-status--refresh'.
 
 Asyncronous callback that add buttons and overlays to the Git
 status output."
@@ -79,11 +79,11 @@ status output."
         (goto-char put-status-here)
         (insert status-text)
         (goto-char put-status-here)
-        (gpb-git:markup-status-output)))
+        (prat-markup-status-output)))
     (goto-char original-point)
     (forward-line 0)))
 
-(defun gpb-git:markup-status-output ()
+(defun prat-markup-status-output ()
   "Markup git status output in the current buffer."
 
   ;; Some version of Git (e.g. 1.8.3.1) prefix the status output with
@@ -95,7 +95,7 @@ status output."
   (when (re-search-forward "Changes to be committed:" nil t)
     (insert " (")
     (insert-text-button "view all"
-                        'action 'gpb-git:show-status--show-staged-changes
+                        'action 'prat-show-status--show-staged-changes
                         'repo-dir default-directory)
     (insert ")")
     (forward-line 1)
@@ -114,13 +114,13 @@ status output."
         (overlay-put ov 'filename filename)
         (make-text-button
          (match-beginning 2) (match-end 2)
-         'action 'gpb-git:show-status--show-staged-file-diff
+         'action 'prat-show-status--show-staged-file-diff
          'filename filename))))
 
   (when (re-search-forward "Changes not staged for commit:" nil t)
     (insert " (")
     (insert-text-button
-     "view all" 'action 'gpb-git:show-status--show-unstaged-changes
+     "view all" 'action 'prat-show-status--show-unstaged-changes
      'repo-dir default-directory)
     (insert ")")
     (forward-line 1)
@@ -138,7 +138,7 @@ status output."
         (overlay-put ov 'filename filename)
         (make-text-button (match-beginning 2) (match-end 2)
                           'action
-                          'gpb-git:show-status--show-unstaged-file-diff
+                          'prat-show-status--show-unstaged-file-diff
                           'filename filename))))
 
   (when (re-search-forward "Untracked files:" nil t)
@@ -158,7 +158,7 @@ status output."
   (untabify (point-min) (point-max)))
 
 
-(defun gpb-git:show-status--mark-file ()
+(defun prat-show-status--mark-file ()
   "Mark the the file on the current line so other commands can refer to it."
   (interactive)
   (cond
@@ -173,7 +173,7 @@ status output."
       (forward-line 0)
       (while (< (point) end)
         (message "%S" (point))
-        (if (ignore-errors (gpb-git:show-status--mark-file) t)
+        (if (ignore-errors (prat-show-status--mark-file) t)
             (cl-incf i)
           (forward-line 1)))
       (message "Marked %s files" i))))
@@ -184,7 +184,7 @@ status output."
            (ov (cdr filename-overlay)))
       (unless ov (error "No file at point."))
       (overlay-put ov 'marked t)
-      (overlay-put ov 'face 'gpb-git:marked-line-face)
+      (overlay-put ov 'face 'prat-marked-line-face)
       (overlay-put ov 'priority -100)
 
       ;; If you can mark an unstaged file, we unmark all staged files.
@@ -207,7 +207,7 @@ status output."
       (forward-line 1)))))
 
 
-(defun gpb-git:show-status--unmark-file ()
+(defun prat-show-status--unmark-file ()
   "Mark the the file on the current line so other commands can refer to it."
   (interactive)
   (let* ((filename-overlay (get-char-property-and-overlay (point) 'filename))
@@ -220,7 +220,7 @@ status output."
     (forward-line 1)))
 
 
-(defun gpb-git:show-status--get-overlays (&rest keys)
+(defun prat-show-status--get-overlays (&rest keys)
   (let ((overlays (sort (overlays-in (point-min) (point-max))
                         (lambda (x y) (< (overlay-start x)
                                          (overlay-start y))))))
@@ -230,35 +230,35 @@ status output."
     overlays))
 
 
-(defun gpb-git:show-status--get-filenames (&rest keys)
+(defun prat-show-status--get-filenames (&rest keys)
   (mapcar (lambda (ov) (overlay-get ov 'filename))
-          (apply 'gpb-git:show-status--get-overlays keys)))
+          (apply 'prat-show-status--get-overlays keys)))
 
 
-(defun gpb-git:show-status--stage-files ()
+(defun prat-show-status--stage-files ()
   (interactive)
-  (when (region-active-p) (gpb-git:show-status--mark-file))
+  (when (region-active-p) (prat-show-status--mark-file))
   (let* ((filenames (append
-                     (gpb-git:show-status--get-filenames 'unstaged 'marked)
-                     (gpb-git:show-status--get-filenames 'untracked 'marked)))
+                     (prat-show-status--get-filenames 'unstaged 'marked)
+                     (prat-show-status--get-filenames 'untracked 'marked)))
          (cmd (apply 'list "git" "add" "--" filenames)))
     (message "Command: %S" cmd)
     (apply 'process-file (car cmd) nil nil nil (cdr cmd))
-    (gpb-git:show-status)))
+    (prat-show-status)))
 
 
-(defun gpb-git:show-status--unstage-files ()
+(defun prat-show-status--unstage-files ()
   (interactive)
-  (when (region-active-p) (gpb-git:show-status--mark-file))
-  (let* ((filenames (gpb-git:show-status--get-filenames 'staged 'marked))
+  (when (region-active-p) (prat-show-status--mark-file))
+  (let* ((filenames (prat-show-status--get-filenames 'staged 'marked))
          (cmd (apply 'list "git" "reset" "--" filenames)))
     (message "Command: %S" cmd)
     (apply 'process-file (car cmd) nil nil nil (cdr cmd))
-    (gpb-git:show-status)))
+    (prat-show-status)))
 
 
-(defun gpb-git:show-status--show-staged-changes (button)
-  (let ((buf (get-buffer-create gpb-git:staged-buffer-name))
+(defun prat-show-status--show-staged-changes (button)
+  (let ((buf (get-buffer-create prat-staged-buffer-name))
         (repo-dir default-directory))
     (cl-assert repo-dir)
     (with-current-buffer buf
@@ -266,8 +266,8 @@ status output."
     (pop-to-buffer buf)))
 
 
-(defun gpb-git:show-status--show-unstaged-changes (button)
-  (let ((buf (get-buffer-create gpb-git:unstaged-buffer-name))
+(defun prat-show-status--show-unstaged-changes (button)
+  (let ((buf (get-buffer-create prat-unstaged-buffer-name))
         (repo-dir default-directory))
     (cl-assert repo-dir)
     (with-current-buffer buf
@@ -275,20 +275,20 @@ status output."
     (pop-to-buffer buf)))
 
 
-(defun gpb-git:show-status--show-diff ()
+(defun prat-show-status--show-diff ()
   (interactive)
-  (when (use-region-p) (gpb-git:show-status--mark-file))
-  (let ((unstaged-filenames (gpb-git:show-status--get-filenames
+  (when (use-region-p) (prat-show-status--mark-file))
+  (let ((unstaged-filenames (prat-show-status--get-filenames
                              'unstaged 'marked))
-        (staged-filenames (gpb-git:show-status--get-filenames
+        (staged-filenames (prat-show-status--get-filenames
                            'staged 'marked))
         filenames staged)
 
     (when (and (null unstaged-filenames) (null staged-filenames))
-      (gpb-git:show-status--mark-file)
-      (setq unstaged-filenames (gpb-git:show-status--get-filenames
+      (prat-show-status--mark-file)
+      (setq unstaged-filenames (prat-show-status--get-filenames
                                 'unstaged 'marked))
-      (setq staged-filenames (gpb-git:show-status--get-filenames
+      (setq staged-filenames (prat-show-status--get-filenames
                               'staged 'marked)))
 
     (cond
@@ -308,8 +308,8 @@ status output."
                    `("git" "diff" "--cached" "--" ,@filenames)
                  `("git" "diff" "--" ,@filenames)))
           (buf (get-buffer-create (if staged
-                                      gpb-git:staged-buffer-name
-                                    gpb-git:unstaged-buffer-name)))
+                                      prat-staged-buffer-name
+                                    prat-unstaged-buffer-name)))
           (inhibit-read-only t))
 
       (with-current-buffer buf
@@ -319,7 +319,7 @@ status output."
         (pop-to-buffer buf)))))
 
 
-(defun gpb-git:show-status--show-unstaged-file-diff (button)
+(defun prat-show-status--show-unstaged-file-diff (button)
   (let* ((filename (button-get button 'filename))
          (cmd (format "git diff -- \"%s\"" filename))
          (buf (get-buffer-create (format "*unstaged: %s*" filename)))
@@ -329,7 +329,7 @@ status output."
     (pop-to-buffer buf)))
 
 
-(defun gpb-git:show-status--show-staged-file-diff (button)
+(defun prat-show-status--show-staged-file-diff (button)
   (let* ((filename (button-get button 'filename))
          (cmd (format "git diff --cached -- \"%s\"" filename))
          (buf (get-buffer-create (format "*staged: %s*" filename)))
@@ -339,5 +339,5 @@ status output."
     (pop-to-buffer buf)))
 
 
-(provide 'gm-status)
+(provide 'prat-status)
 

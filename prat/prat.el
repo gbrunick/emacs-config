@@ -57,17 +57,17 @@
 ;;        are marked, the value is a cons cell of the form (:partial
 ;;        . line-is-marked) where line-is-marked is a bool vector with one
 ;;        entry for each line in the hunk.  If a deleted file has been
-;;        marked as a rename (see `gpb-git:mark-as-rename'), the value is a
+;;        marked as a rename (see `prat-mark-as-rename'), the value is a
 ;;        cons cell of the form (:rename . filename).
 ;;
 
-(require 'gm-util)
-(require 'gm-status)
-(require 'gm-logs)
-(require 'gm-hunks)
-(require 'gm-shell-commands)
+(require 'prat-util)
+(require 'prat-status)
+(require 'prat-logs)
+(require 'prat-hunks)
+(require 'prat-shell-commands)
 
-(defcustom gpb-git:remote-home-dirs nil
+(defcustom prat-remote-home-dirs nil
   "A list of strings giving remote directory paths.
 
 Each directory should have TRAMP-prefix.  This variable is used
@@ -76,65 +76,65 @@ names in the UI."
   :type '(repeat directory) :group 'gitmodes)
 
 
-(defcustom gpb-git:status-buffer-name "*git status*"
+(defcustom prat-status-buffer-name "*git status*"
   "The name of the buffer used to show Git status."
   :type 'string :group 'gitmodes)
 
-(defcustom gpb-git:unstaged-buffer-name "*unstaged changes*"
+(defcustom prat-unstaged-buffer-name "*unstaged changes*"
   "The name of the buffer used to show staged changes."
   :type 'string :group 'gitmodes)
 
-(defcustom gpb-git:staged-buffer-name "*staged changes*"
+(defcustom prat-staged-buffer-name "*staged changes*"
   "The name of the buffer used to show unstaged changes."
   :type 'string :group 'gitmodes)
 
-(defcustom gpb-git:patch-buffer-name "*git patch*"
+(defcustom prat-patch-buffer-name "*git patch*"
   "The name of the temporary buffer used to construct patches."
   :type 'string :group 'gitmodes)
 
-(defcustom gpb-git:process-output-buffer-name "*git output*"
+(defcustom prat-process-output-buffer-name "*git output*"
   "The name of the buffer used to display Git output."
   :type 'string :group 'gitmodes)
 
-(defcustom gpb-git:commit-message-buffer-name "*commit message*"
+(defcustom prat-commit-message-buffer-name "*commit message*"
   "The name of the temporary buffer used to edit commit messages."
   :type 'string :group 'gitmodes)
 
 
-(defvar gpb-git:currently-focused-hunk nil
+(defvar prat-currently-focused-hunk nil
   "Tracks the currently focused hunk (see `gpb-git--update-highlights').")
 
-(defvar gpb-git:commit-messages nil
+(defvar prat-commit-messages nil
   "We save all commit messages so they can be recovered.")
 
-(defface gpb-git:title
+(defface prat-title
   '((t :background "#eeeeee" :inherit default :extend t))
   "Face used for coments and instructions")
 
-(defface gpb-git:file-name
+(defface prat-file-name
   '((t :background "#ffffff" :height 140 :extend t))
   "Face used for the file name header")
 
-(defface gpb-git:file-header '((t :background "grey95" :extend t))
+(defface prat-file-header '((t :background "grey95" :extend t))
   "Face used for the hunk header in the pathc buffer")
 
-(defface gpb-git:hunk-header
+(defface prat-hunk-header
   '((t :foreground "#000000"
        :background "gray65" :extend t))
   "Face used for the hunk header")
 
-(defface gpb-git:context-line
+(defface prat-context-line
   '((t :foreground "#000000"
        :background "gray95" :extend t))
   "Face used for context lines in a hunk")
 
-(defface gpb-git:deleted-line
+(defface prat-deleted-line
   `((t :foreground "#550000"
        :background ,(gpb-git--blend-colors "#f0c0c0" "white" 0.6)
        :extend t))
   "Face used for the deleted lines in a hunk")
 
-(defface gpb-git:added-line
+(defface prat-added-line
   `((t :foreground "#004400"
        :background ,(gpb-git--blend-colors "#b8e0b8" "white" 0.6)
        :extend t))
@@ -142,24 +142,24 @@ names in the UI."
 
 ;; Focused faces
 
-(defface gpb-git:focused-hunk-header
+(defface prat-focused-hunk-header
   '((t :foreground "#000000"
        :background "cornflower blue" :extend t))
   "Face used for context lines in the focused hunk")
 
-(defface gpb-git:focused-context-line
+(defface prat-focused-context-line
   `((t :foreground "#000000"
        :background ,(gpb-git--blend-colors "cornflower blue" "white" 0.25)
        :extend t))
   "Face used for context lines in the focused hunk")
 
-(defface gpb-git:focused-added-line
+(defface prat-focused-added-line
   '((t :foreground "#005500"
        :background "#b8e0b8"
        :extend t))
   "Face used for the added lines in the focused hunk.")
 
-(defface gpb-git:focused-deleted-line
+(defface prat-focused-deleted-line
   '((t :foreground "#880000"
        :background "#f0c0c0"
        :extend t))
@@ -167,25 +167,25 @@ names in the UI."
 
 ;; Marked faces
 
-(defface gpb-git:marked-hunk-header
+(defface prat-marked-hunk-header
   `((t :foreground "#000000"
        :background ,(gpb-git--blend-colors "khaki4" "white" 0.6)
        :extend t))
   "Face used for context lines in a marked hunk")
 
-(defface gpb-git:marked-context-line
+(defface prat-marked-context-line
   `((t :foreground "#000000"
        :background ,(gpb-git--blend-colors "khaki2" "white" 0.6)
        :extend t))
   "Face used for context lines in the marked hunk")
 
-(defface gpb-git:marked-added-line
+(defface prat-marked-added-line
   `((t :foreground "#000000"
        :background ,(gpb-git--blend-colors "khaki2" "white" 0.8)
        :extend t))
   "Face used for the added lines in the marked hunk.")
 
-(defface gpb-git:marked-deleted-line
+(defface prat-marked-deleted-line
   `((t :foreground "#000000"
        :background ,(gpb-git--blend-colors "khaki3" "white" 0.6)
        :extend t))
@@ -193,24 +193,24 @@ names in the UI."
 
 ;; Focused and marked faces
 
-(defface gpb-git:focused-and-marked-hunk-header
+(defface prat-focused-and-marked-hunk-header
   '((t :background "khaki4" :extend t))
   "Face used for context lines in a marked hunk")
 
-(defface gpb-git:focused-and-marked-context-line
+(defface prat-focused-and-marked-context-line
   `((t :foreground "#000000"
        :background ,(gpb-git--blend-colors "khaki2" "white" 0.72 0.22)
        :extend t))
   "Face used for context lines in the marked hunk")
 
-(defface gpb-git:focused-and-marked-added-line
+(defface prat-focused-and-marked-added-line
   `((t ;; :foreground "#003000"
        :foreground "#000000"
        :background ,(gpb-git--blend-colors "khaki2" "black" 0.95)
        :extend t))
   "Face used for the added lines in the marked hunk.")
 
-(defface gpb-git:focused-and-marked-deleted-line
+(defface prat-focused-and-marked-deleted-line
   `((t ;; :foreground "#660000"
        :foreground "#000000"
        :background ,(gpb-git--blend-colors "#f0c0c0" "khaki3" 0)
@@ -218,7 +218,7 @@ names in the UI."
   "Face used for deleted lines in the marked hunk.")
 
 
-(defface gpb-git:marked-line-face
+(defface prat-marked-line-face
   `((t :foreground "#000000"
        :background ,(gpb-git--blend-colors "khaki2" "white" 0.72 0.22)
        :extend t))
@@ -230,14 +230,14 @@ names in the UI."
 ;;
 
 
-(defvar gpb-git:user-command-prefix-keymap
+(defvar prat-user-command-prefix-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map "s" 'gpb-git:show-status)
-    (define-key map "c" 'gpb-git:commit)
-    (define-key map "l" 'gpb-git:show-commit-graph)
-    (define-key map "!" 'gpb-git:shell-command)
-    (define-key map "p" 'gpb-git:push-changes)
-    (fset 'gpb-git:user-command-prefix-keymap map)
+    (define-key map "s" 'prat-show-status)
+    (define-key map "c" 'prat-commit)
+    (define-key map "l" 'prat-show-commit-graph)
+    (define-key map "!" 'prat-shell-command)
+    (define-key map "p" 'prat-push-changes)
+    (fset 'prat-user-command-prefix-keymap map)
     map)
   "The prefix keymap for user commands.
 
@@ -249,7 +249,7 @@ Bind to this to a prefix of your choosing (e.g., \"\C-cv\")")
 ;;
 
 
-(defun gpb-git:refresh-buffer ()
+(defun prat-refresh-buffer ()
   "Implements the standard refresh on g behaviour.
 
 User-facing; attempts to preserve window position."
@@ -266,7 +266,7 @@ User-facing; attempts to preserve window position."
                           (forward-line 0)
                           (gpb-git--post-command-hook))))
     (cl-assert (equal buf window-buf))
-    (message "gpb-git:refresh-buffer: %s %s" (current-buffer) major-mode)
+    (message "prat-refresh-buffer: %s %s" (current-buffer) major-mode)
     (eval `(,@refresh-cmd reset-window))))
 
 
@@ -279,4 +279,4 @@ User-facing; attempts to preserve window position."
   (load "gm-shell-commands.el")
   (load "gitmodes.el"))
 
-(provide 'gitmodes)
+(provide 'prat)

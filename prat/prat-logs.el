@@ -1,39 +1,39 @@
-(defvar gpb-git:commit-graph-mode-map
+(defvar prat-commit-graph-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "m" 'gpb-git:mark-line)
+    (define-key map "m" 'prat-mark-line)
     (define-key map "d" 'gpb-git--commit-graph-mode--show-diff)
-    (define-key map "g" 'gpb-git:refresh-buffer)
-    (define-key map (kbd "RET") 'gpb-git:show-commit-graph--show-commit)
-    (define-key map "!" 'gpb-git:shell-command)
-    (define-key map "\C-c\C-f" 'gpb-git:show-commit-graph--show-files)
+    (define-key map "g" 'prat-refresh-buffer)
+    (define-key map (kbd "RET") 'prat-show-commit-graph--show-commit)
+    (define-key map "!" 'prat-shell-command)
+    (define-key map "\C-c\C-f" 'prat-show-commit-graph--show-files)
     map)
   "The keymap used when viewing the commit graph.")
 
 
-(define-derived-mode gpb-git:commit-graph-mode special-mode
+(define-derived-mode prat-commit-graph-mode special-mode
   "Commit Graph"
   "\nMode for buffers displaying the Git commit graph.
 
-\\{gpb-git:commit-graph-mode-map}\n"
+\\{prat-commit-graph-mode-map}\n"
   (gpb-git--init-marked-line-overlay)
   (setq truncate-lines t))
 
 
-(defvar gpb-git:show-commit-files-mode-map
+(defvar prat-show-commit-files-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "RET") 'gpb-git:show-commit-graph--show-file-version)
+    (define-key map (kbd "RET") 'prat-show-commit-graph--show-file-version)
     map)
   "The keymap used when viewing the commit graph.")
 
 
-(define-derived-mode gpb-git:show-commit-files-mode special-mode
+(define-derived-mode prat-show-commit-files-mode special-mode
   "File List"
   "\nMode for buffers displaying the files in a Git commit.
 
-\\{gpb-git:show-commit-files-mode-map}\n")
+\\{prat-show-commit-files-mode-map}\n")
 
 
-(defun gpb-git:show-commit-graph (&optional repo-root)
+(defun prat-show-commit-graph (&optional repo-root)
   (interactive (list (gpb-git--read-repo-dir)))
   (let* ((buf (get-buffer-create "*git log*"))
          (repo-root (or repo-root default-directory)))
@@ -59,13 +59,13 @@
     (read-only-mode 1)
     (erase-buffer)
     (remove-overlays)
-    (gpb-git:commit-graph-mode)
+    (prat-commit-graph-mode)
     (save-excursion
       (insert (format "Repo: %s\n\n" default-directory))
       (insert (format "%s\n\n" cmd))
       (setq-local output-marker (copy-marker (point))))
     (setq-local callback-func callback)
-    (gpb-git:async-shell-command
+    (prat-async-shell-command
      cmd default-directory #'gpb-git--refresh-commit-graph-1)))
 
 (defun gpb-git--refresh-commit-graph-1 (buf start end complete)
@@ -86,7 +86,7 @@
     (when (and complete callback-func) (funcall callback-func))))
 
 
-(defun gpb-git:mark-line ()
+(defun prat-mark-line ()
   "Mark the the current line so other commands can refer to it."
   (interactive)
   (let* ((bol-pt (save-excursion (forward-line 0) (point)))
@@ -116,17 +116,17 @@
 (defun gpb-git--commit-graph-mode--show-diff ()
   "Diff the marked revision with the revision at the point."
   (interactive)
-  (gpb-git:show-commit-diff (gpb-git--get-marked-revision)
+  (prat-show-commit-diff (gpb-git--get-marked-revision)
                             (gpb-get--get-revision-at-point)
                             default-directory))
 
 (defun gpb-git--init-marked-line-overlay ()
   (let ((new-ov (make-overlay (point-min) (point-min))))
-    (overlay-put new-ov 'face 'gpb-git:marked-line-face)
+    (overlay-put new-ov 'face 'prat-marked-line-face)
     (setq-local marked-line-overlay new-ov)))
 
 
-(defun gpb-git:show-commit-graph--show-commit ()
+(defun prat-show-commit-graph--show-commit ()
   (interactive)
   (let ((hash (get-text-property (point) :commit-hash))
         buf)
@@ -137,7 +137,7 @@
     (pop-to-buffer buf)))
 
 
-(defun gpb-git:show-commit-graph--show-files ()
+(defun prat-show-commit-graph--show-files ()
   (interactive)
   (let* ((hash (get-text-property (point) :commit-hash))
          (cmd `("git" "ls-tree" "--name-only" "-r" ,hash))
@@ -146,15 +146,15 @@
     (unless hash (error "No commit on line"))
     (setq buf (get-buffer-create (format "*ls-tree: %s*" hash)))
 
-    (setq buf (gpb-git:shell-command (mapconcat 'identity cmd " ")
+    (setq buf (prat-shell-command (mapconcat 'identity cmd " ")
                                      (format "*ls-tree: %s*" hash)))
     (with-current-buffer buf
       (goto-char (point-min))
-      (gpb-git:show-commit-files-mode)
+      (prat-show-commit-files-mode)
       (setq-local git-commit-hash hash))))
 
 
-(defun gpb-git:show-commit-graph--show-file-version ()
+(defun prat-show-commit-graph--show-file-version ()
   (interactive)
   (let* ((filename (buffer-substring
                     (save-excursion (forward-line 0) (point))
@@ -163,13 +163,13 @@
          (inhibit-read-only t)
          buf)
     (unless filename (error "No file on line"))
-    (setq buf (gpb-git:shell-command
+    (setq buf (prat-shell-command
                (mapconcat 'identity cmd " ")
                (format "*%s: %s*" git-commit-hash filename)))
     (with-current-buffer buf (goto-char (point-min)))))
 
 
-(defun gpb-git:show-file-history (&optional filename)
+(defun prat-show-file-history (&optional filename)
   (interactive)
   (let* ((filename (or filename (buffer-file-name)))
          (basename (file-name-nondirectory filename))
@@ -187,4 +187,4 @@
     (pop-to-buffer buf)))
 
 
-(provide 'gm-logs)
+(provide 'prat-logs)

@@ -2,7 +2,7 @@
 ;;  Hunk and diff related functions and modes.
 ;;
 
-(require 'gm-util)
+(require 'prat-util)
 
 ;; workaround for removal of assoc.
 (defun gpb-aget (alist key &optional keynil-p)
@@ -47,136 +47,136 @@ pair is not at the head of alist.  ALIST is not altered."
   (car (car alist)))
 
 
-(defvar gpb-git:hunk-view-mode-map
+(defvar prat-hunk-view-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\t" 'gpb-git:forward-command)
-    (define-key map [(backtab)] 'gpb-git:backward-command)
-    (define-key map "p" 'gpb-git:backward-command)
-    (define-key map "P" 'gpb-git:backward-file-command)
-    (define-key map "n" 'gpb-git:forward-command)
-    (define-key map "N" 'gpb-git:forward-file-command)
-    (define-key map (kbd "RET") 'gpb-git:goto-line)
-    (define-key map "g" 'gpb-git:refresh-buffer)
-    (fset 'gpb-git:hunk-view-mode-map map)
+    (define-key map "\t" 'prat-forward-command)
+    (define-key map [(backtab)] 'prat-backward-command)
+    (define-key map "p" 'prat-backward-command)
+    (define-key map "P" 'prat-backward-file-command)
+    (define-key map "n" 'prat-forward-command)
+    (define-key map "N" 'prat-forward-file-command)
+    (define-key map (kbd "RET") 'prat-goto-line)
+    (define-key map "g" 'prat-refresh-buffer)
+    (fset 'prat-hunk-view-mode-map map)
     map)
   "Base keymap for hunk viewing.")
 
-(defvar gpb-git:hunk-selection-mode-map
+(defvar prat-hunk-selection-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "m" 'gpb-git:mark-hunk-command)
-    (define-key map "M" 'gpb-git:mark-file-command)
-    (define-key map "r" 'gpb-git:mark-as-rename)
-    (define-key map "u" 'gpb-git:unmark-hunk-command)
-    (define-key map "U" 'gpb-git:unmark-file-command)
-    (set-keymap-parent map 'gpb-git:hunk-view-mode-map)
-    (fset 'gpb-git:hunk-selection-mode-map map)
+    (define-key map "m" 'prat-mark-hunk-command)
+    (define-key map "M" 'prat-mark-file-command)
+    (define-key map "r" 'prat-mark-as-rename)
+    (define-key map "u" 'prat-unmark-hunk-command)
+    (define-key map "U" 'prat-unmark-file-command)
+    (set-keymap-parent map 'prat-hunk-view-mode-map)
+    (fset 'prat-hunk-selection-mode-map map)
     map)
   "Base keymap for hunk viewing and selection.")
 
 
-(defvar gpb-git:unstaged-changes-mode-map
+(defvar prat-unstaged-changes-mode-map
   (let ((map (make-sparse-keymap)))
     ;; "add" new files to the index.
-    (define-key map "a" 'gpb-git:stage-hunks)
+    (define-key map "a" 'prat-stage-hunks)
     ;; "delete" changes.
-    (define-key map "d" 'gpb-git:revert-marked-hunks)
-    (define-key map "w" 'gpb-git:toggle-whitespace-diff-args)
-    (set-keymap-parent map 'gpb-git:hunk-selection-mode-map)
-    (fset 'gpb-git:unstaged-changes-mode-map map)
+    (define-key map "d" 'prat-revert-marked-hunks)
+    (define-key map "w" 'prat-toggle-whitespace-diff-args)
+    (set-keymap-parent map 'prat-hunk-selection-mode-map)
+    (fset 'prat-unstaged-changes-mode-map map)
     map)
   "The keymap used for unstaged hunks.")
 
 
-(defvar gpb-git:staged-changes-mode-map
+(defvar prat-staged-changes-mode-map
   (let ((map (make-sparse-keymap)))
     ;; "reset" marked hunks
-    (define-key map "r" 'gpb-git:unstage-hunks)
-    (set-keymap-parent map 'gpb-git:hunk-selection-mode-map)
-    (fset 'gpb-git:staged-changes-mode-map map)
+    (define-key map "r" 'prat-unstage-hunks)
+    (set-keymap-parent map 'prat-hunk-selection-mode-map)
+    (fset 'prat-staged-changes-mode-map map)
     map)
   "The keymap used for staged hunks.")
 
 
 
-(define-derived-mode gpb-git:hunk-view-mode special-mode
+(define-derived-mode prat-hunk-view-mode special-mode
   "Hunk Buffer"
   "\nBase mode for buffers showing hunks."
   (setq-local header-line-format '(:eval (gpb-git--compute-hunk-buffer-header)))
   (setq-local buffer-read-only t)
   (setq-local tab-width 4))
 
-(define-derived-mode gpb-git:hunk-selection-mode gpb-git:hunk-view-mode
+(define-derived-mode prat-hunk-selection-mode prat-hunk-view-mode
   "Hunk Buffer"
   "\nBase mode for buffers showing hunks."
   (add-hook 'post-command-hook 'gpb-git--post-command-hook))
 
 
-(define-derived-mode gpb-git:unstaged-changes-mode gpb-git:hunk-selection-mode
+(define-derived-mode prat-unstaged-changes-mode prat-hunk-selection-mode
   "Unstaged Changes"
   "\nMode for selecting unstages changes to be added to the index.
 
-\\{gpb-git:unstaged-changes-mode-map}\n"
+\\{prat-unstaged-changes-mode-map}\n"
   (setq-local staged-changes-buffer nil))
 
 
-(define-derived-mode gpb-git:staged-changes-mode gpb-git:hunk-selection-mode
+(define-derived-mode prat-staged-changes-mode prat-hunk-selection-mode
   "Staged Changes"
   "\nMode for selecting stages changes to be removed from the index.
 
-\\{gpb-git:staged-changes-mode-map}\n"
+\\{prat-staged-changes-mode-map}\n"
   (setq-local staged-changes-buffer t))
 
 
-(defun gpb-git:show-unstaged-changes (&optional repo-dir)
+(defun prat-show-unstaged-changes (&optional repo-dir)
   (interactive (list (gpb-git--read-repo-dir)))
-  (let ((buf (get-buffer-create gpb-git:unstaged-buffer-name)))
+  (let ((buf (get-buffer-create prat-unstaged-buffer-name)))
     (with-current-buffer buf
       (gpb-git--refresh-unstaged-changes repo-dir)
-      ;; For `gpb-git:refresh-buffer'
+      ;; For `prat-refresh-buffer'
       (setq-local refresh-cmd `(gpb-git--refresh-unstaged-changes
                                 ,default-directory)))
     (switch-to-buffer buf)))
 
 
-(defun gpb-git:show-staged-changes (&optional repo-dir)
+(defun prat-show-staged-changes (&optional repo-dir)
   (interactive (list (gpb-git--read-repo-dir)))
-  (let ((buf (get-buffer-create gpb-git:staged-buffer-name)))
+  (let ((buf (get-buffer-create prat-staged-buffer-name)))
     (with-current-buffer buf
       (gpb-git--refresh-staged-changes repo-dir)
-      ;; For `gpb-git:refresh-buffer'
+      ;; For `prat-refresh-buffer'
       (setq-local refresh-cmd `(gpb-git--refresh-staged-changes
                                 ,default-directory)))
     (switch-to-buffer buf)))
 
 
-(defun gpb-git:show-commit-diff (hash1 hash2 &optional repo-dir)
+(defun prat-show-commit-diff (hash1 hash2 &optional repo-dir)
   (let ((buf (get-buffer-create (format "*%s...%s*" hash1 hash2))))
     (with-current-buffer buf
       (gpb-git--refresh-commit-diff hash1 hash2 repo-dir)
-      ;; For `gpb-git:refresh-buffer'
+      ;; For `prat-refresh-buffer'
       (setq-local refresh-cmd `(gpb-git--refresh-commit-diff
                                 ,hash1 ,hash2 ,default-directory))
       (switch-to-buffer buf))))
 
 
-(defun gpb-git:toggle-whitespace-diff-args ()
+(defun prat-toggle-whitespace-diff-args ()
   (interactive)
   (let ((val (and (boundp 'show-whitespace-changes) show-whitespace-changes)))
     (setq-local show-whitespace-changes (not val))
     (put 'show-whitespace-changes 'permanent-local t)
-    (gpb-git:refresh-buffer)))
+    (prat-refresh-buffer)))
 
 
 (defun gpb-git--refresh-unstaged-changes (&optional repo-dir cmd callback)
   "Display the differences between the index and HEAD.
 
 Overwrites the current buffer and sets the mode to
-`gpb-git:unstaged-changes-mode'."
+`prat-unstaged-changes-mode'."
   (interactive)
   (gpb-git--trace-funcall)
   (let ((cmd (or cmd "git diff --histogram --find-renames"))
         (inhibit-read-only t))
-    (gpb-git:unstaged-changes-mode)
+    (prat-unstaged-changes-mode)
     (gpb-git--refresh-changes cmd repo-dir callback)
     (goto-char (point-min))
     (insert (format "\nUnstaged changes in %s\n\n"
@@ -192,12 +192,12 @@ Overwrites the current buffer and sets the mode to
   "Display the differences between the index and HEAD.
 
 Overwrites the current buffer and sets the mode to
-`gpb-git:staged-changes-mode'."
+`prat-staged-changes-mode'."
   (interactive)
   (gpb-git--trace-funcall)
   (let ((cmd (or cmd "git diff --cached --histogram --find-renames"))
         (inhibit-read-only t))
-    (gpb-git:staged-changes-mode)
+    (prat-staged-changes-mode)
     (gpb-git--refresh-changes cmd repo-dir callback)
     (goto-char (point-min))
     (insert (format "\nStaged changes in %s\n\n"
@@ -212,7 +212,7 @@ Overwrites the current buffer and sets the mode to
   "Display the differences between the index and HEAD.
 
 Overwrites the current buffer and sets the mode to
-`gpb-git:staged-changes-mode'."
+`prat-staged-changes-mode'."
   (interactive)
   (let ((cmd (format "git diff --stat --patch %s %s %s --"
                      "--histogram --find-renames" hash1 hash2))
@@ -221,7 +221,7 @@ Overwrites the current buffer and sets the mode to
 
 
     (gpb-git--refresh-changes cmd repo-dir callback)
-    (gpb-git:hunk-view-mode)
+    (prat-hunk-view-mode)
     (goto-char (point-min))
     (insert (format "\nChanges from %s to %s\n\n" hash1 hash2))
     (insert (format "%s\n\n" cmd))
@@ -251,8 +251,8 @@ been updated (i.e., asyncronously)."
     (erase-buffer)
     (setq default-directory repo-dir)
     (setq-local callback-func callback)
-    (gpb-git:insert-placeholder "Loading hunks ")
-    (gpb-git:async-shell-command cmd1 repo-dir #'gpb-git--refresh-changes-1)))
+    (prat-insert-placeholder "Loading hunks ")
+    (prat-async-shell-command cmd1 repo-dir #'gpb-git--refresh-changes-1)))
 
 
 (defun gpb-git--refresh-changes-1 (buf start end complete)
@@ -262,7 +262,7 @@ been updated (i.e., asyncronously)."
     (let ((hunks (with-current-buffer buf (gpb-git--parse-diff)))
           (inhibit-read-only t))
       (goto-char (point-min))
-      (gpb-git:delete-placeholder "Loading hunks")
+      (prat-delete-placeholder "Loading hunks")
       (cond
        (hunks
         ;; Add a text button for each filename
@@ -273,7 +273,7 @@ been updated (i.e., asyncronously)."
           (dolist (filename (sort (delete-dups (delq nil filenames)) 'string<))
             (make-text-button (point)
                               (progn (insert filename) (point))
-                              'action 'gpb-git:jump-to-file-hunks
+                              'action 'prat-jump-to-file-hunks
                               'filename filename)
             (insert (make-string (max (- max-length (length filename)) 0)
                                  ?\ ))
@@ -318,7 +318,7 @@ file.  If FOCUSED is non-nil, we use alternative faces."
                                    (buffer-substring-no-properties
                                     (point) (save-excursion
                                               (forward-line 1) (point)))))
-              (new-header (gpb-git:get-hunk-header hunk)))
+              (new-header (prat-get-hunk-header hunk)))
           (unless (equal current-header new-header)
             (when current-header
               (delete-region (point) (save-excursion (forward-line 1)
@@ -331,10 +331,10 @@ file.  If FOCUSED is non-nil, we use alternative faces."
          (list :hunk-header t
                'face (cond
                       ((and marked focused)
-                       'gpb-git:focused-and-marked-hunk-header)
-                      (marked 'gpb-git:marked-hunk-header)
-                      (focused 'gpb-git:focused-hunk-header)
-                      (t 'gpb-git:hunk-header))))
+                       'prat-focused-and-marked-hunk-header)
+                      (marked 'prat-marked-hunk-header)
+                      (focused 'prat-focused-hunk-header)
+                      (t 'prat-hunk-header))))
 
         ;; We wait until we have written the header to call
         ;; `gpb-git--get-marked-lines' as this function assumes that the
@@ -348,52 +348,52 @@ file.  If FOCUSED is non-nil, we use alternative faces."
             (put-text-property (point) (progn (forward-line 1) (point))
                                'face (cond
                                       ((and line-marked focused)
-                                       'gpb-git:focused-and-marked-added-line)
-                                      (line-marked 'gpb-git:marked-added-line)
-                                      (focused 'gpb-git:focused-added-line)
-                                      (t 'gpb-git:added-line))))
+                                       'prat-focused-and-marked-added-line)
+                                      (line-marked 'prat-marked-added-line)
+                                      (focused 'prat-focused-added-line)
+                                      (t 'prat-added-line))))
            ((looking-at-p "^-")
             (put-text-property (point) (progn (forward-line 1) (point))
                                'face (cond
                                       ((and line-marked focused)
-                                       'gpb-git:focused-and-marked-deleted-line)
-                                      (line-marked 'gpb-git:marked-deleted-line)
-                                      (focused 'gpb-git:focused-deleted-line)
-                                      (t 'gpb-git:deleted-line))))
+                                       'prat-focused-and-marked-deleted-line)
+                                      (line-marked 'prat-marked-deleted-line)
+                                      (focused 'prat-focused-deleted-line)
+                                      (t 'prat-deleted-line))))
            (t
             (put-text-property (point) (progn (forward-line 1) (point))
                                'face (cond
                                       ((and line-marked focused)
-                                       'gpb-git:focused-and-marked-context-line)
-                                      (line-marked 'gpb-git:marked-context-line)
-                                      (focused 'gpb-git:focused-context-line)
-                                      (t 'gpb-git:context-line)))))
+                                       'prat-focused-and-marked-context-line)
+                                      (line-marked 'prat-marked-context-line)
+                                      (focused 'prat-focused-context-line)
+                                      (t 'prat-context-line)))))
           (cl-incf i))))))
 
 
-(defun gpb-git:forward-hunk ()
+(defun prat-forward-hunk ()
   "Move point forward to the next hunk."
   (interactive)
   (when (eobp) (error "End of buffer"))
   (let ((pt (point))
         (end (window-end))
-        (hunk (gpb-git:get-current-hunk)))
+        (hunk (prat-get-current-hunk)))
     ;; Move the end of the current hunk.
     (when hunk (goto-char (overlay-end hunk)))
     ;; Now move forward until you are inside a hunk.  This currently
     ;; doesn't happen, as the hunks are contiguous.
-    (while (not (or (eobp) (gpb-git:get-current-hunk))) (forward-line 1))
+    (while (not (or (eobp) (prat-get-current-hunk))) (forward-line 1))
     ;; If we moved to the end of the buffer, there is not next hunk.
     (when (eobp) (goto-char pt) (error "Last hunk")))
     (point))
 
 
-(defun gpb-git:forward-command ()
+(defun prat-forward-command ()
   "Move forward to the next hunk or button and scroll window."
   (interactive)
   (unless (ignore-errors (forward-button 1))
-    (gpb-git:forward-hunk)
-    (let ((ov (gpb-git:get-current-hunk))
+    (prat-forward-hunk)
+    (let ((ov (prat-get-current-hunk))
           (win (selected-window)))
       (when (and ov (overlay-buffer ov) win)
         (cl-assert (eq (window-buffer win) (current-buffer)))
@@ -404,7 +404,7 @@ file.  If FOCUSED is non-nil, we use alternative faces."
             (recenter 0)))))))
 
 
-(defun gpb-git:backward-hunk ()
+(defun prat-backward-hunk ()
   "Move back to the start of the current hunk.
 Move back to the start of the previous hunk, if we are already at
 the start of the current hunk."
@@ -412,57 +412,57 @@ the start of the current hunk."
   (when (= (line-number-at-pos) (point-min)) (error "Beginning of buffer"))
   (let ((pt (point)) hunk)
     (forward-line -1)
-    (while (and (not (gpb-git:get-current-hunk)) (not (bobp)))
+    (while (and (not (prat-get-current-hunk)) (not (bobp)))
       (forward-line -1))
     (when (bobp)
       (goto-char pt)
       (error "No earlier hunks"))
-    (setq hunk (gpb-git:get-current-hunk))
+    (setq hunk (prat-get-current-hunk))
     (cl-assert hunk)
     (goto-char (overlay-start hunk))
     (point)))
 
 
-(defun gpb-git:forward-file-command ()
+(defun prat-forward-file-command ()
   "Move forward to first hunk of the next file."
   (interactive)
   (let* ((get-current-file (lambda () (ignore-errors
-                                        (overlay-get (gpb-git:get-current-hunk)
+                                        (overlay-get (prat-get-current-hunk)
                                                      :filename1))))
          (current-file (funcall get-current-file))
          new-point)
     (save-excursion
       (while (equal (funcall get-current-file) current-file)
-        ;; `gpb-git:forward-hunk-command' signals an error when it fails.
-        (or (ignore-errors (gpb-git:forward-hunk))
+        ;; `prat-forward-hunk-command' signals an error when it fails.
+        (or (ignore-errors (prat-forward-hunk))
             (error "Last file")))
       (setq new-point (point)))
     (goto-char new-point)
     (recenter 0)))
 
 
-(defun gpb-git:backward-file-command ()
+(defun prat-backward-file-command ()
   "Move backwards to first hunk of the previous file."
   (interactive)
   (let* ((get-file-at-point (lambda () (ignore-errors
-                                         (overlay-get (gpb-git:get-current-hunk)
+                                         (overlay-get (prat-get-current-hunk)
                                                       :filename1))))
          filename new-point first-hunk)
 
     (save-excursion
-      (gpb-git:backward-hunk)
+      (prat-backward-hunk)
       (setq filename (funcall get-file-at-point))
 
-      ;; `gpb-git:backward-hunk' signals an error when it fails.
+      ;; `prat-backward-hunk' signals an error when it fails.
       (ignore-errors
         (while (equal (funcall get-file-at-point) filename)
-          (gpb-git:backward-hunk)))
+          (prat-backward-hunk)))
       (cl-assert (not (null (funcall get-file-at-point))))
 
       ;; Unless we are on the first hunk, we moved back one-to-far.
       (if (equal (funcall get-file-at-point) filename)
           (setq first-hunk t)
-        (gpb-git:forward-command))
+        (prat-forward-command))
       (setq new-point (point)))
 
     (goto-char new-point)
@@ -471,22 +471,22 @@ the start of the current hunk."
 
 
 
-(defun gpb-git:backward-command ()
+(defun prat-backward-command ()
   "Move back to the start of the previous hunk or button."
   (interactive)
-  (or (ignore-errors (gpb-git:backward-hunk))
+  (or (ignore-errors (prat-backward-hunk))
       (backward-button 1)))
 
 
-(defun gpb-git:mark-hunk-command ()
+(defun prat-mark-hunk-command ()
   "Mark the current hunk."
   (interactive)
   (let ((region-active (region-active-p)))
-    (gpb-git:mark-hunk)
-    (unless region-active (gpb-git:forward-command))))
+    (prat-mark-hunk)
+    (unless region-active (prat-forward-command))))
 
 
-(defun gpb-git:mark-hunk (&optional unmark new-name)
+(defun prat-mark-hunk (&optional unmark new-name)
   "Mark the hunk at the current point.
 If a region is active, we only mark the lines of the hunk that
 intersect the region.  If UNMARK is non-nil we unmark the hunk or
@@ -495,7 +495,7 @@ non-nil, we mark the entire hunk as a rename.  This is only
 allowed when the hunk corresponds to a file deletion and the
 region is not active."
   (interactive)
-  (let* ((hunk (or (gpb-git:get-current-hunk)
+  (let* ((hunk (or (prat-get-current-hunk)
                    (user-error "Point is not in a hunk")))
          (filename1 (overlay-get hunk :filename1))
          ;; Number of lines in the hunk not counting the header line.
@@ -538,38 +538,38 @@ region is not active."
 
     ;; Update the text properties to reflect the new state of the hunk.
     (gpb-git--decorate-hunk hunk)
-    (setq gpb-git:currently-focused-hunk nil)))
+    (setq prat-currently-focused-hunk nil)))
 
 
-(defun gpb-git:unmark-hunk (&optional unmark new-name)
+(defun prat-unmark-hunk (&optional unmark new-name)
   "Unmark the current hunk."
   (interactive)
-  (gpb-git:mark-hunk 'unmark))
+  (prat-mark-hunk 'unmark))
 
 
-(defun gpb-git:mark-file-command (&optional unmark)
+(defun prat-mark-file-command (&optional unmark)
   "Mark all hunks in the current file.
 If UNMARK is non-nil we unmark all hunks in the current file."
   (interactive)
-  (let* ((hunk (or (gpb-git:get-current-hunk)
+  (let* ((hunk (or (prat-get-current-hunk)
                    (user-error "Point is not in a hunk")))
          (filename1 (overlay-get hunk :filename1))
          (pt 0))
     (dolist (hunk (gpb-git--get-hunk-overlays filename1))
       (goto-char (overlay-start hunk))
       (setq pt (max pt (point)))
-      (gpb-git:mark-hunk unmark))
+      (prat-mark-hunk unmark))
     (goto-char pt)
-    (gpb-git:forward-command)))
+    (prat-forward-command)))
 
 
-(defun gpb-git:unmark-file-command ()
+(defun prat-unmark-file-command ()
   "Unmark all hunks in the current file."
   (interactive)
-  (gpb-git:mark-file-command t))
+  (prat-mark-file-command t))
 
 
-(defun gpb-git:mark-as-rename (new-name)
+(defun prat-mark-as-rename (new-name)
   "Mark file deletion hunk as a rename.
 
 Prompts the user for the new file name and marks the file as a
@@ -582,32 +582,32 @@ of the file will then show up as unstaged changes to the new file
 name."
   (interactive
    (list (progn
-           (let ((hunk (gpb-git:get-current-hunk)))
+           (let ((hunk (prat-get-current-hunk)))
              (unless hunk (user-error "Point is not in a hunk renames"))
              (unless (overlay-get hunk :deletion)
                (user-error "Only deleted hunks can be marked as a rename")))
            (file-relative-name (read-file-name "New name: ")))))
-  (gpb-git:mark-hunk nil new-name))
+  (prat-mark-hunk nil new-name))
 
 
-(defun gpb-git:unmark-hunk-command ()
+(defun prat-unmark-hunk-command ()
   "Mark the current hunk."
   (interactive)
-  (gpb-git:unmark-hunk)
-  (gpb-git:forward-command))
+  (prat-unmark-hunk)
+  (prat-forward-command))
 
 
-(defun gpb-git:get-marked-hunks (&optional buf)
+(defun prat-get-marked-hunks (&optional buf)
   "Return the list of marked hunks in `buf'"
   (with-current-buffer (or buf (current-buffer))
-    (when (region-active-p) (gpb-git:mark-hunk))
+    (when (region-active-p) (prat-mark-hunk))
     (let ((hunks (or
                   (cl-remove-if-not 'gpb-git--marked-p
                                     (overlays-in (point-min) (point-max)))
                   (progn
                     ;; If nothing was marked, mark the current hunk and try
                     ;; again.
-                    (gpb-git:mark-hunk)
+                    (prat-mark-hunk)
                     (cl-remove-if-not 'gpb-git--marked-p
                                       (overlays-in (point-min) (point-max))))))
           (pred (lambda (ov1 ov2) (< (overlay-start ov1) (overlay-start ov2)))))
@@ -623,8 +623,8 @@ function adds additional highlighting to the hunk that currently
 contains the point and removes any highlighting from the
 previously highlighted hunk."
   (with-current-buffer (window-buffer (selected-window))
-    (let* ((prev-hunk (default-value 'gpb-git:currently-focused-hunk))
-           (new-hunk  (gpb-git:get-current-hunk))
+    (let* ((prev-hunk (default-value 'prat-currently-focused-hunk))
+           (new-hunk  (prat-get-current-hunk))
            ;; We don't want the changes below to deactivate the mark.
            deactivate-mark)
       (when (not (eq new-hunk prev-hunk))
@@ -635,16 +635,16 @@ previously highlighted hunk."
         (when (and new-hunk (overlay-buffer new-hunk))
           (gpb-git--decorate-hunk new-hunk t))
 
-        (set-default 'gpb-git:currently-focused-hunk new-hunk)))))
+        (set-default 'prat-currently-focused-hunk new-hunk)))))
 
 
 (defun gpb-git--compute-hunk-buffer-header ()
   "Construct a description string for the buffer header line."
-  (let* ((ov (gpb-git:get-current-hunk))
+  (let* ((ov (prat-get-current-hunk))
          (window-start (window-start))
          (window-width (window-width))
          (face '((:height 160) diff-file-header diff-header))
-         (files (gpb-git:get-hunk-filenames))
+         (files (prat-get-hunk-filenames))
          (hunk-overlays (gpb-git--get-hunk-overlays)))
     (cond
      (ov
@@ -678,13 +678,13 @@ previously highlighted hunk."
 
 
 
-(defun gpb-git:stage-hunks ()
+(defun prat-stage-hunks ()
   "Apply some hunks to the index."
   (interactive)
-  (let* ((marked-hunks (gpb-git:get-marked-hunks))
+  (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (gpb-git--apply-hunks marked-hunks "apply" "--cached")))
     (delete-file patch-file)
-    (gpb-git:show-status--refresh)
+    (prat-show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
       (quit-window t))
@@ -692,14 +692,14 @@ previously highlighted hunk."
       (gpb-git--refresh-unstaged-changes)))))
 
 
-(defun gpb-git:unstage-hunks ()
+(defun prat-unstage-hunks ()
   "Remove some hunks from the index."
   (interactive)
-  (let* ((marked-hunks (gpb-git:get-marked-hunks))
+  (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (gpb-git--apply-hunks marked-hunks
                                            "apply" "--cached" "-R")))
     (delete-file patch-file)
-    (gpb-git:show-status--refresh)
+    (prat-show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
       (quit-window t))
@@ -707,7 +707,7 @@ previously highlighted hunk."
       (gpb-git--refresh-staged-changes)))))
 
 
-(defun gpb-git:revert-marked-hunks ()
+(defun prat-revert-marked-hunks ()
   "Revert the marked changes in the working directory.
 
 Prints a message giving the name of the patch file that was
@@ -716,7 +716,7 @@ wanted from the working tree, you can revert this revert by
 applying this patch file to the working directory."
   (interactive)
   (when (y-or-n-p "Revert marked changes in the working directory? ")
-    (let* ((marked-hunks (gpb-git:get-marked-hunks))
+    (let* ((marked-hunks (prat-get-marked-hunks))
            (patch-file (gpb-git--apply-hunks marked-hunks "apply" "-R")))
       ;; This is a potentially destructive operation, so we leave the patch
       ;; file intact and let the user know it exists.
@@ -733,11 +733,11 @@ name of this file."
   (let* ((patch-file (make-temp-file (concat default-directory "gpb-git-")
                                      nil ".patch"))
          (localname (file-relative-name patch-file))
-         (proc-output-buf gpb-git:process-output-buffer-name)
+         (proc-output-buf prat-process-output-buffer-name)
          (args (append args `(,localname)))
          (inhibit-read-only t))
 
-    (with-current-buffer (gpb-git:make-patch hunks (member "-R" args))
+    (with-current-buffer (prat-make-patch hunks (member "-R" args))
       (let ((coding-system-for-write 'unix))
         (write-region (point-min) (point-max) patch-file)))
 
@@ -769,7 +769,7 @@ modify the given file."
       hunks)))
 
 
-(defun gpb-git:get-current-hunk (&optional pos)
+(defun prat-get-current-hunk (&optional pos)
   "Return the hunk overlay at POS.
 If POS is omitted, we return the hunk at the current point or the
 start of the reigon, if the region is active.
@@ -778,7 +778,7 @@ start of the reigon, if the region is active.
     (cdr (get-char-property-and-overlay pos :is-hunk))))
 
 
-(defun gpb-git:get-hunk-filenames ()
+(defun prat-get-hunk-filenames ()
   "Get a list of hunk filenames."
   (sort (delete-dups
          (mapcar (lambda (ov) (overlay-get ov :filename1))
@@ -786,7 +786,7 @@ start of the reigon, if the region is active.
         'string<))
 
 
-(defun gpb-git:get-hunk-header (hunk)
+(defun prat-get-hunk-header (hunk)
   "Create the string which appears at the start of a hunk."
   (let* ((staged (with-current-buffer (overlay-buffer hunk)
                    (and (boundp 'staged-changes-buffer)
@@ -837,7 +837,7 @@ start of the reigon, if the region is active.
       (error "Assertion error: unhandled hunk %S" hunk)))))
 
 
-(defun gpb-git:make-patch (hunks &optional reverse)
+(defun prat-make-patch (hunks &optional reverse)
   "Construct a patch from the list of hunks.
 
 If REVERSE is non-nil, we construct the patch so that it can be
@@ -845,12 +845,12 @@ applied in reverse.  This is used when removing changes from the
 index.
 
 Returns a buffer whose name is determined by
-`gpb-git:patch-buffer-name' that contains the patch."
+`prat-patch-buffer-name' that contains the patch."
   (when (= (length hunks) 0)
     (error "No hunks have been marked"))
 
-  (let* ((patch-buf (get-buffer-create gpb-git:patch-buffer-name))
-         ;; These are used in `gpb-git:make-patch-1'
+  (let* ((patch-buf (get-buffer-create prat-patch-buffer-name))
+         ;; These are used in `prat-make-patch-1'
          (output-offset 0)
          current-output-file)
     (with-current-buffer patch-buf (erase-buffer))
@@ -874,17 +874,17 @@ Returns a buffer whose name is determined by
              (not (overlay-get hunk :diff)))
         (with-current-buffer patch-buf
           (insert (overlay-get hunk :header))))
-       ;; Otherwise we use the primary algorithm in `gpb-git:make-patch-1'.
+       ;; Otherwise we use the primary algorithm in `prat-make-patch-1'.
        (t
-        (gpb-git:make-patch-1 hunk patch-buf reverse))))
+        (prat-make-patch-1 hunk patch-buf reverse))))
 
     patch-buf))
 
 
-(defun gpb-git:make-patch-1 (hunk patch-buf reverse)
+(defun prat-make-patch-1 (hunk patch-buf reverse)
   "Write patch content for HUNK into PATCH-BUF.
 
-This function is an implemenation detail of `gpb-git:make-patch'."
+This function is an implemenation detail of `prat-make-patch'."
   (let* ((header (overlay-get hunk :header))
          (input-file (if reverse (overlay-get hunk :filename2)
                        (overlay-get hunk :filename1)))
@@ -1018,7 +1018,7 @@ marked."
       (make-vector nlines nil)))))
 
 
-(defun gpb-git:jump-to-file-hunks (obj)
+(defun prat-jump-to-file-hunks (obj)
   "Goto the first hunk associated with the given file.
 
 OBJ is a string giving a filename or a button with a filename
@@ -1036,10 +1036,10 @@ associated with the given file that lies after the button."
 
 
 
-(defun gpb-git:goto-line (&optional hunk)
+(defun prat-goto-line (&optional hunk)
   (interactive)
   (let* ((pt (point))
-         (hunk (or hunk (gpb-git:get-current-hunk)))
+         (hunk (or hunk (prat-get-current-hunk)))
          (filename (overlay-get hunk :filename2))
          (line-number (overlay-get hunk :file2-start)))
 
@@ -1075,7 +1075,7 @@ associated with the given file that lies after the button."
   (with-current-buffer (get-buffer-create "*gpb-git faces*")
     (erase-buffer)
     (setq-local staged-changes-buffer nil)
-    (setq-local gpb-git:show-faces-buffer t)
+    (setq-local prat-show-faces-buffer t)
 
     (insert "Faces used to display hunks\n")
     (insert "===========================\n\n")
@@ -1255,11 +1255,11 @@ the file for the structure of these alists."
   "Write information about the given commit into the current buffer.
 
 Overwrites the current buffer and sets the mode to
-`gpb-git:hunk-view-mode'."
+`prat-hunk-view-mode'."
   (let ((cmd (format "git show %s --" hash))
         (inhibit-read-only t)
         (f (lambda (buf) )))
-    (gpb-git:hunk-view-mode)
+    (prat-hunk-view-mode)
     (gpb-git--refresh-changes cmd repo-dir #'gpb-git--show-commit-1)
     (setq-local refresh-cmd `(gpb-git--refresh-changes
                               ,cmd ,repo-dir ,#'gpb-git--show-commit-1))
@@ -1291,7 +1291,7 @@ Overwrites the current buffer and sets the mode to
         (delete-region (match-beginning 0) (match-end 0))))))
 
 
-(defun gpb-git:refine-region (&optional beg end)
+(defun prat-refine-region (&optional beg end)
   (interactive "r")
   (let ((beg (or beg (point-min)))
         (end (or end (point-max)))
@@ -1317,7 +1317,7 @@ Overwrites the current buffer and sets the mode to
 
 (defun gpb-git--post-command-hook ()
   "Updates hunk highlighting after each user command."
-  (when (derived-mode-p 'gpb-git:hunk-view-mode)
+  (when (derived-mode-p 'prat-hunk-view-mode)
     ;; If the mark will be deactivated before the next command, we want to
     ;; consider it to already be deactivated when we compute the highlights
     ;; to avoid flicker.
@@ -1326,4 +1326,4 @@ Overwrites the current buffer and sets the mode to
 
 
 
-(provide 'gm-hunks)
+(provide 'prat-hunks)

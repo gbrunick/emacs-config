@@ -3,7 +3,7 @@
 
 See also `gpb-git--tracing-buffer-name'")
 
-(defvar gpb-git--tracing-buffer-name "*trace gpb-git:exec-async*"
+(defvar gpb-git--tracing-buffer-name "*trace prat-exec-async*"
   "The name of the buffer used to hold tracing information.")
 
 (defun gpb-git--blend-colors (c1 c2 &optional alpha1 alpha2)
@@ -65,7 +65,7 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
 
 
 (defun gpb-git--abbreviate-file-name (dir)
-  (dolist (remote-dir gpb-git:remote-home-dirs)
+  (dolist (remote-dir prat-remote-home-dirs)
     (when (string-prefix-p remote-dir dir)
       (cl-assert (file-remote-p remote-dir))
       (setq dir (replace-regexp-in-string (regexp-quote remote-dir)
@@ -96,52 +96,52 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
                             func (buffer-name buf) args-string))))))))
 
 
-(defun gpb-git:insert-placeholder (text)
+(defun prat-insert-placeholder (text)
   (add-text-properties
    (point)
    (progn
      (insert text)
      (insert " ")
-     (gpb-git:insert-spinner)
+     (prat-insert-spinner)
      (point))
    '(face (background-color . "light gray"))))
 
 
-(defun gpb-git:delete-placeholder (text)
+(defun prat-delete-placeholder (text)
   (goto-char (point-min))
   (re-search-forward text)
   (delete-region (match-beginning 0) (progn (forward-line 1) (point))))
 
 
 
-(defvar gpb-git:temporary-dirs nil
+(defvar prat-temporary-dirs nil
   "One temporary directory per remote")
 
-(defun gpb-git:get-temporary-dir (path)
+(defun prat-get-temporary-dir (path)
   (let* ((default-directory (file-name-directory path))
          (remote (or (file-remote-p path) 'local))
-         (key-value (assoc remote gpb-git:temporary-dirs))
+         (key-value (assoc remote prat-temporary-dirs))
          (tmpdir (cdr key-value)))
     ;; `file-directory-p' checks for existence.
     (unless (and tmpdir (file-directory-p tmpdir))
       (setq tmpdir (file-name-as-directory (make-nearby-temp-file nil t)))
-      (push (cons remote tmpdir) gpb-git:temporary-dirs))
+      (push (cons remote tmpdir) prat-temporary-dirs))
     tmpdir))
 
-(defun gpb-git:get-temporary-file (name)
-  (concat (gpb-git:get-temporary-dir default-directory) name))
+(defun prat-get-temporary-file (name)
+  (concat (prat-get-temporary-dir default-directory) name))
 
-(defun gpb-git:insert-spinner ()
+(defun prat-insert-spinner ()
   "Insert spinner at current point."
   (let ((m (copy-marker (point))))
     (set-marker-insertion-type m nil)
     (insert (propertize "|" 'spinner t 'sequence '("/" "-" "\\" "|")))
     (set-marker-insertion-type m t)
-    (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m)
+    (run-at-time 0.5 nil 'prat-insert-spinner--spin m)
     m))
 
-(defun gpb-git:insert-spinner--spin (m)
-  "Implementation detail of `gpb-git:insert-spinner'"
+(defun prat-insert-spinner--spin (m)
+  "Implementation detail of `prat-insert-spinner'"
   (let ((buf (marker-buffer m)))
     (when (buffer-live-p buf)
       (with-current-buffer buf
@@ -158,10 +158,10 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
               (insert (apply 'propertize (car seq) props))
               (set-marker-insertion-type m t)
               (delete-region (+ m 1) (+ m 2))))
-          (run-at-time 0.5 nil 'gpb-git:insert-spinner--spin m))))))
+          (run-at-time 0.5 nil 'prat-insert-spinner--spin m))))))
 
 
 
-(provide 'gm-util)
+(provide 'prat-util)
 
 
