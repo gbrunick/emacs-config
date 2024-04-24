@@ -257,7 +257,7 @@ points.  Used by `execute-text-object'.")
   "Move the point to the beginning of the next text object."
   :keymap root :ignore-region t ;; :object-modifiers (:next t)
   (while (<= beg (point))
-    (multiple-value-setq (beg end)
+    (cl-multiple-value-setq (beg end)
       (gpb-tobj--find-text-object obj end modifiers)))
   (goto-char beg))
 
@@ -833,7 +833,8 @@ The default algorithm for finding a text object.  When DIR=1
                             obj-count (catch 'multiple-boundaries
                                         (funcall forward-func (- dir)) 1)))
                     (while boundaries
-                      (multiple-value-setq (boundary side obj-count) (car boundaries))
+                      (cl-multiple-value-setq (boundary side obj-count)
+                        (car boundaries))
                       (setq boundaries (cdr boundaries))
                       (save-excursion
                         (goto-char boundary)
