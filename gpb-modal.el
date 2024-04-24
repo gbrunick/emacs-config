@@ -161,10 +161,10 @@ current active keybindings."
 
 (defvar gpb-modal--insert-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-j" 'gpb-modal-enter-command-mode)
-    (define-key map "\C-g" 'gpb-modal-enter-command-mode)
+    ;; (define-key map "\C-j" 'gpb-modal-enter-command-mode)
+    (define-key map "\C-g"'gpb-modal-enter-command-mode)
     (define-key map "\C-[" 'gpb-modal-enter-command-mode)
-    (define-key map [?\C- ] 'gpb-modal-enter-command-mode)
+    ;; (define-key map [?\C- ] 'gpb-modal-enter-command-mode)
     (fset 'gpb-modal--insert-mode-map map)
     map)
   "The global keymap for insert mode.")
@@ -180,6 +180,11 @@ current active keybindings."
     (define-key map "h" 'backward-char)
     (define-key map "l" 'forward-char)
 
+    (define-key map "\C-j" 'scroll-up-command)
+    (define-key map "\C-k" 'scroll-down-command)
+    ;; (define-key map "\M-j" 'scroll-up-command)
+    ;; (define-key map "\M-k" 'scroll-down-command)
+
     (define-key map " " 'gpb-modal--next-VIM-WORD)
     (define-key map [(shift ?\ )] 'gpb-modal--beginning-of-VIM-WORD)
 
@@ -189,7 +194,7 @@ current active keybindings."
     (define-key map "\C-w" 'gpb-kill-buffer)
 
     ;; This binding provides access to the weak command map.
-    (define-key map [(control ?j)] 'gpb-modal--weak-command-mode-map)
+    ;;(define-key map [(control ?j)] 'gpb-modal--weak-command-mode-map)
 
     (fset 'gpb-modal--command-mode-map map)
     map))
@@ -208,8 +213,6 @@ current active keybindings."
     (define-key map "a" 'repeat)
     (define-key map "^" 'back-to-indentation)
     (define-key map "%" 'gpb-modal--to-matching-delimiter)
-    (define-key map "\C-j" 'scroll-up-command)
-    (define-key map "\C-k" 'scroll-down-command)
     (define-key map "$" 'ispell-word)
     (define-key map "!" 'shell-command)
     (define-key map "&" 'async-shell-command)
