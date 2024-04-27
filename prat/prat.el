@@ -10,7 +10,7 @@
 ;;
 ;;  The primary complex data structure used is a hunk alist that contains
 ;;  information from the Git diff output about a single unit of change.
-;;  The function `gpb-git--parse-diff' returns a list of such alists.
+;;  The function `prat-parse-diff' returns a list of such alists.
 ;;  These alists have the following entries:
 ;;
 ;;    :filename1 A string giving the first filename in the diff header.
@@ -44,7 +44,7 @@
 ;;    :rename bool which is true when the hunk correspond to a file
 ;;        rename.
 ;;
-;;  The function `gpb-git--refresh-changes' calls `gpb-git--parse-diff' to
+;;  The function `prat-refresh-changes' calls `prat-parse-diff' to
 ;;  produce a list of changes and inserts these changes into a buffer,
 ;;  placing an overlay on the section of the buffer that correponds to each
 ;;  hunk.  These overlays have all of the properties listed above as well
@@ -71,7 +71,7 @@
   "A list of strings giving remote directory paths.
 
 Each directory should have TRAMP-prefix.  This variable is used
-by `gpb-git--abbreviate-file-name' to give better directory
+by `prat-abbreviate-file-name' to give better directory
 names in the UI."
   :type '(repeat directory) :group 'gitmodes)
 
@@ -102,7 +102,7 @@ names in the UI."
 
 
 (defvar prat-currently-focused-hunk nil
-  "Tracks the currently focused hunk (see `gpb-git--update-highlights').")
+  "Tracks the currently focused hunk (see `prat-update-highlights').")
 
 (defvar prat-commit-messages nil
   "We save all commit messages so they can be recovered.")
@@ -130,13 +130,13 @@ names in the UI."
 
 (defface prat-deleted-line
   `((t :foreground "#550000"
-       :background ,(gpb-git--blend-colors "#f0c0c0" "white" 0.6)
+       :background ,(prat-blend-colors "#f0c0c0" "white" 0.6)
        :extend t))
   "Face used for the deleted lines in a hunk")
 
 (defface prat-added-line
   `((t :foreground "#004400"
-       :background ,(gpb-git--blend-colors "#b8e0b8" "white" 0.6)
+       :background ,(prat-blend-colors "#b8e0b8" "white" 0.6)
        :extend t))
   "Face used for the added lines in a hunk")
 
@@ -149,7 +149,7 @@ names in the UI."
 
 (defface prat-focused-context-line
   `((t :foreground "#000000"
-       :background ,(gpb-git--blend-colors "cornflower blue" "white" 0.25)
+       :background ,(prat-blend-colors "cornflower blue" "white" 0.25)
        :extend t))
   "Face used for context lines in the focused hunk")
 
@@ -169,25 +169,25 @@ names in the UI."
 
 (defface prat-marked-hunk-header
   `((t :foreground "#000000"
-       :background ,(gpb-git--blend-colors "khaki4" "white" 0.6)
+       :background ,(prat-blend-colors "khaki4" "white" 0.6)
        :extend t))
   "Face used for context lines in a marked hunk")
 
 (defface prat-marked-context-line
   `((t :foreground "#000000"
-       :background ,(gpb-git--blend-colors "khaki2" "white" 0.6)
+       :background ,(prat-blend-colors "khaki2" "white" 0.6)
        :extend t))
   "Face used for context lines in the marked hunk")
 
 (defface prat-marked-added-line
   `((t :foreground "#000000"
-       :background ,(gpb-git--blend-colors "khaki2" "white" 0.8)
+       :background ,(prat-blend-colors "khaki2" "white" 0.8)
        :extend t))
   "Face used for the added lines in the marked hunk.")
 
 (defface prat-marked-deleted-line
   `((t :foreground "#000000"
-       :background ,(gpb-git--blend-colors "khaki3" "white" 0.6)
+       :background ,(prat-blend-colors "khaki3" "white" 0.6)
        :extend t))
   "Face used for deleted lines in the marked hunk.")
 
@@ -199,28 +199,28 @@ names in the UI."
 
 (defface prat-focused-and-marked-context-line
   `((t :foreground "#000000"
-       :background ,(gpb-git--blend-colors "khaki2" "white" 0.72 0.22)
+       :background ,(prat-blend-colors "khaki2" "white" 0.72 0.22)
        :extend t))
   "Face used for context lines in the marked hunk")
 
 (defface prat-focused-and-marked-added-line
   `((t ;; :foreground "#003000"
        :foreground "#000000"
-       :background ,(gpb-git--blend-colors "khaki2" "black" 0.95)
+       :background ,(prat-blend-colors "khaki2" "black" 0.95)
        :extend t))
   "Face used for the added lines in the marked hunk.")
 
 (defface prat-focused-and-marked-deleted-line
   `((t ;; :foreground "#660000"
        :foreground "#000000"
-       :background ,(gpb-git--blend-colors "#f0c0c0" "khaki3" 0)
+       :background ,(prat-blend-colors "#f0c0c0" "khaki3" 0)
        :extend t))
   "Face used for deleted lines in the marked hunk.")
 
 
 (defface prat-marked-line-face
   `((t :foreground "#000000"
-       :background ,(gpb-git--blend-colors "khaki2" "white" 0.72 0.22)
+       :background ,(prat-blend-colors "khaki2" "white" 0.72 0.22)
        :extend t))
   "Face used for the marked revision in a log buffer.")
 
@@ -264,13 +264,13 @@ User-facing; attempts to preserve window position."
                           (set-window-start ,window
                                             (min ,ws (point-max)))
                           (forward-line 0)
-                          (gpb-git--post-command-hook))))
+                          (prat-post-command-hook))))
     (cl-assert (equal buf window-buf))
     (message "prat-refresh-buffer: %s %s" (current-buffer) major-mode)
     (eval `(,@refresh-cmd reset-window))))
 
 
-(defun gpb-git--reload-all ()
+(defun prat-reload-all ()
   "Reload all source files."
   (load "gm-util.el")
   (load "gm-status.el")

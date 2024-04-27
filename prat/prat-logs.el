@@ -1,7 +1,7 @@
 (defvar prat-commit-graph-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "m" 'prat-mark-line)
-    (define-key map "d" 'gpb-git--commit-graph-mode--show-diff)
+    (define-key map "d" 'prat-commit-graph-mode--show-diff)
     (define-key map "g" 'prat-refresh-buffer)
     (define-key map (kbd "RET") 'prat-show-commit-graph--show-commit)
     (define-key map "!" 'prat-shell-command)
@@ -15,7 +15,7 @@
   "\nMode for buffers displaying the Git commit graph.
 
 \\{prat-commit-graph-mode-map}\n"
-  (gpb-git--init-marked-line-overlay)
+  (prat-init-marked-line-overlay)
   (setq truncate-lines t))
 
 
@@ -34,26 +34,26 @@
 
 
 (defun prat-show-commit-graph (&optional repo-root)
-  (interactive (list (gpb-git--read-repo-dir)))
+  (interactive (list (prat-read-repo-dir)))
   (let* ((buf (get-buffer-create "*git log*"))
          (repo-root (or repo-root default-directory)))
     (with-current-buffer buf
       (setq default-directory repo-root)
-      (gpb-git--refresh-commit-graph)
-      (setq-local refresh-cmd `(gpb-git--refresh-commit-graph)))
+      (prat-refresh-commit-graph)
+      (setq-local refresh-cmd `(prat-refresh-commit-graph)))
     (switch-to-buffer buf)))
 
 
-(defcustom gpb-git--log-excluded-branches nil
+(defcustom prat-log-excluded-branches nil
   "Add globs to this list to exclude branches from git log output."
   :type '(repeat (string :tag "Commmand"))
   :group 'gpb-git)
 
-(defun gpb-git--refresh-commit-graph (&optional callback)
-  (gpb-git--trace-funcall)
+(defun prat-refresh-commit-graph (&optional callback)
+  (prat-trace-funcall)
   (let ((cmd "git log --graph --oneline --decorate --color")
         (inhibit-read-only t))
-    (dolist (glob gpb-git--log-excluded-branches)
+    (dolist (glob prat-log-excluded-branches)
       (setq cmd (format "%s --exclude=\"%s\"" cmd glob)))
     (setq cmd (format "%s --all" cmd))
     (read-only-mode 1)
@@ -66,10 +66,10 @@
       (setq-local output-marker (copy-marker (point))))
     (setq-local callback-func callback)
     (prat-async-shell-command
-     cmd default-directory #'gpb-git--refresh-commit-graph-1)))
+     cmd default-directory #'prat-refresh-commit-graph-1)))
 
-(defun gpb-git--refresh-commit-graph-1 (buf start end complete)
-  (gpb-git--trace-funcall)
+(defun prat-refresh-commit-graph-1 (buf start end complete)
+  (prat-trace-funcall)
   (let ((inhibit-read-only t))
     (save-excursion
       (goto-char output-marker)
@@ -82,7 +82,7 @@
         (add-text-properties (progn (forward-line 0) (point))
                              (progn (forward-line 1) (point))
                              `(:commit-hash ,(match-string 1)))))
-    (setq-local refresh-cmd `(gpb-git--refresh-commit-graph))
+    (setq-local refresh-cmd `(prat-refresh-commit-graph))
     (when (and complete callback-func) (funcall callback-func))))
 
 
@@ -94,7 +94,7 @@
     (move-overlay marked-line-overlay bol-pt eol-pt)))
 
 
-(defun gpb-git--get-marked-revision ()
+(defun prat-get-marked-revision ()
   "Get the hash of the currently marked revision."
   (gpb-get--get-revision-at-point (overlay-start marked-line-overlay)))
 
@@ -113,14 +113,14 @@
       (match-string 1))))
 
 
-(defun gpb-git--commit-graph-mode--show-diff ()
+(defun prat-commit-graph-mode--show-diff ()
   "Diff the marked revision with the revision at the point."
   (interactive)
-  (prat-show-commit-diff (gpb-git--get-marked-revision)
+  (prat-show-commit-diff (prat-get-marked-revision)
                             (gpb-get--get-revision-at-point)
                             default-directory))
 
-(defun gpb-git--init-marked-line-overlay ()
+(defun prat-init-marked-line-overlay ()
   (let ((new-ov (make-overlay (point-min) (point-min))))
     (overlay-put new-ov 'face 'prat-marked-line-face)
     (setq-local marked-line-overlay new-ov)))
@@ -133,7 +133,7 @@
     (unless hash (error "No commit on line"))
     (setq buf (get-buffer-create (format "*commit: %s*" hash)))
     (with-current-buffer buf
-      (gpb-git--show-commit hash))
+      (prat-show-commit hash))
     (pop-to-buffer buf)))
 
 

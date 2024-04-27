@@ -1,12 +1,12 @@
-(defvar gpb-git--show-tracing-info t
+(defvar prat-show-tracing-info t
   "When true, we write tracing info into a tracing buffer.
 
-See also `gpb-git--tracing-buffer-name'")
+See also `prat-tracing-buffer-name'")
 
-(defvar gpb-git--tracing-buffer-name "*trace prat-exec-async*"
+(defvar prat-tracing-buffer-name "*trace prat-exec-async*"
   "The name of the buffer used to hold tracing information.")
 
-(defun gpb-git--blend-colors (c1 c2 &optional alpha1 alpha2)
+(defun prat-blend-colors (c1 c2 &optional alpha1 alpha2)
   "Blend the two colors C1 and C2 with ALPHA."
   (let ((alpha1 (or alpha1 0.5))
         (alpha2 (or alpha2 (- 1 alpha1))))
@@ -15,13 +15,13 @@ See also `gpb-git--tracing-buffer-name'")
                       (color-name-to-rgb c1)
                       (color-name-to-rgb c2)))))
 
-(defvar gpb-git--repo-dir-history nil
+(defvar prat-repo-dir-history nil
   "This symbol is used to remember the history of repository roots.")
 
-(defun gpb-git--repo-root-p (dir)
+(defun prat-repo-root-p (dir)
   (file-exists-p (concat (file-name-as-directory dir) ".git")))
 
-(defun gpb-git--find-repo-root (&optional dir)
+(defun prat-find-repo-root (&optional dir)
   "Find the root of the Git repository.
 Looks for the .git directory rather than calling Git."
   (let ((dir (file-name-as-directory (or dir default-directory))) next)
@@ -30,31 +30,31 @@ Looks for the .git directory rather than calling Git."
             dir (if (string= next dir) nil next)))
     dir))
 
-(defun gpb-git--read-repo-dir (&optional force)
+(defun prat-read-repo-dir (&optional force)
   "Prompt the user for a Git repository directory.
 
 Maintains a separate history list from `read-directory-name'.
 When FORCE is true, , we always prompt the user for the root
 directory."
-  (let ((repo-root (gpb-git--find-repo-root default-directory)))
+  (let ((repo-root (prat-find-repo-root default-directory)))
     (if (and repo-root (not force))
         repo-root
-      (let* ((file-name-history (cl-copy-list gpb-git--repo-dir-history))
+      (let* ((file-name-history (cl-copy-list prat-repo-dir-history))
              (repo-dir (read-directory-name "Repo root: " default-directory
                                             default-directory nil "")))
-        (unless (gpb-git--repo-root-p repo-dir)
+        (unless (prat-repo-root-p repo-dir)
           (user-error "Invalid Git repo dir: %s" repo-dir))
-        (setq gpb-git--repo-dir-history file-name-history)
+        (setq prat-repo-dir-history file-name-history)
         repo-dir))))
 
 
-(defun gpb-git--center-string (txt)
+(defun prat-center-string (txt)
   (let ((indent (max (- (/ (- (window-width) (length txt)) 2) 1) 0)))
     (concat (make-string indent ?\ )
             (propertize txt 'face '(:weight bold)))))
 
 
-(defun gpb-git--get-new-buffer (prefix suffix)
+(defun prat-get-new-buffer (prefix suffix)
   "Get a new buffer whose name starts with and PREFIX ends with SUFFIX.
 
 Returns buffers with names of the form PREFIX<i>SUFFIX."
@@ -64,7 +64,7 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
     (get-buffer-create (concat prefix "<" (int-to-string i) ">" suffix))))
 
 
-(defun gpb-git--abbreviate-file-name (dir)
+(defun prat-abbreviate-file-name (dir)
   (dolist (remote-dir prat-remote-home-dirs)
     (when (string-prefix-p remote-dir dir)
       (cl-assert (file-remote-p remote-dir))
@@ -74,11 +74,11 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
   dir)
 
 
-(defun gpb-git--trace-funcall (&optional func args)
+(defun prat-trace-funcall (&optional func args)
   "Write tracing output to buffer."
-  (when gpb-git--show-tracing-info
+  (when prat-show-tracing-info
     (let* ((buf (current-buffer))
-           (bufname gpb-git--tracing-buffer-name)
+           (bufname prat-tracing-buffer-name)
            ;; If the nesting changes, the NFRAMES may change.
            (outer-call (backtrace-frame 5))
            (func (cadr outer-call))

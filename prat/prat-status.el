@@ -28,7 +28,7 @@
 
 (defun prat-show-status (&optional repo-dir)
   "Show the current Git status in a buffer."
-  (interactive (list (gpb-git--read-repo-dir)))
+  (interactive (list (prat-read-repo-dir)))
   (let* ((repo-dir (or repo-dir default-directory))
          (buf (get-buffer-create prat-status-buffer-name)))
 
@@ -49,7 +49,7 @@
                   (get-buffer prat-status-buffer-name)))
          (cmd "git -c advice.statusHints=false status -u")
          (inhibit-read-only t)
-         (root-dir (gpb-git--abbreviate-file-name default-directory))
+         (root-dir (prat-abbreviate-file-name default-directory))
          pt)
 
     (when buf
@@ -71,7 +71,7 @@
 
 Asyncronous callback that add buttons and overlays to the Git
 status output."
-  (gpb-git--trace-funcall)
+  (prat-trace-funcall)
   (when complete
     (save-excursion
       (let ((status-text (with-current-buffer buf (buffer-string)))
@@ -262,7 +262,7 @@ status output."
         (repo-dir default-directory))
     (cl-assert repo-dir)
     (with-current-buffer buf
-      (gpb-git--refresh-staged-changes repo-dir))
+      (prat-refresh-staged-changes repo-dir))
     (pop-to-buffer buf)))
 
 
@@ -271,7 +271,7 @@ status output."
         (repo-dir default-directory))
     (cl-assert repo-dir)
     (with-current-buffer buf
-      (gpb-git--refresh-unstaged-changes repo-dir))
+      (prat-refresh-unstaged-changes repo-dir))
     (pop-to-buffer buf)))
 
 
@@ -314,8 +314,8 @@ status output."
 
       (with-current-buffer buf
         (if staged
-            (gpb-git--refresh-staged-changes repo-dir cmd)
-          (gpb-git--refresh-unstaged-changes repo-dir cmd))
+            (prat-refresh-staged-changes repo-dir cmd)
+          (prat-refresh-unstaged-changes repo-dir cmd))
         (pop-to-buffer buf)))))
 
 
@@ -325,7 +325,7 @@ status output."
          (buf (get-buffer-create (format "*unstaged: %s*" filename)))
          (repo-dir default-directory))
     (with-current-buffer buf
-      (gpb-git--refresh-unstaged-changes repo-dir cmd))
+      (prat-refresh-unstaged-changes repo-dir cmd))
     (pop-to-buffer buf)))
 
 
@@ -335,7 +335,7 @@ status output."
          (buf (get-buffer-create (format "*staged: %s*" filename)))
          (repo-dir default-directory))
     (with-current-buffer buf
-      (gpb-git--refresh-staged-changes repo-dir cmd))
+      (prat-refresh-staged-changes repo-dir cmd))
     (pop-to-buffer buf)))
 
 

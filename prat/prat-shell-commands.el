@@ -26,7 +26,7 @@ are deleted."
   (let* ((editor-script (prat-get-editor-script))
          (env-vars (list (format "GIT_EDITOR=%s" editor-script)
                          (format "GIT_SEQUENCE_EDITOR=%s" editor-script)))
-         (repo-root (gpb-git--find-repo-root))
+         (repo-root (prat-find-repo-root))
          (bufname "*Git Shell Command*"))
     (shpool-shell-command cmd bufname env-vars repo-root)))
 
@@ -147,7 +147,7 @@ processing command and nil otherwise."
 
 
 (defun prat-send-signal-to-git ()
-  (gpb-git--trace-funcall)
+  (prat-trace-funcall)
   (if (prat-use-cmd-exe)
       (unless (= (call-process-shell-command "waitfor /si EmacsEditDone") 0)
         (error "Could not send signal to Git process"))
