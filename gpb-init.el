@@ -707,3 +707,22 @@
 
 (when (require 'wgrep nil t)
   (setq wgrep-auto-save-buffer t))
+
+(setq ispell-program-name
+      "C:\\Other Programs\\hunspell-1.3.2-3-w32-bin\\bin\\hunspell.exe")
+
+;; "en_US" is key to lookup in `ispell-local-dictionary-alist'.
+;; Please note it will be passed as default value to hunspell CLI `-d` option
+;; if you don't manually setup `-d` in `ispell-local-dictionary-alist`
+(setq ispell-local-dictionary "en_US")
+
+(setq ispell-local-dictionary-alist
+      '(("en_US" "[[:alpha:]]" "[^[:alpha:]]" "[']" nil ("-d" "en_US") nil utf-8)))
+
+;; new variable `ispell-hunspell-dictionary-alist' is defined in Emacs
+;; If it's nil, Emacs tries to automatically set up the dictionaries.
+(when (boundp 'ispell-hunspell-dictionary-alist)
+  (setq ispell-hunspell-dictionary-alist ispell-local-dictionary-alist))
+
+;; With Emacs 28.2 may also need to set hunspell-default-dict
+(setq hunspell-default-dict "en_US")
