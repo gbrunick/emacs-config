@@ -684,7 +684,7 @@ previously highlighted hunk."
   (interactive)
   (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (prat-apply-hunks marked-hunks "apply" "--cached")))
-    (delete-file patch-file)
+    (unless shpool-debug (delete-file patch-file))
     (prat-show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
@@ -699,7 +699,7 @@ previously highlighted hunk."
   (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (prat-apply-hunks marked-hunks
                                            "apply" "--cached" "-R")))
-    (delete-file patch-file)
+    (unless shpool-debug (delete-file patch-file))
     (prat-show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
@@ -1135,6 +1135,7 @@ associated with the given file that lies after the button."
 
 Returns a list of hunk alists.  See the comments at the top of
 the file for the structure of these alists."
+  (prat-trace-funcall)
   (let* ((region-beg (or beg (point-min)))
          (region-end (or end (point-max)))
          (hunk-list (list :stub))
