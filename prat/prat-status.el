@@ -1,3 +1,5 @@
+(require 'shell-pool)
+
 (defvar prat-show-status-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'forward-button)
@@ -74,7 +76,8 @@ status output."
   (prat-trace-funcall)
   (when complete
     (save-excursion
-      (let ((status-text (with-current-buffer buf (buffer-string)))
+      (let ((status-text (with-current-buffer buf
+                           (buffer-substring-no-properties start end)))
             (inhibit-read-only t))
         (goto-char put-status-here)
         (insert status-text)
@@ -187,14 +190,14 @@ status output."
       (overlay-put ov 'face 'prat-marked-line-face)
       (overlay-put ov 'priority -100)
 
-      ;; If you can mark an unstaged file, we unmark all staged files.
+      ;; If you mark an unstaged file, we unmark all staged files.
       (when (overlay-get ov 'unstaged)
         (mapcar (lambda (ov) (when (overlay-get ov 'staged)
                                (overlay-put ov 'marked nil)
                                (overlay-put ov 'face nil)))
                 (overlays-in (point-min) (point-max))))
 
-      ;; If you can mark a staged file, we unmark all unstaged files.
+      ;; If you mark a staged file, we unmark all unstaged files.
       (when (overlay-get ov 'staged)
         (mapcar (lambda (ov) (when (overlay-get ov 'unstaged)
                                (overlay-put ov 'marked nil)
