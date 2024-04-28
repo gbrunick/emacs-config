@@ -109,11 +109,6 @@
 (global-set-key "\M-gl" 'goto-line)
 (global-set-key "\M-gd" 'gpb-lisp-goto-definition)
 
-;; Git integration bindings
-(autoload 'gpb-git:user-command-prefix-keymap "gitmodes" nil nil 'keymap)
-(global-set-key "\C-cv" 'gpb-git:user-command-prefix-keymap)
-
-
 ;; Remove useless printing options from menu
 (let ((file-menu (lookup-key global-map [menu-bar file])))
   (define-key file-menu [new-file] nil)
@@ -726,3 +721,12 @@
 
 ;; With Emacs 28.2 may also need to set hunspell-default-dict
 (setq hunspell-default-dict "en_US")
+
+;; Git integration bindings
+;; (autoload 'gpb-git:user-command-prefix-keymap "gitmodes" nil nil 'keymap)
+;; (global-set-key "\C-cv" 'gpb-git:user-command-prefix-keymap)
+
+;; Prat integration bindings
+(autoload 'prat-user-command-prefix-keymap "prat" nil nil 'keymap)
+(global-set-key "\C-cv" 'prat-user-command-prefix-keymap)
+
