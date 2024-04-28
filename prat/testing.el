@@ -17,3 +17,15 @@
 
 (let ((default-directory  "/plinkx:WSL:~/"))
   (prat-get-editor-script))
+
+
+(autoload 'prat-user-command-prefix-keymap "prat" nil nil 'keymap)
+(global-set-key "\C-c\C-v" 'prat-user-command-prefix-keymap)
+(prat-reload-all)
+
+(with-current-buffer (get-buffer-create "*staged changes testing*")
+  (prat-refresh-unstaged-changes "c:/Users/gbrun/Code/emacs-config/"))
+
+
+(with-current-buffer (get-buffer-create "*unstaged changes testing*")
+  (prat-refresh-changes-1 "*local shell*<6>" 444 1556 t))
