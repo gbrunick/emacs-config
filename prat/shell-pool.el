@@ -10,7 +10,7 @@
 ;; replacement for the interactive use of `shell-command'.
 ;;
 
-(defvar shpool-debug t 
+(defvar shpool-debug t
   "When non-nil, we write tracing info into `shpool-debug-buffer-name'.")
 
 (defvar shpool-debug-buffer-name "*Shell Pool Debug*"
@@ -87,24 +87,24 @@ before CMD is run."
       (setq-local proc-start (marker-position (process-mark proc)))
       (set-process-filter proc #'shpool-async-shell-command--process-filter)
 
-      ;; We start a new process to isolate commands. 
+      ;; We start a new process to isolate commands.
       (cond
-       ;; Windows 
+       ;; Windows
        ((shpool-use-cmd-exe-p dir)
         (process-send-string proc "cmd\n")
         ;; Set any environment variables
         (dolist (def env-vars)
           (process-send-string proc (format "set %s\n" def)))
         (process-send-string
-         proc (format "echo: & echo %s & %s & echo: & echo %s\n"
+         proc (format "echo:& echo %s& %s & echo:& echo %s\n"
                       shpool-output-start cmd shpool-output-end))
         (process-send-string proc "exit\n"))
 
-       ;; Linux 
+       ;; Linux
        (t
         (process-send-string proc "bash --noediting --noprofile --norc\n")
         (process-send-string proc "stty -echo\n")
-        ;; Hide prompts.  
+        ;; Hide prompts.
         (process-send-string proc "PS1=\n")
         (process-send-string proc "PS2=\n")
         ;; Don't save command history
@@ -128,7 +128,7 @@ before CMD is run."
           (end-regex (format "^%s" shpool-output-end))
           ;; `start-marker' and `end-marker' are the matches to the regexs.
           start-marker end-marker
-          ;; `output-start' and `output-end' will delimit complete lines. 
+          ;; `output-start' and `output-end' will delimit complete lines.
           output-start output-end
           ;; We set `complete' to t when we see end of output marker.
           complete
@@ -162,19 +162,24 @@ before CMD is run."
                                 (re-search-forward end-regex nil t))
                               (progn
                                 (forward-line 0)
+                                ;; We insert a newline before the output to
+                                ;; ensure a match at the start of the line,
+                                ;; but we this shouldn't be included in the
+                                ;; process output.  It can matter when
+                                ;; generating diffs.
+                                (skip-chars-backward "\n" (1- (point)))
                                 (setq output-end (point))
                                 (point)))))
 
-          (when (and start-marker
-                     (> output-end output-start)
-                     callback-func)
-            ;; `callback-func' is buffer-local, so we need to save it 
+          (when (and start-marker callback-func)
+            ;; `callback-func' is buffer-local, so we need to save it
             ;; before we switch buffers.
             (let ((f callback-func))
               (with-current-buffer callback-buf
-                (funcall f proc-buf output-start output-end nil)
+                (when (> output-end output-start)
+                  (funcall f proc-buf output-start output-end nil))
                 (when end-marker
-                  (funcall f proc-buf output-start output-end t)
+                  (funcall f proc-buf start-marker end-marker t)
                   (shpool-return-or-kill-buffer proc-buf))))))))))
 
 
@@ -271,7 +276,7 @@ caller is responsible for returning the buffer by calling
             (rassq-delete-all buf shpool-available-workers))
 
       (cond
-       ;; If the process is still alive, change the working directory, 
+       ;; If the process is still alive, change the working directory,
        ;; prepare buffer for the next command and break the while loop.
        ((shpool-reset-buffer buf dir)
         (setq key-value nil))
@@ -288,7 +293,8 @@ caller is responsible for returning the buffer by calling
     ;; process.
     (unless buf
       (setq buf (generate-new-buffer
-                 (if tramp-prefix (format "*shell on %s*" tramp-prefix)
+                 (if tramp-prefix
+                     (format "*shell on %s*" tramp-prefix)
                    "*local shell*")))
 
       ;; `shpool-all-workers' is used by `shpool-kill-all-workers'.
@@ -337,8 +343,8 @@ caller is responsible for returning the buffer by calling
         ;; Add back to the worker pool.
         (push `(,tramp-prefix . ,buf) shpool-available-workers))
 
-      ;; Otherwise, we kill the buffer. 
-      (t (kill-buffer buf))))))
+      ;; Otherwise, we kill the buffer unless we are debugging.
+      ((not shpool-debug) (kill-buffer buf))))))
 
 
 (defun shpool-use-cmd-exe-p (dir)
@@ -388,7 +394,7 @@ otherwise."
       (accept-process-output nil 0)
       (with-current-buffer buf
         ;; After a request, the server process is waiting to read some
-        ;; inputs, so we send an initial string to be ignored. 
+        ;; inputs, so we send an initial string to be ignored.
         (process-send-string proc "for read command\n")
         (process-send-string proc (format "cd \"%s\"\n" local-dir))
         (process-send-string proc "echo\n")

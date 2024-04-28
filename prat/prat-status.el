@@ -62,7 +62,7 @@
           (insert (format "Repo: %s\n\n%s\n\n" root-dir cmd))
           (setq-local original-point pt)
           (setq-local put-status-here (point))
-          (prat-async-shell-command
+          (shpool-async-shell-command
            cmd default-directory #'prat-show-status--refresh-1))))))
 
 
