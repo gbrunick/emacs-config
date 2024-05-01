@@ -10,9 +10,6 @@
 (defvar prat-repo-dir-history nil
   "This symbol is used to remember the history of repository roots.")
 
-(defun prat-repo-root-p (dir)
-  (file-exists-p (concat (file-name-as-directory dir) ".git")))
-
 (defun prat-find-repo-root (&optional dir)
   "Find the root of the Git repository.
 Looks for the .git directory rather than calling Git."
