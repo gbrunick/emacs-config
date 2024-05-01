@@ -1,4 +1,8 @@
-@echo e7010240-6f57-4d86-84f9-62fb8958b7a6:edit-file:%1
-@echo e7010240-6f57-4d86-84f9-62fb8958b7a6:pipe-file:none
+@rem File to edit
+@echo File: %1
+@echo Waiting for Emacs...
 
-@waitfor EmacsEditDone > NUL
+@rem Wait for Emacs send this signal
+@waitfor EmacsEditDone
+
+@echo Command output:

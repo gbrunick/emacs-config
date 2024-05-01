@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 
-tmppipe=$(mktemp -u)
-mkfifo "$tmppipe"
+mkfifo "$PRAT_EDITOR_PIPE"
+echo Created pipe: "$PRAT_EDITOR_PIPE"
 
-function finish {
-    rm $tmppipe
-    echo Deleted $tmppipe
-}
-trap finish EXIT
-
-echo
-echo e7010240-6f57-4d86-84f9-62fb8958b7a6:edit-file:$1
-echo e7010240-6f57-4d86-84f9-62fb8958b7a6:pipe-file:$tmppipe
+# File to edit
+echo File: $1
 
 # Wait for Emacs to write to the pipe.
-cat < $tmppipe > /dev/null
+echo "Waiting for Emacs..."
+cat < $PRAT_EDITOR_PIPE
+
+# Clean up
+rm $PRAT_EDITOR_PIPE
+echo Deleted pipe: $PRAT_EDITOR_PIPE
+echo Command output:
