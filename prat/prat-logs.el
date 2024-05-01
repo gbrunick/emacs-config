@@ -34,9 +34,9 @@
 
 
 (defun prat-show-commit-graph (&optional repo-root)
-  (interactive (list (prat-read-repo-dir)))
+  (interactive)
   (let* ((buf (get-buffer-create "*git log*"))
-         (repo-root (or repo-root default-directory)))
+         (repo-root (or repo-root (prat-find-repo-root))))
     (with-current-buffer buf
       (setq default-directory repo-root)
       (prat-refresh-commit-graph)

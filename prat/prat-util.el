@@ -20,24 +20,6 @@ Looks for the .git directory rather than calling Git."
     (unless repo-root (error "Not in a Git repo"))
     repo-root))
 
-(defun prat-read-repo-dir (&optional force)
-  "Prompt the user for a Git repository directory.
-
-Maintains a separate history list from `read-directory-name'.
-When FORCE is true, , we always prompt the user for the root
-directory."
-  (let ((repo-root (prat-find-repo-root default-directory)))
-    (if (and repo-root (not force))
-        repo-root
-      (let* ((file-name-history (cl-copy-list prat-repo-dir-history))
-             (repo-dir (read-directory-name "Repo root: " default-directory
-                                            default-directory nil "")))
-        (unless (prat-repo-root-p repo-dir)
-          (user-error "Invalid Git repo dir: %s" repo-dir))
-        (setq prat-repo-dir-history file-name-history)
-        repo-dir))))
-
-
 (defun prat-center-string (txt)
   (let ((indent (max (- (/ (- (window-width) (length txt)) 2) 1) 0)))
     (concat (make-string indent ?\ )

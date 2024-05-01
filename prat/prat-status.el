@@ -30,8 +30,8 @@
 
 (defun prat-show-status (&optional repo-dir)
   "Show the current Git status in a buffer."
-  (interactive (list (prat-read-repo-dir)))
-  (let* ((repo-dir (or repo-dir default-directory))
+  (interactive)
+  (let* ((repo-dir (or repo-dir (prat-find-repo-root)))
          (buf (get-buffer-create prat-status-buffer-name)))
 
     (with-current-buffer buf

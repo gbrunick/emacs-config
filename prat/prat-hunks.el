@@ -128,7 +128,7 @@ pair is not at the head of alist.  ALIST is not altered."
 
 
 (defun prat-show-unstaged-changes (&optional repo-dir)
-  (interactive (list (prat-read-repo-dir)))
+  (interactive)
   (let ((buf (get-buffer-create prat-unstaged-buffer-name)))
     (with-current-buffer buf
       (prat-refresh-unstaged-changes repo-dir)
@@ -139,7 +139,7 @@ pair is not at the head of alist.  ALIST is not altered."
 
 
 (defun prat-show-staged-changes (&optional repo-dir)
-  (interactive (list (prat-read-repo-dir)))
+  (interactive)
   (let ((buf (get-buffer-create prat-staged-buffer-name)))
     (with-current-buffer buf
       (prat-refresh-staged-changes repo-dir)
