@@ -57,47 +57,8 @@
 (require 'prat-util)
 
 ;; workaround for removal of assoc.
-(defun gpb-aget (alist key &optional keynil-p)
-  "Return the value in ALIST that is associated with KEY.
-Optional KEYNIL-P describes what to do if the value associated with
-KEY is nil.  If KEYNIL-P is not supplied or is nil, and the value is
-nil, then KEY is returned.  If KEYNIL-P is non-nil, then nil would be
-returned.
-
-If no key-value pair matching KEY could be found in ALIST, or ALIST is
-nil then nil is returned.  ALIST is not altered."
-  (defvar assoc--copy)
-  (let ((assoc--copy (copy-alist alist)))
-    (cond ((null alist) nil)
-          ((progn (asort 'assoc--copy key) ; dynamic binding
-                  (anot-head-p assoc--copy key)) nil)
-          ((cdr (car assoc--copy)))
-          (keynil-p nil)
-          ((car (car assoc--copy)))
-          (t nil))))
-
-(defun asort (alist-symbol key)
-  "Move a specified key-value pair to the head of an alist.
-The alist is referenced by ALIST-SYMBOL.  Key-value pair to move to
-head is one matching KEY.  Returns the sorted list and doesn't affect
-the order of any other key-value pair.  Side effect sets alist to new
-sorted list."
-  (set alist-symbol
-       (sort (copy-alist (symbol-value alist-symbol))
-             (lambda (a _b) (equal (car a) key)))))
-
-(defun anot-head-p (alist key)
-  "Find out if a specified key-value pair is not at the head of an alist.
-The alist to check is specified by ALIST and the key-value pair is the
-one matching the supplied KEY.  Returns nil if ALIST is nil, or if
-key-value pair is at the head of the alist.  Returns t if key-value
-pair is not at the head of alist.  ALIST is not altered."
-  (not (equal (aheadsym alist) key)))
-
-(defun aheadsym (alist)
-  "Return the key symbol at the head of ALIST."
-  (car (car alist)))
-
+(defun prat-aget (alist key)
+  (cdr-safe (assoc key alist)))
 
 (defvar prat-hunk-view-mode-map
   (let ((map (make-sparse-keymap)))
@@ -320,7 +281,7 @@ been updated (i.e., asyncronously)."
        (hunks
         ;; Add a text button for each filename
         (insert "Files: ")
-        (let* ((filenames (mapcar (lambda (hunk) (gpb-aget hunk :filename1 t))
+        (let* ((filenames (mapcar (lambda (hunk) (prat-aget hunk :filename1))
                                   hunks))
                (max-length (apply 'max (mapcar 'length filenames))))
           (dolist (filename (sort (delete-dups (delq nil filenames)) 'string<))
@@ -332,7 +293,7 @@ been updated (i.e., asyncronously)."
                                  ?\ ))
             (let ((file-hunks (cl-remove-if-not
                                (lambda (h)
-                                 (equal (gpb-aget h :filename1 t) filename))
+                                 (equal (prat-aget h :filename1) filename))
                                hunks)))
               (insert (cond
                        ((= (length file-hunks) 1) " (1 hunk)")
@@ -974,8 +935,8 @@ This function is an implemenation detail of `prat-make-patch'."
               i (1+ i))
 
         (when reverse
-          (setq first-char (gpb-aget `((" " . " ") ("+" . "-") ("-" . "+"))
-                                 first-char)))
+          (setq first-char (prat-aget `((" " . " ") ("+" . "-") ("-" . "+"))
+                                     first-char)))
 
         ;; We have a removed line in the diff that we don't want to
         ;; include, so we convert it to a context line.
@@ -1166,12 +1127,12 @@ associated with the given file that lies after the button."
   (save-excursion
     (let* ((inhibit-read-only t))
       (dolist (diff-hunk diff-hunks)
-        (let* ((filename1 (gpb-aget diff-hunk :filename1 t))
-               (filename2 (gpb-aget diff-hunk :filename2 t)))
+        (let* ((filename1 (prat-aget diff-hunk :filename1))
+               (filename2 (prat-aget diff-hunk :filename2)))
           (setq ov (make-overlay (point)
                                  (progn
-                                   (insert (or (gpb-aget diff-hunk :diff t)
-                                               (gpb-aget diff-hunk :binary-info t)
+                                   (insert (or (prat-aget diff-hunk :diff)
+                                               (prat-aget diff-hunk :binary-info)
                                                " No differences\n"))
                                    (point))))
           (dolist (key-val diff-hunk)
