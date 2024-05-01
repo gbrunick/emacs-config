@@ -8,12 +8,6 @@
 ;; replacement for the interactive use of `shell-command'.
 ;;
 
-(defvar prat-debug t
-  "When non-nil, we write tracing info into `prat-debug-buffer-name'.")
-
-(defvar prat-debug-buffer-name "*Prat Debug*"
-  "The name of the buffer used to hold tracing information.")
-
 (defvar prat-idle-time (* 5 60)
   "The amout of time a server process waits for the next command.")
 
@@ -77,7 +71,7 @@ between START and END.
 If ENV-VARS is provided, it should be is a list of strings of the
 form VARNAME=VALUE and these variables are set in the shell
 before CMD is run."
-  (prat-trace-call)
+  (prat-log-call)
   (let* ((buf (current-buffer))
          (dir (or dir default-directory))
          (server-buf (prat-get-server-buf dir))
@@ -128,7 +122,7 @@ before CMD is run."
 
 (defun prat-async-shell-command--process-filter (proc string)
   "Process filter for `prat-async-shell-command'."
-  (prat-trace-call)
+  (prat-log-call)
   (when (buffer-live-p (process-buffer proc))
     (let ((proc-buf (process-buffer proc))
           ;; echo includes the trailing space when called from cmd.exe.
@@ -201,7 +195,7 @@ are deleted.  If ENV-VARS is provided, it is a list of strings of
 the form VARNAME=VALUE.  In this case, we run CMD in an inferior
 shell in which these environment variables have been set."
   (interactive "sShell Command: ")
-  (prat-trace-call)
+  (prat-log-call)
   (let* ((dir (expand-file-name (or dir default-directory)))
          (buf (get-buffer-create (or bufname "*Shell Command Output*")))
          (inhibit-read-only t))
@@ -225,7 +219,7 @@ shell in which these environment variables have been set."
 
 
 (defun prat-shell-command-1 (buf start end complete)
-  (prat-trace-call)
+  (prat-log-call)
   (cond
    (complete
     ;; Delete the ellipsis
@@ -267,7 +261,7 @@ Attempts to pop a process running on the correct machine from
 up a new process if nothing is available in the worker pool.  The
 caller is responsible for returning the buffer by calling
 `prat-return-buffer' when done."
-  (prat-trace-call)
+  (prat-log-call)
   (let* ((dir (expand-file-name (or dir default-directory)))
          (local-dir (directory-file-name
                      (file-local-name (expand-file-name dir))))
@@ -332,7 +326,7 @@ caller is responsible for returning the buffer by calling
 
 (defun prat-return-or-kill-buffer (buf)
   "Return BUF to the worker pool or kill it."
-  (prat-trace-call)
+  (prat-log-call)
   (with-current-buffer buf
     (let ((tramp-prefix (file-remote-p default-directory))
           (proc (get-buffer-process buf))
@@ -366,37 +360,12 @@ a Windows machine but working remotely via TRAMP) we use bash."
          (ignore-errors (not (file-remote-p default-directory))))))
 
 
-(defun prat-trace-call (&optional func args n)
-  "Write tracing info prat-debug-buffer-name'.
-
-The argument N gives the number of additional step to skip."
-  (when prat-debug
-    (let* ((n (or n 0))
-           (buf (current-buffer))
-           (bufname prat-debug-buffer-name)
-           ;; If the nesting changes, the NFRAMES may change.
-           (outer-call (backtrace-frame (+ 5 n)))
-           (func (cadr outer-call))
-           (args (cddr outer-call)))
-      (with-current-buffer (get-buffer-create bufname)
-        (setq truncate-lines t)
-        (let ((args-string (mapconcat (lambda (y)
-                                        (truncate-string-to-width
-                                         (prin1-to-string y) 1000 nil nil t))
-                                      args "\n  ")))
-          (save-excursion
-            (goto-char (point-max))
-            (unless (bobp) (insert "\n"))
-            (insert (format "%S called in buffer %S\n  %s\n"
-                            func (buffer-name buf) args-string))))))))
-
-
 (defun prat-reset-buffer (buf dir)
   "Prepare `buf' for the next command.
 
 Sets working directory to DIR.  Return t on success and nil
 otherwise."
-  (prat-trace-call)
+  (prat-log-call)
   (let* ((proc (get-buffer-process buf)))
     (when (and proc (process-live-p proc))
       (accept-process-output nil 0)

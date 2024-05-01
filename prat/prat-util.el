@@ -1,11 +1,3 @@
-(defvar prat-show-tracing-info t
-  "When true, we write tracing info into a tracing buffer.
-
-See also `prat-tracing-buffer-name'")
-
-(defvar prat-tracing-buffer-name "*trace prat-exec-async*"
-  "The name of the buffer used to hold tracing information.")
-
 (defun prat-blend-colors (c1 c2 &optional alpha1 alpha2)
   "Blend the two colors C1 and C2 with ALPHA."
   (let ((alpha1 (or alpha1 0.5))
@@ -72,13 +64,16 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
   dir)
 
 
-(defun prat-trace-funcall (&optional func args)
-  "Write tracing output to buffer."
-  (when prat-show-tracing-info
-    (let* ((buf (current-buffer))
-           (bufname prat-tracing-buffer-name)
+(defun prat-log-call (&optional func args n)
+  "Write tracing info prat-debug-buffer-name'.
+
+The argument N gives the number of additional step to skip."
+  (when prat-debug
+    (let* ((n (or n 0))
+           (buf (current-buffer))
+           (bufname prat-debug-buffer-name)
            ;; If the nesting changes, the NFRAMES may change.
-           (outer-call (backtrace-frame 5))
+           (outer-call (backtrace-frame (+ 5 n)))
            (func (cadr outer-call))
            (args (cddr outer-call)))
       (with-current-buffer (get-buffer-create bufname)

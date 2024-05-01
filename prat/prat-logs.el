@@ -50,7 +50,7 @@
   :group 'gpb-git)
 
 (defun prat-refresh-commit-graph (&optional callback)
-  (prat-trace-funcall)
+  (prat-log-call)
   (let ((cmd "git log --graph --oneline --decorate --color")
         (inhibit-read-only t))
     (dolist (glob prat-log-excluded-branches)
@@ -69,7 +69,7 @@
      cmd default-directory #'prat-refresh-commit-graph-1)))
 
 (defun prat-refresh-commit-graph-1 (buf start end complete)
-  (prat-trace-funcall)
+  (prat-log-call)
   (let ((inhibit-read-only t))
     (save-excursion
       (goto-char output-marker)

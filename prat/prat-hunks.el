@@ -173,7 +173,7 @@ pair is not at the head of alist.  ALIST is not altered."
 Overwrites the current buffer and sets the mode to
 `prat-unstaged-changes-mode'."
   (interactive)
-  (prat-trace-funcall)
+  (prat-log-call)
   (let ((cmd (or cmd "git diff --histogram --find-renames"))
         (inhibit-read-only t))
     (prat-unstaged-changes-mode)
@@ -194,7 +194,7 @@ Overwrites the current buffer and sets the mode to
 Overwrites the current buffer and sets the mode to
 `prat-staged-changes-mode'."
   (interactive)
-  (prat-trace-funcall)
+  (prat-log-call)
   (let ((default-directory (or repo-dir default-directory))
         (cmd (or cmd "git diff --cached --histogram --find-renames"))
         (inhibit-read-only t))
@@ -240,7 +240,7 @@ buffer and adds overlays.  `cmd' is a list of strings.  If
 `callback' is non-nil, we call this function when the buffer has
 been updated (i.e., asyncronously)."
   (interactive)
-  (prat-trace-funcall)
+  (prat-log-call)
   (let ((cmd1 (if (and (boundp 'show-whitespace-changes)
                        show-whitespace-changes)
                  (format "%s --ignore-space-at-eol" cmd)
@@ -258,7 +258,7 @@ been updated (i.e., asyncronously)."
 
 (defun prat-refresh-changes-1 (buf start end complete)
   "Implementation detail of `prat-refresh-changes'."
-  (prat-trace-funcall)
+  (prat-log-call)
   (when complete
     (let ((hunks (with-current-buffer buf (prat-parse-diff buf start end)))
           (inhibit-read-only t))
@@ -1135,7 +1135,7 @@ associated with the given file that lies after the button."
 
 Returns a list of hunk alists.  See the comments at the top of
 the file for the structure of these alists."
-  (prat-trace-funcall)
+  (prat-log-call)
   (let* ((region-beg (or beg (point-min)))
          (region-end (or end (point-max)))
          (hunk-list (list :stub))

@@ -73,7 +73,7 @@
 
 Asyncronous callback that add buttons and overlays to the Git
 status output."
-  (prat-trace-funcall)
+  (prat-log-call)
   (when complete
     (save-excursion
       (let ((status-text (with-current-buffer buf

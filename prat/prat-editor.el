@@ -45,7 +45,7 @@ With a prefix argument, amends previous commit."
 ACTION is a short description like 'commit' or 'rebase'.  It is
 used in some user dialogs.  On completion, shows the command
 output in BUFFER-OR-NAME and swithced to this buffer."
-  (prat-trace-funcall)
+  (prat-log-call)
   (when (and prat-pending-edit-buffer
              (buffer-live-p prat-pending-edit-buffer))
     ;; We `pop-to-buffer' in an effort to make it clear this is a
@@ -100,7 +100,7 @@ output in BUFFER-OR-NAME and swithced to this buffer."
 
 (defun prat-editor-callback (buf start end complete)
   "Callback function for commit and interactive rebase commands"
-  (prat-trace-funcall)
+  (prat-log-call)
   (let ((remote-prefix (or (file-remote-p default-directory) ""))
         ;; Remove any quotes around filenames.
         (file-regex (format "^File: \"?\\([^\"\n]+\\)\"?$"))
@@ -220,7 +220,7 @@ GIT_SEQUENCE_EDITOR."
 
 Expects to be called from a buffer where `prat-edit-info' is
 defined."
-  (prat-trace-funcall)
+  (prat-log-call)
   (ignore-errors
     (let ((repo-root (plist-get prat-edit-info :repo-root)))
       (cond

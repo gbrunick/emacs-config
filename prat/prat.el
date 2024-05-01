@@ -68,6 +68,12 @@
 (require 'prat-shell-commands)
 (require 'prat-editor)
 
+(defvar prat-debug t
+  "When non-nil, we write debug info into `prat-debug-buffer-name'.")
+
+(defvar prat-debug-buffer-name "*Prat Debug*"
+  "The name of the buffer used to hold debug information.")
+
 (defcustom prat-remote-home-dirs nil
   "A list of strings giving remote directory paths.
 
