@@ -58,12 +58,25 @@ output in BUFFER-OR-NAME and swithced to this buffer."
          ;; We use a named pipe for IPC on Linux.
          (editor-pipe (concat (file-name-as-directory repo-root)
                               ".prat-editor-pipe"))
-         (env-vars (list (format "GIT_EDITOR=\"%s\"" editor-script)
-                         (format "GIT_SEQUENCE_EDITOR=\"%s\"" editor-script)
-                         (format "PRAT_EDITOR_PIPE=\"%s\""
-                                 (file-local-name editor-pipe))
-                         "GIT_PAGER="
-                         "TERM=dumb"))
+         (env-vars
+          (cond
+           ((prat-use-cmd-exe-p)
+            ;; Git doesn't seem to like spaces in paths on Windows
+            ;; regardless of my attempts at escaping, so I put the spaces
+            ;; in PATH.
+            (list (format "PATH=%s;%%PATH%%" (file-name-directory editor-script))
+                  (format "GIT_EDITOR=%s" (file-name-nondirectory editor-script))
+                  (format "GIT_SEQUENCE_EDITOR=%s" (file-name-nondirectory
+                                                    editor-script))
+                  "GIT_PAGER="))
+           (t
+            (list (format "GIT_EDITOR=\"%s\"" (file-local-name editor-script))
+                  (format "GIT_SEQUENCE_EDITOR=\"%s\"" (file-local-name
+                                                        editor-script))
+                  (format "PRAT_EDITOR_PIPE=\"%s\""
+                          (file-local-name editor-pipe))
+                  "GIT_PAGER="
+                  "TERM=dumb"))))
          proc)
 
     ;; Be robust to failures that leave a residual pipe file, but throw a
@@ -173,7 +186,7 @@ GIT_SEQUENCE_EDITOR."
         ;; 448 = 7 * 8 * 8
         (set-file-modes remote-script 448)
         (push (cons remote remote-script) prat-remote-edit-scripts))
-      (file-local-name remote-script)))))
+      remote-script))))
 
 (defvar prat-edit-mode-keywords
   (list "^pick" "^reword" "^edit" "^squash" "^fixup" "^exec" "^drop"))
