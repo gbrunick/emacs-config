@@ -575,8 +575,7 @@ This code is taken from fx-misc.el by Dave Love"
   "Don't ask which buffer to kill.  Just kill the current buffer."
   (interactive)
   (let ((buf-name (buffer-name)))
-    (kill-buffer)
-    (message "Killed %s" buf-name)))
+    (when (kill-buffer) (message "Killed %s" buf-name))))
 
 (defun gpb-kill-line (arg)
   (interactive "P")
