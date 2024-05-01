@@ -26,16 +26,6 @@ Looks for the .git directory rather than calling Git."
             (propertize txt 'face '(:weight bold)))))
 
 
-(defun prat-get-new-buffer (prefix suffix)
-  "Get a new buffer whose name starts with and PREFIX ends with SUFFIX.
-
-Returns buffers with names of the form PREFIX<i>SUFFIX."
-  (let ((i 1))
-    (while (get-buffer (concat prefix "<" (int-to-string i) ">" suffix))
-      (cl-incf i))
-    (get-buffer-create (concat prefix "<" (int-to-string i) ">" suffix))))
-
-
 (defun prat-abbreviate-file-name (dir)
   (dolist (remote-dir prat-remote-home-dirs)
     (when (string-prefix-p remote-dir dir)
