@@ -69,7 +69,10 @@
 (require 'prat-editor)
 
 (defvar prat-debug t
-  "When non-nil, we write debug info into `prat-debug-buffer-name'.")
+  "When non-nil, enable debug mode.
+
+In debug mode, we leave buffers around for inspection and write
+some tracing info into `prat-debug-buffer-name'.")
 
 (defvar prat-debug-buffer-name "*Prat Debug*"
   "The name of the buffer used to hold debug information.")

@@ -345,8 +345,13 @@ caller is responsible for returning the buffer by calling
         ;; Add back to the worker pool.
         (push `(,tramp-prefix . ,buf) prat-available-workers))
 
-      ;; Otherwise, we kill the buffer unless we are debugging.
-      ((not prat-debug) (kill-buffer buf))))))
+       ;; If we are in debug mode, kill the process but not the buffer.
+       (prat-debug
+        (kill-process (get-buffer-process buf)))
+
+       ;; Otherwise, kill the buffer.
+       (t
+        (kill-buffer buf))))))
 
 
 (defun prat-use-cmd-exe-p (&optional dir)
