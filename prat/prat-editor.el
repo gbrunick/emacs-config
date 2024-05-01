@@ -259,3 +259,5 @@ defined."
                'prat-edit-kill-buffer-query-function t)
   (prat-signal-editor-script)
   (kill-buffer))
+
+(provide 'prat-editor)
