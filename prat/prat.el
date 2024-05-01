@@ -235,6 +235,7 @@ names in the UI."
   (let ((map (make-sparse-keymap)))
     (define-key map "s" 'prat-show-status)
     (define-key map "c" 'prat-commit)
+    (define-key map "r" 'prat-rebase)
     (define-key map "l" 'prat-show-commit-graph)
     (define-key map "!" 'prat-shell-command)
     (define-key map "p" 'prat-push-changes)
@@ -249,6 +250,11 @@ Bind to this to a prefix of your choosing (e.g., \"\C-cv\")")
 ;;  Functions
 ;;
 
+
+(defun prat-push-changes ()
+  (interactive)
+  (let ((cmd (read-string "Git Shell Command: " "git push -u origin HEAD")))
+    (prat-shell-command cmd)))
 
 (defun prat-refresh-buffer ()
   "Implements the standard refresh on g behaviour.
@@ -273,11 +279,12 @@ User-facing; attempts to preserve window position."
 
 (defun prat-reload-all ()
   "Reload all source files."
-  (load "gm-util.el")
-  (load "gm-status.el")
-  (load "gm-logs.el")
-  (load "gm-hunks.el")
-  (load "gm-shell-commands.el")
-  (load "gitmodes.el"))
+  (load "prat-util.el")
+  (load "prat-status.el")
+  (load "prat-logs.el")
+  (load "prat-hunks.el")
+  (load "prat-shell-commands.el")
+  (load "prat-editor.el")
+  (load "prat.el"))
 
 (provide 'prat)
