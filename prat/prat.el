@@ -8,58 +8,6 @@
 ;;  https://github.com/magit/magit/issues/3624 and
 ;;  http://lists.gnu.org/archive/html/tramp-devel/2018-11/msg00020.html
 ;;
-;;  The primary complex data structure used is a hunk alist that contains
-;;  information from the Git diff output about a single unit of change.
-;;  The function `prat-parse-diff' returns a list of such alists.
-;;  These alists have the following entries:
-;;
-;;    :filename1 A string giving the first filename in the diff header.
-;;    :filename2 A string giving the second filename in the diff header.
-;;    :file1-start An integer giving the first line to which the hunk
-;;        applies in the before state.  The first line of the file is
-;;        1, but this value may be zero when creating a new file.
-;;    :file1-len The number of lines in the input file to which the
-;;        hunk applies.
-;;    :file2-start An integer giving the first line in the second file
-;;        to which the hunk applied.  The first line of the file is 1.
-;;    :file2-len The number of lines in the ouput file that application
-;;        of the hunk produces.
-;;    :header A string giving the diff header.  These are lines
-;;        starting with "diff --git ..." and ending at the first diff
-;;        lines header (i.e., lines of the form "@@ ... @@").
-;;    :diff A string or nil giving the changes to the file.  This is a
-;;        series of line additions and deletions surrounded by context
-;;        lines that describe the changes to be applied to the file.  Some
-;;        hunks have not diff lines (e.g., a file rename with no changes,
-;;        the addition of an empty file to the index using git add
-;;        --intent-to-add, or a change to a binary file).  In these case,
-;;        :diff is nil.
-;;    :binary-info A string or nil.  This value is set when the hunk
-;;        correponds to a change to a binary file.  In this case, it
-;;        contains a string describing the change.
-;;    :insertion bool which is true when the hunk correspond to the
-;;        creation of new file.
-;;    :deletion bool which is true when the hunk correspond to the
-;;        deletion of a new file.
-;;    :rename bool which is true when the hunk correspond to a file
-;;        rename.
-;;
-;;  The function `prat-refresh-changes' calls `prat-parse-diff' to
-;;  produce a list of changes and inserts these changes into a buffer,
-;;  placing an overlay on the section of the buffer that correponds to each
-;;  hunk.  These overlays have all of the properties listed above as well
-;;  as the following properties (you can call `describe-text-properties' in
-;;  a hunk buffer to see the overlay properties):
-;;
-;;    :is-hunk t
-;;    :marked This property is non-nil if the hunk is marked.  If the
-;;        entire hunk is marked, this property is t.  If only some lines
-;;        are marked, the value is a cons cell of the form (:partial
-;;        . line-is-marked) where line-is-marked is a bool vector with one
-;;        entry for each line in the hunk.  If a deleted file has been
-;;        marked as a rename (see `prat-mark-as-rename'), the value is a
-;;        cons cell of the form (:rename . filename).
-;;
 
 (require 'prat-util)
 (require 'prat-status)
@@ -68,7 +16,7 @@
 (require 'prat-shell-commands)
 (require 'prat-editor)
 
-(defvar prat-debug t
+(defvar prat-debug nil
   "When non-nil, enable debug mode.
 
 In debug mode, we leave buffers around for inspection and write
