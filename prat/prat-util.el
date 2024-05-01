@@ -24,11 +24,9 @@ See also `prat-tracing-buffer-name'")
 (defun prat-find-repo-root (&optional dir)
   "Find the root of the Git repository.
 Looks for the .git directory rather than calling Git."
-  (let ((dir (file-name-as-directory (or dir default-directory))) next)
-    (while (and dir (not (file-exists-p (concat dir ".git"))))
-      (setq next (file-name-directory (directory-file-name dir))
-            dir (if (string= next dir) nil next)))
-    dir))
+  (let ((repo-root (locate-dominating-file (or dir default-directory) ".git")))
+    (unless repo-root (error "Not in a Git repo"))
+    repo-root))
 
 (defun prat-read-repo-dir (&optional force)
   "Prompt the user for a Git repository directory.
