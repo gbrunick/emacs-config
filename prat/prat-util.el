@@ -102,32 +102,14 @@ Returns buffers with names of the form PREFIX<i>SUFFIX."
      (insert " ")
      (prat-insert-spinner)
      (point))
-   '(face (background-color . "light gray"))))
+   `(prat-placeholder t)))
 
 
 (defun prat-delete-placeholder (text)
-  (goto-char (point-min))
-  (re-search-forward text)
-  (delete-region (match-beginning 0) (progn (forward-line 1) (point))))
-
-
-
-(defvar prat-temporary-dirs nil
-  "One temporary directory per remote")
-
-(defun prat-get-temporary-dir (path)
-  (let* ((default-directory (file-name-directory path))
-         (remote (or (file-remote-p path) 'local))
-         (key-value (assoc remote prat-temporary-dirs))
-         (tmpdir (cdr key-value)))
-    ;; `file-directory-p' checks for existence.
-    (unless (and tmpdir (file-directory-p tmpdir))
-      (setq tmpdir (file-name-as-directory (make-nearby-temp-file nil t)))
-      (push (cons remote tmpdir) prat-temporary-dirs))
-    tmpdir))
-
-(defun prat-get-temporary-file (name)
-  (concat (prat-get-temporary-dir default-directory) name))
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward text nil t)
+      (delete-region (match-beginning 0) (progn (forward-line 1) (point))))))
 
 (defun prat-insert-spinner ()
   "Insert spinner at current point."
