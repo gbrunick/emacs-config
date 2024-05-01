@@ -65,7 +65,7 @@
       (insert (format "%s\n\n" cmd))
       (setq-local output-marker (copy-marker (point))))
     (setq-local callback-func callback)
-    (shpool-async-shell-command
+    (prat-async-shell-command
      cmd default-directory #'prat-refresh-commit-graph-1)))
 
 (defun prat-refresh-commit-graph-1 (buf start end complete)

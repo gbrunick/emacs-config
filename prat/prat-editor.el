@@ -2,6 +2,9 @@
 ;;
 ;; Wrappers for the Git commit and interactive rebase commands that require
 ;; the user to edit file.
+;;
+
+(require 'prat-shell-commands)
 
 (defvar prat-rebase-command-history nil
   "History list for rebase commands.")
@@ -71,7 +74,7 @@ output in BUFFER-OR-NAME and swithced to this buffer."
 
     ;; `prat-editor-callback' opens a buffer to edit the required file.  It
     ;; uses the infomation we provide in `prat-edit-info'.
-    (setq proc (shpool-async-shell-command
+    (setq proc (prat-async-shell-command
                 cmd repo-root #'prat-editor-callback env-vars))
     (with-current-buffer (process-buffer proc)
       (setq-local prat-edit-info
@@ -142,13 +145,13 @@ output in BUFFER-OR-NAME and swithced to this buffer."
 Ensures the script is available on remote Linux systems.  Always
 returns a local filename suitable for use with GIT_EDITOR and
 GIT_SEQUENCE_EDITOR."
-  ;; `prat-use-cmd-exe' and `make-nearby-temp-file' use
+  ;; `prat-use-cmd-exe-p' and `make-nearby-temp-file' use
   ;; `default-directory' below.
   (let* ((default-directory (or dir default-directory))
          (remote (file-remote-p default-directory))
          key-value local-script remote-script)
     (cond
-     ((prat-use-cmd-exe) (locate-library "prat-editor.cmd"))
+     ((prat-use-cmd-exe-p) (locate-library "prat-editor.cmd"))
      ((not remote) (locate-library "prat-editor.bash"))
      (t
       ;; We have a remote `dir' so we need copy over the editor script.
@@ -208,12 +211,12 @@ defined."
   (ignore-errors
     (let ((repo-root (plist-get prat-edit-info :repo-root)))
       (cond
-       ((prat-use-cmd-exe)
+       ((prat-use-cmd-exe-p)
         ;; prat-editor.cmd waits for this signal.
-        (shpool-async-shell-command "waitfor /si EmacsEditDone"))
+        (prat-async-shell-command "waitfor /si EmacsEditDone"))
        (t
         ;; prat-editor.sh blocks while reading from this named pipe.
-        (shpool-async-shell-command
+        (prat-async-shell-command
          (format "echo done. > .prat-editor-pipe") repo-root))))))
 
 (defun prat-edit-kill-buffer-hook ()
@@ -243,5 +246,3 @@ defined."
                'prat-edit-kill-buffer-query-function t)
   (prat-signal-editor-script)
   (kill-buffer))
-
-

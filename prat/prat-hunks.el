@@ -253,7 +253,7 @@ been updated (i.e., asyncronously)."
     (setq default-directory repo-dir)
     (setq-local callback-func callback)
     (prat-insert-placeholder "Loading hunks")
-    (shpool-async-shell-command cmd1 repo-dir #'prat-refresh-changes-1)))
+    (prat-async-shell-command cmd1 repo-dir #'prat-refresh-changes-1)))
 
 
 (defun prat-refresh-changes-1 (buf start end complete)
@@ -684,7 +684,7 @@ previously highlighted hunk."
   (interactive)
   (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (prat-apply-hunks marked-hunks "apply" "--cached")))
-    (unless shpool-debug (delete-file patch-file))
+    (unless prat-debug (delete-file patch-file))
     (prat-show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)
@@ -699,7 +699,7 @@ previously highlighted hunk."
   (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (prat-apply-hunks marked-hunks
                                            "apply" "--cached" "-R")))
-    (unless shpool-debug (delete-file patch-file))
+    (unless prat-debug (delete-file patch-file))
     (prat-show-status--refresh)
     (cond
      ((> (length marked-hunks) 1)

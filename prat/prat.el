@@ -66,6 +66,7 @@
 (require 'prat-logs)
 (require 'prat-hunks)
 (require 'prat-shell-commands)
+(require 'prat-editor)
 
 (defcustom prat-remote-home-dirs nil
   "A list of strings giving remote directory paths.

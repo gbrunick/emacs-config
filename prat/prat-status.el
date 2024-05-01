@@ -1,4 +1,4 @@
-(require 'shell-pool)
+(require 'prat-shell-commands)
 
 (defvar prat-show-status-mode-map
   (let ((map (make-sparse-keymap)))
@@ -64,7 +64,7 @@
           (insert (format "Repo: %s\n\n%s\n\n" root-dir cmd))
           (setq-local original-point pt)
           (setq-local put-status-here (point))
-          (shpool-async-shell-command
+          (prat-async-shell-command
            cmd default-directory #'prat-show-status--refresh-1))))))
 
 
