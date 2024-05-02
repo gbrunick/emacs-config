@@ -223,10 +223,11 @@ defined."
   (prat-log-call)
   (ignore-errors
     (let ((repo-root (plist-get prat-edit-info :repo-root)))
+      (cl-assert repo-root)
       (cond
        ((prat-use-cmd-exe-p)
         ;; prat-editor.cmd waits for this signal.
-        (prat-async-shell-command "waitfor /si EmacsEditDone"))
+        (prat-async-shell-command "waitfor /si EmacsEditDone" repo-root))
        (t
         ;; prat-editor.sh blocks while reading from this named pipe.
         (prat-async-shell-command
