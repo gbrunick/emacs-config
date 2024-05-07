@@ -209,7 +209,7 @@ types.  ITEMS may be a items of strings or an alist of (display-string
           (remove-hook 'minibuffer-setup-hook 'gpb-fl--setup-minibuffer-hook)
           (remove-hook 'minibuffer-exit-hook 'gpb-fl--exit-minibuffer-hook)
           (with-current-buffer gpb-fl--item-buffer
-            (remove-hook 'kill-buffer-hook 'abort-recursive-edit t))
+            (remove-hook 'kill-buffer-hook 'gpb-fl--try-abort-recursive-edit t))
           (kill-buffer gpb-fl--item-buffer))))))
 
 (defun gpb-fl--setup-minibuffer-hook ()
