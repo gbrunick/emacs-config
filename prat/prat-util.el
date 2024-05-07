@@ -68,12 +68,19 @@ The argument N gives the number of additional step to skip."
      (point))
    `(prat-placeholder t)))
 
-
-(defun prat-delete-placeholder (text)
+(defun prat-delete-placeholder ()
   (save-excursion
-    (goto-char (point-min))
-    (when (re-search-forward text nil t)
-      (delete-region (match-beginning 0) (progn (forward-line 1) (point))))))
+    (let* ((start (text-property-any (point-min) (point-max)
+                                     'prat-placeholder t))
+           (end (and start (or (text-property-not-all start (point-max)
+                                                      'prat-placeholder t)
+                               (point-max)))))
+      (cond
+       ((and start end)
+        (delete-region start end)
+        start)
+       (t
+        (point-max))))))
 
 (defun prat-insert-spinner ()
   "Insert spinner at current point."
