@@ -1,18 +1,6 @@
 ;; We set this so we can debug a slow init process.
 (setq debug-on-quit t)
 
-(show-paren-mode 1)
-(tool-bar-mode -1)
-(menu-bar-mode 1)
-(line-number-mode 1)
-(column-number-mode 1)
-(blink-cursor-mode 1)
-(transient-mark-mode 1)
-
-;; This seems convenienct even with evil.  It still shows up in the
-;; minibuffer and lots of other places.
-(cua-mode 1)
-
 ;; Add the source tree rooted at the directory containing this file to the
 ;; load path.
 (let* ((default-directory (file-name-directory
@@ -24,6 +12,24 @@
   ;; empty .nosearch files (see
   ;; `normal-top-level-add-subdirs-to-load-path').
   (normal-top-level-add-subdirs-to-load-path))
+
+(require 'gpb-packages)
+(gpb-ensure-packages-installed)
+
+(use-package wgrep
+  :config (setq wgrep-auto-save-buffer t)) 
+
+(show-paren-mode 1)
+(tool-bar-mode -1)
+(menu-bar-mode 1)
+(line-number-mode 1)
+(column-number-mode 1)
+(blink-cursor-mode 1)
+(transient-mark-mode 1)
+
+;; This seems convenienct even with evil.  It still shows up in the
+;; minibuffer and lots of other places.
+(cua-mode 1)
 
 ;; Control-c bindings
 (global-set-key "\C-ci" 'gpb:create-imenu-index-buffer)
@@ -49,7 +55,6 @@
 (global-set-key [(control shift tab)] 'gpb-previous-window)
 (global-set-key [remap backward-delete-char]
                 'backward-delete-char-untabify)
-
 
 (setq history-delete-duplicates         t
       comint-input-ignoredups           t
@@ -146,8 +151,8 @@
 (global-set-key "\C-cr" 'gpb-recentf-open-files-filtered)
 
 ;; Git integration bindings
-(autoload 'gpb-git:user-command-prefix-keymap "gitmodes" nil nil 'keymap)
-(global-set-key "\C-cv" 'gpb-git:user-command-prefix-keymap)
+(autoload 'prat-user-command-prefix-keymap "prat" nil nil 'keymap)
+(global-set-key "\C-cv" 'prat-user-command-prefix-keymap)
 
 (with-eval-after-load 'isearch
   (setq search-nonincremental-instead nil
@@ -177,5 +182,6 @@
 ;; Evil config
 (require 'gpb-evil)
 (require 'gpb-util2)
+;; (require 'gpb-ess)
 
 (setq debug-on-quit nil)

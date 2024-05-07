@@ -1,4 +1,5 @@
-;; Some values must be set before `evil' is loaded.
+;; Some values must be set before `evil' is loaded.  You would think you
+;; could use :init for this below, but it doesn't seem to work.
 (setq evil-want-keybinding nil
       evil-want-integration t
       evil-move-beyond-eol nil
@@ -10,13 +11,22 @@
       evil-move-cursor-back nil
       evil-cross-lines t)
 
-(require 'evil)
-(require 'evil-goggles)
-(require 'better-jumper)
+(use-package evil
+  :ensure t)
+
+(use-package evil-collection
+  :ensure t
+  :after evil)
+
+(use-package evil-goggles
+  :ensure t
+  :after evil)
+
+;; (require 'better-jumper)
 
 (evil-mode 1)
 (evil-goggles-mode 1)
-(better-jumper-mode 1)
+;; (better-jumper-mode 1)
 
 ;; Normal state
 (evil-define-key 'normal 'fundamental-mode "\C-m" 'newline)
@@ -46,8 +56,8 @@
       (isearch-yank-string search-string)
       (isearch-search-and-update))))
 
-(evil-define-key 'motion 'global "\C-o" 'better-jumper-jump-backward)
-(evil-define-key 'motion 'global "\M-o" 'better-jumper-jump-forward)
+;; (evil-define-key 'motion 'global "\C-o" 'better-jumper-jump-backward)
+;; (evil-define-key 'motion 'global "\M-o" 'better-jumper-jump-forward)
 
 ;; Free up some CUA bindings
 (defvar gpb-evil-key-blacklist
@@ -107,9 +117,9 @@
 
 ;; Evil binds "\C-g" in `evil-command-line-map' to `abort-minibuffers', but
 ;; this function is not defined?
-(define-key evil-command-line-map "\C-g" 'abort-recursive-edit)
-(define-key evil-command-line-map "\C-h" 'evil-ex-delete-backward-char)
-(define-key evil-command-line-map "\M-h" 'backward-kill-word)
+;; (define-key evil-command-line-map "\C-g" 'abort-recursive-edit)
+;; (define-key evil-command-line-map "\C-h" 'evil-ex-delete-backward-char)
+;; (define-key evil-command-line-map "\M-h" 'backward-kill-word)
 
 ;; (evil-define-key 'insert 'global "\C-g" 'gpb-evil-insert-ctrl-g)
 ;;
@@ -120,5 +130,5 @@
 ;;     (abort-reththiscursive-edit))
 ;;    (t
 ;;     (evil-force-normal-state))))
-                           
+
 (provide 'gpb-evil)

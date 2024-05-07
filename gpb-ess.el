@@ -82,12 +82,13 @@
   ;; (when (require 'yasnippet nil t)
   ;;   (yas-minor-mode 1))
 
-  (when (require 'gpb-text-objects nil t)
-    (setq-local execute-text-object-function 'gpb-r-eval-text-object)
-    (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
-    (gpb-tobj--define-key 'root "T" 'ess-test-func :local t :backwards t)
-    (gpb-tobj--define-key 'root "c" 'ess-rmarkdown-chunk :local t)
-    (gpb-tobj--define-key 'root "C" 'ess-rmarkdown-chunk :local t :backwards t)))
+  ;; (when (require 'gpb-text-objects nil t)
+  ;;   (setq-local execute-text-object-function 'gpb-r-eval-text-object)
+  ;;   (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
+  ;;   (gpb-tobj--define-key 'root "T" 'ess-test-func :local t :backwards t)
+  ;;   (gpb-tobj--define-key 'root "c" 'ess-rmarkdown-chunk :local t)
+  ;;   (gpb-tobj--define-key 'root "C" 'ess-rmarkdown-chunk :local t :backwards t))
+  )
 
 
 (defun gpb:inferior-ess-mode-hook ()
@@ -494,14 +495,14 @@ displayed."
 
 
 ;; This guard may not matter due to eager macro expansion.
-(when (require 'gpb-text-objects nil t)
-  (gpb-tobj--define-flat-text-object ess-test-func
-    "A `test_that` test definition."
-    :forward-func gpb:ess-forward-test)
+;; (when (require 'gpb-text-objects nil t)
+;;   (gpb-tobj--define-flat-text-object ess-test-func
+;;     "A `test_that` test definition."
+;;     :forward-func gpb:ess-forward-test)
 
-  (gpb-tobj--define-flat-text-object ess-rmarkdown-chunk
-    "An R Markdown chunk test definition."
-    :forward-func gpb:ess-forward-chunk))
+;;   (gpb-tobj--define-flat-text-object ess-rmarkdown-chunk
+;;     "An R Markdown chunk test definition."
+;;     :forward-func gpb:ess-forward-chunk))
 
 
 ;; BUGFIX: workaround the fact that devtools::help always prints the help,
@@ -1392,3 +1393,4 @@ the command is running and t when is it done."
     (compilation-next-error-function n reset)
     (goto-line line)))
 
+(provide 'gpb-ess)
