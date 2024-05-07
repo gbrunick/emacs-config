@@ -131,10 +131,7 @@
   (let ((hash (get-text-property (point) :commit-hash))
         buf)
     (unless hash (error "No commit on line"))
-    (setq buf (get-buffer-create (format "*commit: %s*" hash)))
-    (with-current-buffer buf
-      (prat-show-commit hash))
-    (pop-to-buffer buf)))
+    (prat-show-commit hash)))
 
 
 (defun prat-show-commit-graph--show-files ()

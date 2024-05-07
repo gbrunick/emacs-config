@@ -60,117 +60,6 @@
 (defun prat-aget (alist key)
   (cdr-safe (assoc key alist)))
 
-(defvar prat-hunk-view-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\t" 'prat-forward-command)
-    (define-key map [(backtab)] 'prat-backward-command)
-    (define-key map "p" 'prat-backward-command)
-    (define-key map "P" 'prat-backward-file-command)
-    (define-key map "n" 'prat-forward-command)
-    (define-key map "N" 'prat-forward-file-command)
-    (define-key map (kbd "RET") 'prat-goto-line)
-    (define-key map "g" 'prat-refresh-buffer)
-    (fset 'prat-hunk-view-mode-map map)
-    map)
-  "Base keymap for hunk viewing.")
-
-(defvar prat-hunk-selection-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "m" 'prat-mark-hunk-command)
-    (define-key map "M" 'prat-mark-file-command)
-    (define-key map "r" 'prat-mark-as-rename)
-    (define-key map "u" 'prat-unmark-hunk-command)
-    (define-key map "U" 'prat-unmark-file-command)
-    (set-keymap-parent map 'prat-hunk-view-mode-map)
-    (fset 'prat-hunk-selection-mode-map map)
-    map)
-  "Base keymap for hunk viewing and selection.")
-
-
-(defvar prat-unstaged-changes-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; "add" new files to the index.
-    (define-key map "a" 'prat-stage-hunks)
-    ;; "delete" changes.
-    (define-key map "d" 'prat-revert-marked-hunks)
-    (define-key map "w" 'prat-toggle-whitespace-diff-args)
-    (set-keymap-parent map 'prat-hunk-selection-mode-map)
-    (fset 'prat-unstaged-changes-mode-map map)
-    map)
-  "The keymap used for unstaged hunks.")
-
-
-(defvar prat-staged-changes-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; "reset" marked hunks
-    (define-key map "r" 'prat-unstage-hunks)
-    (set-keymap-parent map 'prat-hunk-selection-mode-map)
-    (fset 'prat-staged-changes-mode-map map)
-    map)
-  "The keymap used for staged hunks.")
-
-
-
-(define-derived-mode prat-hunk-view-mode special-mode
-  "Hunk Buffer"
-  "\nBase mode for buffers showing hunks."
-  (setq-local header-line-format '(:eval (prat-compute-hunk-buffer-header)))
-  (setq-local buffer-read-only t)
-  (setq-local tab-width 4))
-
-(define-derived-mode prat-hunk-selection-mode prat-hunk-view-mode
-  "Hunk Buffer"
-  "\nBase mode for buffers showing hunks."
-  (add-hook 'post-command-hook 'prat-post-command-hook))
-
-
-(define-derived-mode prat-unstaged-changes-mode prat-hunk-selection-mode
-  "Unstaged Changes"
-  "\nMode for selecting unstages changes to be added to the index.
-
-\\{prat-unstaged-changes-mode-map}\n"
-  (setq-local staged-changes-buffer nil))
-
-
-(define-derived-mode prat-staged-changes-mode prat-hunk-selection-mode
-  "Staged Changes"
-  "\nMode for selecting stages changes to be removed from the index.
-
-\\{prat-staged-changes-mode-map}\n"
-  (setq-local staged-changes-buffer t))
-
-
-(defun prat-show-unstaged-changes (&optional repo-dir)
-  (interactive)
-  (let ((buf (get-buffer-create prat-unstaged-buffer-name)))
-    (with-current-buffer buf
-      (prat-refresh-unstaged-changes repo-dir)
-      ;; For `prat-refresh-buffer'
-      (setq-local refresh-cmd `(prat-refresh-unstaged-changes
-                                ,default-directory)))
-    (switch-to-buffer buf)))
-
-
-(defun prat-show-staged-changes (&optional repo-dir)
-  (interactive)
-  (let ((buf (get-buffer-create prat-staged-buffer-name)))
-    (with-current-buffer buf
-      (prat-refresh-staged-changes repo-dir)
-      ;; For `prat-refresh-buffer'
-      (setq-local refresh-cmd `(prat-refresh-staged-changes
-                                ,default-directory)))
-    (switch-to-buffer buf)))
-
-
-(defun prat-show-commit-diff (hash1 hash2 &optional repo-dir)
-  (let ((buf (get-buffer-create (format "*%s...%s*" hash1 hash2))))
-    (with-current-buffer buf
-      (prat-refresh-commit-diff hash1 hash2 repo-dir)
-      ;; For `prat-refresh-buffer'
-      (setq-local refresh-cmd `(prat-refresh-commit-diff
-                                ,hash1 ,hash2 ,default-directory))
-      (switch-to-buffer buf))))
-
 
 (defun prat-toggle-whitespace-diff-args ()
   (interactive)
@@ -178,137 +67,6 @@
     (setq-local show-whitespace-changes (not val))
     (put 'show-whitespace-changes 'permanent-local t)
     (prat-refresh-buffer)))
-
-
-(defun prat-refresh-unstaged-changes (&optional repo-dir cmd callback)
-  "Display the differences between the index and HEAD.
-
-Overwrites the current buffer and sets the mode to
-`prat-unstaged-changes-mode'."
-  (interactive)
-  (prat-log-call)
-  (let ((cmd (or cmd "git diff --histogram --find-renames"))
-        (inhibit-read-only t))
-    (prat-unstaged-changes-mode)
-    (prat-refresh-changes cmd repo-dir callback)
-    (goto-char (point-min))
-    (insert (format "\nUnstaged changes in %s\n\n"
-                    (prat-abbreviate-file-name default-directory)))
-    (insert (format "%s\n\n" cmd " "))
-    (goto-char (point-min))
-    ;; This didn't seem to stick until I moved it here?
-    (setq-local refresh-cmd `(prat-refresh-unstaged-changes
-                              ,default-directory ',cmd))))
-
-
-(defun prat-refresh-staged-changes (&optional repo-dir cmd callback)
-  "Display the differences between the index and HEAD.
-
-Overwrites the current buffer and sets the mode to
-`prat-staged-changes-mode'."
-  (interactive)
-  (prat-log-call)
-  (let ((default-directory (or repo-dir default-directory))
-        (cmd (or cmd "git diff --cached --histogram --find-renames"))
-        (inhibit-read-only t))
-    (prat-staged-changes-mode)
-    (prat-refresh-changes cmd repo-dir callback)
-    (goto-char (point-min))
-    (insert (format "\nStaged changes in %s\n\n"
-                    (prat-abbreviate-file-name default-directory)))
-    (insert (format "%s\n\n" cmd " "))
-    (setq-local refresh-cmd `(prat-refresh-staged-changes
-                              ,default-directory ',cmd))
-    (goto-char (point-min))))
-
-
-(defun prat-refresh-commit-diff (hash1 hash2 &optional repo-dir callback)
-  "Display the differences between the index and HEAD.
-
-Overwrites the current buffer and sets the mode to
-`prat-staged-changes-mode'."
-  (interactive)
-  (let ((cmd (format "git diff --stat --patch %s %s %s --"
-                     "--histogram --find-renames" hash1 hash2))
-        (inhibit-read-only t)
-        (repo-dir (or repo-dir default-directory)))
-
-
-    (prat-refresh-changes cmd repo-dir callback)
-    (prat-hunk-view-mode)
-    (goto-char (point-min))
-    (insert (format "\nChanges from %s to %s\n\n" hash1 hash2))
-    (insert (format "%s\n\n" cmd))
-    (setq-local refresh-cmd `(prat-refresh-commit-diff
-                              ,hash1 ,hash2 ,repo-dir))
-    (goto-char (point-min))))
-
-
-(defun prat-refresh-changes (cmd &optional repo-dir callback)
-  "Update the diff hunks in a buffer.
-
-Executes CMD, parses the result, erases the current buffer, sets
-the major mode to `major-mode', writes the parsed hunks into the
-buffer and adds overlays.  `cmd' is a list of strings.  If
-`callback' is non-nil, we call this function when the buffer has
-been updated (i.e., asyncronously)."
-  (interactive)
-  (prat-log-call)
-  (let ((cmd1 (if (and (boundp 'show-whitespace-changes)
-                       show-whitespace-changes)
-                 (format "%s --ignore-space-at-eol" cmd)
-               cmd))
-        (repo-dir (or repo-dir default-directory))
-        (inhibit-read-only t))
-    ;; Delete any existing hunk overlays in the buffer.
-    (dolist (ov (prat-get-hunk-overlays)) (delete-overlay ov))
-    (erase-buffer)
-    (setq default-directory repo-dir)
-    (setq-local callback-func callback)
-    (prat-insert-placeholder "Loading hunks")
-    (prat-async-shell-command cmd1 repo-dir #'prat-refresh-changes-1)))
-
-
-(defun prat-refresh-changes-1 (buf start end complete)
-  "Implementation detail of `prat-refresh-changes'."
-  (prat-log-call)
-  (when complete
-    (let ((hunks (with-current-buffer buf (prat-parse-diff buf start end)))
-          (inhibit-read-only t))
-      (goto-char (point-min))
-      (prat-delete-placeholder "Loading hunks")
-      (cond
-       (hunks
-        ;; Add a text button for each filename
-        (insert "Files: ")
-        (let* ((filenames (mapcar (lambda (hunk) (prat-aget hunk :filename1))
-                                  hunks))
-               (max-length (apply 'max (mapcar 'length filenames))))
-          (dolist (filename (sort (delete-dups (delq nil filenames)) 'string<))
-            (make-text-button (point)
-                              (progn (insert filename) (point))
-                              'action 'prat-jump-to-file-hunks
-                              'filename filename)
-            (insert (make-string (max (- max-length (length filename)) 0)
-                                 ?\ ))
-            (let ((file-hunks (cl-remove-if-not
-                               (lambda (h)
-                                 (equal (prat-aget h :filename1) filename))
-                               hunks)))
-              (insert (cond
-                       ((= (length file-hunks) 1) " (1 hunk)")
-                       (t (format " (%s hunks)"
-                                  (length file-hunks))))))
-            (insert "\n       ")))
-        (forward-line 0)
-        (delete-region (point) (line-end-position))
-        (insert "\n\n")
-        (prat-insert-hunks hunks))
-       (t
-        (insert "No changes")))
-      (goto-char (point-min))
-      (when (and (boundp 'callback-func) callback-func)
-        (funcall callback-func buf)))))
 
 
 (defun prat-decorate-hunk (hunk &optional focused)
@@ -699,11 +457,7 @@ previously highlighted hunk."
          (patch-file (prat-apply-hunks marked-hunks "apply" "--cached")))
     (unless prat-debug (delete-file patch-file))
     (prat-show-status--refresh)
-    (cond
-     ((> (length marked-hunks) 1)
-      (quit-window t))
-     (t
-      (prat-refresh-unstaged-changes)))))
+    (quit-window t)))
 
 
 (defun prat-unstage-hunks ()
@@ -711,14 +465,10 @@ previously highlighted hunk."
   (interactive)
   (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (prat-apply-hunks marked-hunks
-                                           "apply" "--cached" "-R")))
+                                       "apply" "--cached" "-R")))
     (unless prat-debug (delete-file patch-file))
     (prat-show-status--refresh)
-    (cond
-     ((> (length marked-hunks) 1)
-      (quit-window t))
-     (t
-      (prat-refresh-staged-changes)))))
+    (quit-window t)))
 
 
 (defun prat-revert-marked-hunks ()
@@ -1264,46 +1014,6 @@ the file for the structure of these alists."
                                                       filename2)))))))
 
       (cdr hunk-list))))
-
-
-(defun prat-show-commit (hash &optional repo-dir callback)
-  "Write information about the given commit into the current buffer.
-
-Overwrites the current buffer and sets the mode to
-`prat-hunk-view-mode'."
-  (let ((cmd (format "git show %s --" hash))
-        (inhibit-read-only t)
-        (f (lambda (buf) )))
-    (prat-hunk-view-mode)
-    (prat-refresh-changes cmd repo-dir #'prat-show-commit-1)
-    (setq-local refresh-cmd `(prat-refresh-changes
-                              ,cmd ,repo-dir ,#'prat-show-commit-1))
-    (setq-local buffer-header (format "%s\n\n" cmd))
-    (goto-char (point-min))))
-
-
-(defun prat-show-commit-1 (buf)
-  (let ((info-text
-         (with-current-buffer buf
-           (goto-char (point-min))
-           (buffer-substring (point-min)
-                             (progn
-                               ;; Look for "diff --git"; if we don't see
-                               ;; it, use the full buffer.
-                               (or (and (re-search-forward "^diff --" nil t)
-                                        (progn
-                                          (forward-line 0)
-                                          (point)))
-                                   (point-max)))))))
-    (save-excursion
-      (goto-char (point-min))
-      (insert buffer-header)
-      (insert info-text))
-
-    ;; This is a bit a of a kludge.
-    (save-excursion
-      (when (re-search-forward "^No changes" nil t)
-        (delete-region (match-beginning 0) (match-end 0))))))
 
 
 (defun prat-refine-region (&optional beg end)

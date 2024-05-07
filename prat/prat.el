@@ -14,6 +14,7 @@
 (require 'prat-logs)
 (require 'prat-hunks)
 (require 'prat-shell-commands)
+(require 'prat-change-buffers)
 (require 'prat-editor)
 
 (defvar prat-debug nil
@@ -183,12 +184,17 @@ names in the UI."
   "Face used for the marked revision in a log buffer.")
 
 
+(define-derived-mode prat-base-mode special-mode
+  "Prat Base Mode"
+  "\nBase mode for all buffers managed by the `prat' pacakge."
+  (setq-local tab-width 4))
+
+
 ;;
 ;;  Keymaps
 ;;
-
-
 (defvar prat-user-command-prefix-keymap
+
   (let ((map (make-sparse-keymap)))
     (define-key map "s" 'prat-show-status)
     (define-key map "c" 'prat-commit)

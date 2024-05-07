@@ -261,21 +261,10 @@ status output."
 
 
 (defun prat-show-status--show-staged-changes (button)
-  (let ((buf (get-buffer-create prat-staged-buffer-name))
-        (repo-dir default-directory))
-    (cl-assert repo-dir)
-    (with-current-buffer buf
-      (prat-refresh-staged-changes repo-dir))
-    (pop-to-buffer buf)))
-
+  (prat-show-staged-changes))
 
 (defun prat-show-status--show-unstaged-changes (button)
-  (let ((buf (get-buffer-create prat-unstaged-buffer-name))
-        (repo-dir default-directory))
-    (cl-assert repo-dir)
-    (with-current-buffer buf
-      (prat-refresh-unstaged-changes repo-dir))
-    (pop-to-buffer buf)))
+  (prat-show-unstaged-changes))
 
 
 (defun prat-show-status--show-diff ()
@@ -327,9 +316,7 @@ status output."
          (cmd (format "git diff -- \"%s\"" filename))
          (buf (get-buffer-create (format "*unstaged: %s*" filename)))
          (repo-dir default-directory))
-    (with-current-buffer buf
-      (prat-refresh-unstaged-changes repo-dir cmd))
-    (pop-to-buffer buf)))
+    (prat-show-changes cmd nil buf 'prat-unstaged-changes-mode repo-dir)))
 
 
 (defun prat-show-status--show-staged-file-diff (button)
@@ -337,9 +324,7 @@ status output."
          (cmd (format "git diff --cached -- \"%s\"" filename))
          (buf (get-buffer-create (format "*staged: %s*" filename)))
          (repo-dir default-directory))
-    (with-current-buffer buf
-      (prat-refresh-staged-changes repo-dir cmd))
-    (pop-to-buffer buf)))
+    (prat-show-changes cmd nil buf 'prat-unstaged-changes-mode repo-dir)))
 
 
 (provide 'prat-status)
