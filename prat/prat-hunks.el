@@ -482,9 +482,7 @@ applying this patch file to the working directory."
   (when (y-or-n-p "Revert marked changes in the working directory? ")
     (let* ((marked-hunks (prat-get-marked-hunks))
            (patch-file (prat-apply-hunks marked-hunks "apply" "-R")))
-      ;; This is a potentially destructive operation, so we leave the patch
-      ;; file intact and let the user know it exists.
-      (prat-refresh-unstaged-changes)
+      (revert-buffer)
       (message "Successfully applied %s" patch-file))))
 
 
