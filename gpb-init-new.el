@@ -239,4 +239,9 @@
         (forward-button 1))
       (switch-to-buffer menu-buffer-name))))
 
+(require 'gpb-ess)
+
+(setq ess-can-eval-in-background nil
+      poly-r-can-eval-in-background nil)
+
 (setq debug-on-quit nil)
