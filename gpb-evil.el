@@ -84,8 +84,9 @@
           ;; There was no trailing whitespace, so prepend any initial
           ;; whitespace.
           (save-excursion
-            (goto-char start)
+            (goto-char beg)
             (skip-chars-backward " \n\t")
+            (forward-line 1)
             (list (point) end))
         (list beg (point))))))
 
