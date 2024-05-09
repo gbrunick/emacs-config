@@ -27,10 +27,6 @@
 (blink-cursor-mode 1)
 (transient-mark-mode 1)
 
-;; This seems convenienct even with evil.  It still shows up in the
-;; minibuffer and lots of other places.
-(cua-mode 1)
-
 ;; Control-c bindings
 (global-set-key "\C-ci" 'gpb:create-imenu-index-buffer)
 (global-set-key "\C-cn" 'gpb-new-document)
@@ -168,6 +164,8 @@
   (define-key minibuffer-local-map "\C-p" 'previous-history-element)
   (define-key minibuffer-local-map "\C-n" 'next-history-element)
   (define-key minibuffer-local-map "\M-h" 'backward-kill-word)
+  (define-key minibuffer-local-map "\C-v" 'yank)
+  (define-key minibuffer-local-map "\C-z" 'undo)
   (define-key minibuffer-local-map [(control tab)] 'gpb-next-window)
   (define-key minibuffer-local-map [(control shift tab)] 'gpb-previous-window)
   (define-key minibuffer-local-filename-completion-map "\M-h"
