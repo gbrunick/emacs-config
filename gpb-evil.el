@@ -100,19 +100,6 @@
 ;; https://github.com/emacs-evil/evil/issues/874
 (add-hook 'edebug-mode-hook 'evil-normalize-keymaps)
 
-;; Don't cover the git buffer bindings.  There aren't that many.
-(eval-after-load 'gitmodes
-  '(progn
-     (evil-make-overriding-map git-command-output-mode-map)
-     (evil-make-overriding-map gpb-git:commit-graph-mode-map)
-     (evil-make-overriding-map gpb-git:edit-mode-map)
-     (evil-make-overriding-map gpb-git:hunk-selection-mode-map)
-     (evil-make-overriding-map gpb-git:hunk-view-mode-map)
-     (evil-make-overriding-map gpb-git:show-commit-files-mode-map)
-     (evil-make-overriding-map gpb-git:show-status-mode-map)
-     (evil-make-overriding-map gpb-git:staged-changes-mode-map)
-     (evil-make-overriding-map gpb-git:unstaged-changes-mode-map)))
-
 (setq evil-emacs-state-modes
       (delq 'completion-list-mode evil-emacs-state-modes))
 
@@ -131,5 +118,7 @@
 ;;     (abort-reththiscursive-edit))
 ;;    (t
 ;;     (evil-force-normal-state))))
+
+(require 'prat-evil)
 
 (provide 'gpb-evil)
