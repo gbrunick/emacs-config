@@ -103,6 +103,7 @@ are identified by `imenu-create-index-function'."
       (define-key keymap "\C-o" (lambda () (interactive)
                                   (gpb:jump-to-index-item :other-no-switch)))
       (use-local-map keymap)
+      (evil-mode 1)
       (setq buffer-read-only t))
 
     (with-current-buffer buf
