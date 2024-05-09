@@ -174,6 +174,10 @@
 (define-key lisp-mode-shared-map "\t" 'completion-at-point)
 (define-key lisp-interaction-mode-map [(control return)] 'eval-print-last-sexp)
 
+(setq frame-title-format '(:eval (or (buffer-file-name) "emacs"))
+      ;; Show the point in the mode line
+      mode-line-position '(20 (:eval (format "(%%l,%%3c) %5d" (point)))))
+
 ;; Completion in M-x execute-extended-command.
 (define-key read-expression-map "\t" 'completion-at-point)
 
