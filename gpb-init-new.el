@@ -182,4 +182,57 @@
 (require 'gpb-util2)
 ;; (require 'gpb-ess)
 
+(defun gpb-new-document ()
+  (interactive)
+  (let ((keymap (make-sparse-keymap))
+        (indent "    ")
+        (dir default-directory)
+        (menu-buffer-name "*new document*"))
+    (cl-flet ((make-button
+               (lambda (desc name mode)
+                 (insert-button
+                  desc 'action `(lambda (button)
+                                 (let ((new-buf (generate-new-buffer ,name)))
+                                   (with-current-buffer new-buf
+                                     (,mode)
+                                     (setq-local default-directory ,dir))
+                                   (switch-to-buffer new-buf)
+                                   (kill-buffer ,menu-buffer-name)))))))
+
+      (define-key keymap "\t" 'forward-button)
+      (define-key keymap [(backtab)] 'backward-button)
+      (define-key keymap "q" 'gpb-kill-buffer)
+
+      (with-current-buffer (get-buffer-create menu-buffer-name)
+        (erase-buffer)
+        (insert "Create new buffer:\n\n")
+
+        (insert indent)
+        (make-button "Text buffer" "*new text buffer*" 'text-mode)
+        (insert "    create a new buffer in text-mode\n\n")
+
+
+        (when (boundp 'ess-version)
+          (insert indent)
+          (make-button "R buffer" "*new R buffer*" 'R-mode)
+          (insert "       create a new buffer in R-mode\n\n"))
+
+        (insert indent)
+        (make-button "Python buffer" "*new Python buffer*" 'python-mode)
+        (insert "  create a new buffer in python-mode\n\n")
+
+        (insert indent)
+        (make-button "LaTeX buffer" "*new lateX buffer*" 'LaTeX-mode)
+        (insert "   create a new buffer in LaTeX-mode\n\n")
+
+        (insert indent)
+        (make-button "Emacs Lisp buffer" "*new emacs lisp buffer*"
+                     'emacs-lisp-mode)
+        (insert "   create a new buffer in emacs-lisp-mode\n\n")
+
+        (use-local-map keymap)
+        (beginning-of-buffer)
+        (forward-button 1))
+      (switch-to-buffer menu-buffer-name))))
+
 (setq debug-on-quit nil)
