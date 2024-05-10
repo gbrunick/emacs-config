@@ -28,6 +28,9 @@
 (evil-goggles-mode 1)
 ;; (better-jumper-mode 1)
 
+(setq evil-visual-state-cursor 'hollow
+      evil-emacs-state-cursor 'hollow)
+
 ;; Normal state
 (evil-define-key 'normal 'fundamental-mode "\C-m" 'newline)
 (evil-define-key 'normal 'global "\C-J" 'gpb-forward-page-1)
@@ -43,7 +46,11 @@
 (evil-define-key 'insert 'global "\M-v" 'yank-pop)
 (evil-define-key 'insert 'completion-in-region-mode "\C-g" 'keyboard-quit)
 
-(evil-define-key 'emacs 'global "\C-g" 'evil-exit-emacs-state)
+;; Allow [y|d|c]io to be abbreviated as [y|d|c]o.
+;; https://github.com/noctuid/general.el?tab=readme-ov-file#mapping-under-non-prefix-keys
+(evil-define-key 'operator 'global "o" 'evil-inner-symbol)
+(evil-define-key 'visual 'global "o" 'evil-inner-symbol)
+
 
 ;; If you `isearch' when there is a visual selection, use that selection.
 (evil-define-key 'visual 'global "\C-f"
@@ -119,6 +126,6 @@
 ;;    (t
 ;;     (evil-force-normal-state))))
 
-(require 'prat-evil)
+(with-eval-after-load 'prat (require 'prat-evil))
 
 (provide 'gpb-evil)
