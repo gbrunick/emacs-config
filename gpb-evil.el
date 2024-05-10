@@ -87,13 +87,14 @@
     (save-excursion
       (goto-char end)
       (skip-chars-forward " \n\t")
-      (if (= (point) end)
+      (if (eobp)
           ;; There was no trailing whitespace, so prepend any initial
           ;; whitespace.
           (save-excursion
             (goto-char beg)
-            (skip-chars-backward " \n\t")
-            (forward-line 1)
+            (unless (bobp)
+              (skip-chars-backward " \n\t")
+              (forward-line 1))
             (list (point) end))
         (list beg (point))))))
 
