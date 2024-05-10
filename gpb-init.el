@@ -19,6 +19,10 @@
 (use-package wgrep
   :config (setq wgrep-auto-save-buffer t)) 
 
+(use-package dired
+  :hook (dired-mode . dired-omit-mode)
+  :bind ("M-o" . dired-omit-mode))
+
 (show-paren-mode 1)
 (tool-bar-mode -1)
 (menu-bar-mode 1)
