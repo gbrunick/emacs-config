@@ -70,20 +70,21 @@
 
 (defun prat-refresh-commit-graph-1 (buf start end complete)
   (prat-log-call)
-  (let ((inhibit-read-only t))
-    (save-excursion
-      (goto-char output-marker)
+  (when complete
+    (let ((inhibit-read-only t))
       (save-excursion
-        (insert (with-current-buffer buf
-                  (buffer-substring-no-properties start end)))
-        (ansi-color-apply-on-region output-marker (point))
-        (move-marker output-marker (point)))
-      (while (re-search-forward "^[* \\|/-]+\\.? +\\([a-f0-9]+\\) " nil t)
-        (add-text-properties (progn (forward-line 0) (point))
-                             (progn (forward-line 1) (point))
-                             `(:commit-hash ,(match-string 1)))))
-    (setq-local refresh-cmd `(prat-refresh-commit-graph))
-    (when (and complete callback-func) (funcall callback-func))))
+        (goto-char output-marker)
+        (save-excursion
+          (insert (with-current-buffer buf
+                    (buffer-substring-no-properties start end)))
+          (ansi-color-apply-on-region output-marker (point))
+          (move-marker output-marker (point)))
+        (while (re-search-forward "^[* \\|/-]+\\.? +\\([a-f0-9]+\\) " nil t)
+          (add-text-properties (progn (forward-line 0) (point))
+                               (progn (forward-line 1) (point))
+                               `(:commit-hash ,(match-string 1)))))
+      (setq-local refresh-cmd `(prat-refresh-commit-graph))
+      (when (and complete callback-func) (funcall callback-func)))))
 
 
 (defun prat-mark-line ()
