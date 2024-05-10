@@ -2,25 +2,19 @@
 ;; could use :init for this below, but it doesn't seem to work.
 (setq evil-want-keybinding nil
       evil-want-integration t
-      evil-move-beyond-eol nil
+      EVIL-move-beyond-eol nil
       evil-want-C-i-jump nil
-      evil-want-C-d-scroll nil
+      evil-want-C-u-scroll t
+      evil-want-C-d-scroll t 
       evil-want-Y-yank-to-eol t
       ;; evil-want-minibuffer t
       evil-respect-visual-line-mode t
       evil-move-cursor-back nil
       evil-cross-lines t)
 
-(use-package evil
-  :ensure t)
-
-(use-package evil-collection
-  :ensure t
-  :after evil)
-
-(use-package evil-goggles
-  :ensure t
-  :after evil)
+(require 'evil)
+(require 'evil-collection)
+(require 'evil-goggles)
 
 ;; (require 'better-jumper)
 
@@ -33,12 +27,16 @@
 
 ;; Normal state
 (evil-define-key 'normal 'fundamental-mode "\C-m" 'newline)
-(evil-define-key 'normal 'global "\C-J" 'gpb-forward-page-1)
-(evil-define-key 'normal 'global "\C-K" 'gpb-backward-page-1)
+(evil-define-key 'normal 'global "\C-z" 'evil-undo)
+(evil-define-key 'normal 'global "\M-u" 'universal-argument)
+;; "better" scrolling
+(evil-define-key 'normal 'global "\C-d" 'gpb-forward-page-1)
+(evil-define-key 'normal 'global "\C-u" 'gpb-backward-page-1)
+
 ;; (evil-define-key 'normal 'global " " 'self-insert-command)
-(evil-define-key 'normal 'global " " (lambda ()
-                                       (interactive)
-                                       (insert-char ?\ )))
+;; (evil-define-key 'normal 'global " " (lambda ()
+;;                                        (interactive)
+;;                                        (insert-char ?\ )))
 
 ;; Insert state
 (evil-define-key 'insert 'global "\C-h" 'backward-delete-char-untabify)
@@ -51,6 +49,8 @@
 (evil-define-key 'operator 'global "o" 'evil-inner-symbol)
 (evil-define-key 'visual 'global "o" 'evil-inner-symbol)
 
+;; Press \ twice to stay in emacs state.  Then C-Z to leave.
+(evil-define-key 'emacs 'global "\\" 'evil-emacs-state)
 
 ;; If you `isearch' when there is a visual selection, use that selection.
 (evil-define-key 'visual 'global "\C-f"
@@ -68,7 +68,7 @@
 
 ;; Free up some CUA bindings
 (defvar gpb-evil-key-blacklist
-  '("C-f" "C-b" "C-u" "C-d" "C-w" "C-e" "RET" "!" "C-i" "<tab>")
+  '("C-f" "C-b" "C-w" "C-e" "RET" "!" "C-i" "<tab>")
   "Don't let `evil' conflict with these bindings.")
 
 (setq evil-collection-key-blacklist gpb-evil-key-blacklist)
