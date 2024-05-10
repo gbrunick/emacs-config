@@ -4,6 +4,86 @@
 
 (require 'cl-lib)
 (require 'subr-x)
+(require 'evil)
+(require 'ess-r-mode)
+
+(evil-define-operator gpb-r-eval-object (beg end)
+  "Evalute text object in R process"
+  (gpb-r-eval-region beg end))
+
+(evil-define-key 'normal gpb-r-code-mode "!" 'gpb-r-eval-region)
+(evil-define-key 'visual gpb-r-code-mode "!" 'gpb-r-eval-region)
+
+;; Use ESS for R source code files but attempt to stop it from installing
+;; all its seemingly buggy hooks.
+(setq ess-r-mode-hook nil
+      ess-use-auto-complete nil
+      ess-use-tracebug nil 
+      ess-can-eval-in-background nil
+      poly-r-can-eval-in-background nil
+      ;; Clear out the keymap
+      ess-r-mode-map (make-sparse-keymap))
+
+(add-hook 'ess-r-mode-hook 'gpb:ess-r-mode-hook)
+(remove-hook 'shell-mode-hook 'ess-r-package-activate-directory-tracker)
+
+(defun gpb:ess-r-mode-hook ()
+  (gpb-r-code-mode 1)
+
+  ;; Get rid of the annoying "smart underscore" behaviour.
+  (local-set-key "_" 'self-insert-command)
+
+  ;; Clear out some annoying ESS bindings.
+  (local-set-key "\C-c\C-p" nil)
+  (local-set-key "\C-c\C-n" nil)
+  (local-set-key "\C-c\C-b" nil)
+
+  (local-set-key "\C-cb" 'gpb:ess-insert-browser)
+  (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
+  (local-set-key "\C-co" 'gpb:ess-view-data-frame)
+  (local-set-key "\C-ct" 'gpb:ess-test-package)
+  (local-set-key "\C-c\C-s" 'gpb:ess-choose-interpreter)
+  ;; Override the help function
+  (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
+
+  (setq-local ess-indent-with-fancy-comments nil)
+
+  ;; (nconc ess-imenu-S-generic-expression
+  ;;        '(("Chunks" "^```{r \\(.*\\)}" 1)))
+
+  ;;(gpb:ess-sniff-out-two-space-indentation)
+  (setq ess-indent-offset 2)
+  (setcdr (assoc 'ess-indent-offset (assoc 'RRR ess-style-alist)) 2)
+
+  ;; Allow movement within camel-case identifiers.
+  (subword-mode 1)
+
+  ;; Use etags rather than ESS's custom xref implementation.
+  (xref-etags-mode 1)
+
+  ;; Enable tab completion of R object names.
+  ;; (setq ess-tab-complete-in-script t)
+
+  ;; (let ((package-item (or (assoc "Package" ess-imenu-S-generic-expression)
+  ;;                         (assoc "Packages" ess-imenu-S-generic-expression))))
+  ;;   (setcar package-item "Packages")
+  ;;   (setcdr package-item '("^.*\\(library\\|require\\)(\\([^,)]*\\)" 2)))
+
+  (setq-local indent-line-function #'gpb:ess-indent-line)
+
+  ;; (when (require 'yasnippet nil t)
+  ;;   (yas-minor-mode 1))
+
+  ;; (when (require 'gpb-text-objects nil t)
+  ;;   (setq-local execute-text-object-function 'gpb-r-eval-text-object)
+  ;;   (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
+  ;;   (gpb-tobj--define-key 'root "T" 'ess-test-func :local t :backwards t)
+  ;;   (gpb-tobj--define-key 'root "c" 'ess-rmarkdown-chunk :local t)
+  ;;   (gpb-tobj--define-key 'root "C" 'ess-rmarkdown-chunk :local t :backwards t))
+  )
+
+
+
 
 (defgroup gpb-r-mode nil
   "Settings related to the Emacs 'gpb-r-mode' package/feature.")
@@ -12,12 +92,6 @@
   (format "%s:0" (format-network-address
                   (car (network-interface-info "eth0")) t))
   "The DISPLAY environment variable to use on a server."
-  :type 'string
-  :group 'gpb-r-mode)
-
-(defcustom gpb-r-process-header-regex
-  "^R [vV]ersion [1-9][.][1-9]+[.][1-9]+"
-  "The regex used to recognize the start of an R process in a shell buffer."
   :type 'string
   :group 'gpb-r-mode)
 
@@ -112,7 +186,7 @@ At the moment, there can only be one active process")
   ;; History setup
   ;;
   ;; Use an absolute path for `comint-input-ring-file-name' so it is not
-  ;; impacted by changes to the R working.
+  ;; impacted by changes to the R working directory.
   (setq-local comint-input-ring-file-name (expand-file-name ".Rhistory"))
   (setq-local comint-input-ring-separator "\n")
   (setq-local comint-input-filter #'gpb-r--comint-input-filter)
@@ -138,7 +212,7 @@ At the moment, there can only be one active process")
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
 
-  ;; Append `gpb-r--busy-state-input-filter' so it runs after and escape
+  ;; Append `gpb-r--busy-state-input-filter' so it runs after any escape
   ;; sequences have been processed.
   (add-hook 'comint-input-filter-functions
             #'gpb-r--busy-state-input-filter t t)
@@ -150,7 +224,6 @@ At the moment, there can only be one active process")
   (add-hook 'comint-output-filter-functions
             #'gpb-r--busy-state-output-filter nil t)
 
-
   ;; We add the callback filter last as it may insert text in the buffer
   ;; that we want the other filter functions to pick up (e.g. file link
   ;; text).
@@ -160,7 +233,7 @@ At the moment, there can only be one active process")
   ;; eldoc support
   (setq-local eldoc-documentation-function
               #'gpb-r--eldoc-documentation-function)
-  (eldoc-mode 1))
+  (eldoc-mode 0))
 
 
 (defvar gpb-r-code-minor-mode-map
@@ -174,7 +247,7 @@ At the moment, there can only be one active process")
   :lighter "gpb-r"
   (setq-local eldoc-documentation-function
               #'gpb-r--eldoc-documentation-function)
-  (eldoc-mode 1))
+  (eldoc-mode 0))
 
 (defun gpb-r-set-active-process ()
   (interactive)
@@ -209,7 +282,7 @@ At the moment, there can only be one active process")
       (read response))))
 
 (defun gpb-r-send-command (cmd &optional buf)
-  "Send CMD to R process in BUF and the return the output as a string.
+  "Send CMD to R process in BUF the return the output as a string.
 
 If BUF is omitted, we use the current buffer.  We move the
 process into new buffer, send `cmd' to the R process, wait for
@@ -748,8 +821,8 @@ Looks for the TAGS_DIR file and then calls underyling R code."
 
     (gpb-r-send-input cmd t)))
 
-(defun gpb-r-eval-text-object (obj start end)
-  (gpb-r-eval-region start end))
+;; (defun gpb-r-eval-text-object (obj start end)
+;;   (gpb-r-eval-region start end))
 
 
 (defvar-local gpb-r--region-file nil
@@ -980,3 +1053,14 @@ ignoring the directory."
       (setq gpb-r--find-buffer--last-buf buf)
 
       buf))))
+
+
+(defun gpb-r-show-help (object-name &optional buf)
+  "Show help on OBJECT-NAME."
+  (interactive (list (read-string "R Object: " (gpb-ess:symbol-at-point))))
+
+  (let* ((buf (gpb-r-get-proc-buffer buf))
+         (cmd (format "print(help(\"%s\", try.all.packages = FALSE))"
+                      object-name)))
+    (gpb-r-send-command cmd buf)))
+
