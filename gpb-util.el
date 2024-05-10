@@ -266,4 +266,4 @@ argument is given."
              (buffer-live-p gpb:index-buffer))
     (kill-buffer gpb:index-buffer)))
 
-(provide 'gpb-util2)
+(provide 'gpb-util)

@@ -183,7 +183,7 @@
 
 ;; Evil config
 (require 'gpb-evil)
-(require 'gpb-util2)
+(require 'gpb-util)
 ;; (require 'gpb-ess)
 
 (defun gpb-new-document ()
