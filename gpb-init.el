@@ -185,10 +185,6 @@
 ;; Completion in M-x execute-extended-command.
 (define-key read-expression-map "\t" 'completion-at-point)
 
-;; Evil config
-(require 'gpb-evil)
-(require 'gpb-util)
-
 (defun gpb-new-document ()
   (interactive)
   (let ((keymap (make-sparse-keymap))
@@ -241,5 +237,10 @@
         (beginning-of-buffer)
         (forward-button 1))
       (switch-to-buffer menu-buffer-name))))
+
+;; Evil config
+(require 'gpb-evil)
+(require 'gpb-util)
+(require 'gpb-r-mode)
 
 (setq debug-on-quit nil)

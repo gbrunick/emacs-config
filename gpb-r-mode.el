@@ -11,8 +11,8 @@
   "Evalute text object in R process"
   (gpb-r-eval-region beg end))
 
-(evil-define-key 'normal gpb-r-code-mode "!" 'gpb-r-eval-region)
-(evil-define-key 'visual gpb-r-code-mode "!" 'gpb-r-eval-region)
+(evil-define-key 'normal 'gpb-r-code-mode "!" 'gpb-r-eval-object)
+(evil-define-key 'visual 'gpb-r-code-mode "!" 'gpb-r-eval-object)
 
 ;; Use ESS for R source code files but attempt to stop it from installing
 ;; all its seemingly buggy hooks.
@@ -239,6 +239,7 @@ At the moment, there can only be one active process")
 (defvar gpb-r-code-minor-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-c" 'gpb-r-save-and-exec-command)
+    (define-key map "\C-\M-x" "!id")
     map))
 
 (define-minor-mode gpb-r-code-mode
