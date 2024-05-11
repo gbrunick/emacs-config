@@ -2,7 +2,7 @@
 ;; could use :init for this below, but it doesn't seem to work.
 (setq evil-want-keybinding nil
       evil-want-integration t
-      EVIL-move-beyond-eol nil
+      evil-move-beyond-eol nil
       evil-want-C-i-jump nil
       evil-want-C-u-scroll t
       evil-want-C-d-scroll t 
@@ -15,11 +15,14 @@
 (require 'evil)
 (require 'evil-collection)
 (require 'evil-goggles)
+(require 'evil-visualstar)
 
 ;; (require 'better-jumper)
 
 (evil-mode 1)
 (evil-goggles-mode 1)
+(global-evil-visualstar-mode t)
+
 ;; (better-jumper-mode 1)
 
 (setq evil-visual-state-cursor 'hollow
@@ -29,14 +32,6 @@
 (evil-define-key 'normal 'fundamental-mode "\C-m" 'newline)
 (evil-define-key 'normal 'global "\C-z" 'evil-undo)
 (evil-define-key 'normal 'global "\M-u" 'universal-argument)
-;; "better" scrolling
-(evil-define-key 'normal 'global "\C-d" 'gpb-forward-page-1)
-(evil-define-key 'normal 'global "\C-u" 'gpb-backward-page-1)
-
-;; (evil-define-key 'normal 'global " " 'self-insert-command)
-;; (evil-define-key 'normal 'global " " (lambda ()
-;;                                        (interactive)
-;;                                        (insert-char ?\ )))
 
 ;; Insert state
 (evil-define-key 'insert 'global "\C-h" 'backward-delete-char-untabify)
@@ -51,24 +46,14 @@
 
 ;; Press \ twice to stay in emacs state.  Then C-Z to leave.
 (evil-define-key 'emacs 'global "\\" 'evil-emacs-state)
-
-;; If you `isearch' when there is a visual selection, use that selection.
-(evil-define-key 'visual 'global "\C-f"
-  (lambda () (interactive)
-    (let ((search-string (buffer-substring
-                          (evil-range-beginning (evil-visual-range))
-                          (evil-range-end (evil-visual-range)))))
-      (evil-force-normal-state)
-      (isearch-forward nil t)
-      (isearch-yank-string search-string)
-      (isearch-search-and-update))))
-
+(evil-define-key 'emacs 'global "\C-g" 'evil-normal-state)
+  
 ;; (evil-define-key 'motion 'global "\C-o" 'better-jumper-jump-backward)
 ;; (evil-define-key 'motion 'global "\M-o" 'better-jumper-jump-forward)
 
 ;; Free up some CUA bindings
 (defvar gpb-evil-key-blacklist
-  '("C-f" "C-b" "C-w" "C-e" "RET" "!" "C-i" "<tab>")
+  '("C-w" "C-e" "RET" "!" "C-i" "<tab>")
   "Don't let `evil' conflict with these bindings.")
 
 (setq evil-collection-key-blacklist gpb-evil-key-blacklist)

@@ -17,15 +17,17 @@
                                   'elpa-mirror))
 
 
-(defun gpb-update-local-elpa ()
-  "Store the current set of external packages."
-  (interactive)
+(defun gpb-update-local-elpa (&optional arg)
+  "Store the current set of external packages.
+
+With a prefix argument, we recreate the mirror directory."
+  (interactive "P")
   (unless (package-installed-p 'elpa-mirror)
     (let ((package-archives `(("gpb-local-elpa" . ,gpb-local-elpa))))
       (package-refresh-contents)
       (package-install "elpa-mirror")))
   (require 'elpa-mirror)
-  (elpamr-create-mirror-for-installed gpb-local-elpa t))
+  (elpamr-create-mirror-for-installed gpb-local-elpa arg))
 
 
 (defun gpb-manage-packages ()

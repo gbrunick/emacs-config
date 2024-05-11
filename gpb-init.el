@@ -30,6 +30,7 @@
 (column-number-mode 1)
 (blink-cursor-mode 1)
 (transient-mark-mode 1)
+(global-visual-line-mode 1)
 
 ;; Control-c bindings
 (global-set-key "\C-ci" 'gpb:create-imenu-index-buffer)

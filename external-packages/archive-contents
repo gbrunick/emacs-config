@@ -5,6 +5,7 @@
  (evil . [(1 15 0) nil "extensible vi layer" tar])
  (evil-collection . [(20240417 1647) ((emacs (26 3)) (evil (1 2 13)) (annalist (1 0))) "A set of keybindings for Evil mode" tar])
  (evil-goggles . [(20231021 738) ((emacs (24 4)) (evil (1 0 0))) "Add a visual hint to evil operations" tar])
+ (evil-visualstar . [(20160223 48) ((evil (0))) "Starts a * or # search from the visual selection" tar])
  (markdown-mode . [(20240501 1057) ((emacs (27 1))) "Major mode for Markdown-formatted text" tar])
  (poly-R . [(20230416 1454) ((emacs (25)) (polymode (0 2 2)) (poly-markdown (0 2 2)) (poly-noweb (0 2 2))) "Various polymodes for R language" tar])
  (poly-markdown . [(20230202 1210) ((emacs (25)) (polymode (0 2 2)) (markdown-mode (2 3))) "Polymode for markdown-mode" tar])
