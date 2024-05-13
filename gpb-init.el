@@ -23,6 +23,9 @@
   :hook (dired-mode . dired-omit-mode)
   :bind ("M-o" . dired-omit-mode))
 
+(use-package gpb-index
+  :bind (("\C-ci" . 'gpb-show-index-buffer)))
+
 (show-paren-mode 1)
 (tool-bar-mode -1)
 (menu-bar-mode 1)
@@ -33,7 +36,6 @@
 (global-visual-line-mode 1)
 
 ;; Control-c bindings
-(global-set-key "\C-ci" 'gpb:create-imenu-index-buffer)
 (global-set-key "\C-cn" 'gpb-new-document)
 (global-set-key "\C-c$" 'ispell)
 (global-set-key "\C-cg" 'gpb-grep)
