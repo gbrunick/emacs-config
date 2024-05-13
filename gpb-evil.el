@@ -28,16 +28,23 @@
 (setq evil-visual-state-cursor 'hollow
       evil-emacs-state-cursor 'hollow)
 
+(evil-select-search-module 'evil-select-search-mode 'evil-search)
+
 ;; Normal state
-(evil-define-key 'normal 'fundamental-mode "\C-m" 'newline)
+;; (evil-define-key 'normal 'fundamental-mode "\C-m" 'newline)
 (evil-define-key 'normal 'global "\C-z" 'evil-undo)
 (evil-define-key 'normal 'global "\M-u" 'universal-argument)
+(evil-define-key 'normal 'global "\C-g" 'gpb-evil-keyboard-quit)
 
 ;; Insert state
 (evil-define-key 'insert 'global "\C-h" 'backward-delete-char-untabify)
 (evil-define-key 'insert 'global "\C-v" 'yank)
 (evil-define-key 'insert 'global "\M-v" 'yank-pop)
 (evil-define-key 'insert 'completion-in-region-mode "\C-g" 'keyboard-quit)
+
+;; Undo region when in visual state.  We don't want `evil-undo' here
+;; because it disables the selection.
+(evil-define-key 'visual 'global "\C-z" 'undo)
 
 ;; Allow [y|d|c]io to be abbreviated as [y|d|c]o.
 ;; https://github.com/noctuid/general.el?tab=readme-ov-file#mapping-under-non-prefix-keys
@@ -51,9 +58,10 @@
 ;; (evil-define-key 'motion 'global "\C-o" 'better-jumper-jump-backward)
 ;; (evil-define-key 'motion 'global "\M-o" 'better-jumper-jump-forward)
 
-;; Free up some CUA bindings
+;; Free up some bindings
 (defvar gpb-evil-key-blacklist
-  '("C-w" "C-e" "RET" "!" "C-i" "<tab>")
+  ;; '("C-w" "C-e" "RET" "!" "C-i" "<tab>")
+  '("C-w" "C-i" "<tab>")
   "Don't let `evil' conflict with these bindings.")
 
 (setq evil-collection-key-blacklist gpb-evil-key-blacklist)
@@ -96,21 +104,10 @@
 (setq evil-emacs-state-modes
       (delq 'completion-list-mode evil-emacs-state-modes))
 
-;; Evil binds "\C-g" in `evil-command-line-map' to `abort-minibuffers', but
-;; this function is not defined?
-;; (define-key evil-command-line-map "\C-g" 'abort-recursive-edit)
-;; (define-key evil-command-line-map "\C-h" 'evil-ex-delete-backward-char)
-;; (define-key evil-command-line-map "\M-h" 'backward-kill-word)
-
-;; (evil-define-key 'insert 'global "\C-g" 'gpb-evil-insert-ctrl-g)
-;;
-;; (defun gpb-evil-insert-ctrl-g ()
-;;   (interactive)
-;;   (cond
-;;    ((> (minibuffer-depth) 0)
-;;     (abort-reththiscursive-edit))
-;;    (t
-;;     (evil-force-normal-state))))
+(defun gpb-evil-keyboard-quit ()
+  (interactive)
+  (evil-ex-nohighlight)
+  (keyboard-quit))
 
 (with-eval-after-load 'prat (require 'prat-evil))
 
