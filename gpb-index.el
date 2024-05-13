@@ -5,6 +5,7 @@
     (define-key keymap "\C-m" 'gpb-index-jump-to-marker)
     (define-key keymap "o" 'gpb-index-jump-to-marker-other-window)
     (define-key keymap "q" 'quit-window)
+    (define-key keymap "\C-G" 'quit-window)
     (set-keymap-parent keymap button-map)
     keymap))
 
