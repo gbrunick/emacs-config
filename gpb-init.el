@@ -41,9 +41,9 @@
 (global-set-key "\C-cg" 'gpb-grep)
         
 ;; Global, largely CUA-ish bindings
-(global-set-key "\C-b" 'switch-to-buffer)
-(global-set-key "\C-f" 'isearch-forward)
-(global-set-key "\C-w" 'gpb-kill-buffer)
+(global-set-key "\M-b" 'switch-to-buffer)
+;; (global-set-key "\C-f" 'isearch-forward)
+(global-set-key "\C-w" 'bury-buffer)
 (global-set-key "\C-s" 'save-buffer)
 ;; (global-set-key "\C-v" 'yank)
 ;; (global-set-key "\M-v" 'yank-pop)
@@ -87,7 +87,8 @@
 
 (setq-default indent-tabs-mode nil
               fill-column      75
-              c-basic-offset   4)
+              c-basic-offset   4
+              truncate-lines t)
 
 ;; (add-hook 'text-mode-hook 'turn-on-auto-fill)
 
@@ -105,17 +106,10 @@
               ediff-auto-refine 'on
               ediff-ignore-similar-regions t)
 
-;; ;;  Uniquify buffer names
-;; (when (require 'uniquify nil t)
-;;   (setq uniquify-buffer-name-style 'post-forward)
-;;   (setq uniquify-separator "/")
-;;   (setq uniquify-after-kill-buffer-p t) ; rename after killing uniquified
-;;   (setq uniquify-ignore-buffers-re "^\\*")) ; rename after killing uniquified
-
-;; Don't wrap in search buffers
-(defun gpb-grep/occur-hook () (setq truncate-lines t))
-(add-hook 'grep-mode-hook 'gpb-grep/occur-hook)
-(add-hook 'occur-mode-hook 'gpb-grep/occur-hook)
+(defun gpb-set-truncate-lines() (setq truncate-lines t))
+(add-hook 'grep-mode-hook 'gpb-set-truncate-lines)
+(add-hook 'occur-mode-hook 'gpb-set-truncate-lines)
+(add-hook 'Buffer-menu-mode-hook 'gpb-set-truncate-lines)
 
 ;; Never kill scratch or messages
 (defun gpb-kill-buffer-query-function ()
