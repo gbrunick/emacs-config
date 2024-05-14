@@ -61,7 +61,7 @@
 ;; Free up some bindings
 (defvar gpb-evil-key-blacklist
   ;; '("C-w" "C-e" "RET" "!" "C-i" "<tab>")
-  '("C-w" "C-i" "<tab>")
+  '("C-w" "RET" "C-i" "<tab>")
   "Don't let `evil' conflict with these bindings.")
 
 (setq evil-collection-key-blacklist gpb-evil-key-blacklist)
