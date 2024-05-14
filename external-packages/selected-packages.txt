@@ -1,0 +1,1 @@
+(evil evil-collection evil-goggles evil-visualstar ess poly-R wgrep elpa-mirror)
