@@ -33,7 +33,6 @@
 (column-number-mode 1)
 (blink-cursor-mode 1)
 (transient-mark-mode 1)
-(global-visual-line-mode 1)
 
 ;; Control-c bindings
 (global-set-key "\C-cn" 'gpb-new-document)
@@ -88,9 +87,7 @@
 (setq-default indent-tabs-mode nil
               fill-column      75
               c-basic-offset   4
-              truncate-lines t)
-
-;; (add-hook 'text-mode-hook 'turn-on-auto-fill)
+              truncate-lines   t)
 
 ;; Lots of syntax highlighting
 (global-font-lock-mode 1)
@@ -106,11 +103,6 @@
               ediff-auto-refine 'on
               ediff-ignore-similar-regions t)
 
-(defun gpb-set-truncate-lines() (setq truncate-lines t))
-(add-hook 'grep-mode-hook 'gpb-set-truncate-lines)
-(add-hook 'occur-mode-hook 'gpb-set-truncate-lines)
-(add-hook 'Buffer-menu-mode-hook 'gpb-set-truncate-lines)
-
 ;; Never kill scratch or messages
 (defun gpb-kill-buffer-query-function ()
   (let ((buffer (current-buffer)))
@@ -124,8 +116,8 @@
 
 ;; Save every 5 minutes.
 (recentf-mode 1)
-(run-at-time nil (* 5 60) 'recentf-save-list)
-(setq recentf-max-saved-items 100)
+(run-at-time (* 5 60) (* 5 60) 'recentf-save-list)
+(setq recentf-max-saved-items 1000)
 
 ;; More convenience names for some interactive functions.
 (defalias 'ediff-with-saved 'gpb-ediff-with-saved)
