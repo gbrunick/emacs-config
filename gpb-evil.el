@@ -15,17 +15,9 @@
 (require 'evil)
 (require 'evil-collection)
 (require 'evil-goggles)
-;; (require 'better-jumper)
 
 (evil-mode 1)
 (evil-goggles-mode 1)
-
-;; (use-package evil-visualstar
-;;   :config
-;;   (global-evil-visualstar-mode t)
-;;   (setq evil-visualstar/persistent t))
-
-;; (better-jumper-mode 1)
 
 (setq evil-visual-state-cursor 'hollow
       evil-emacs-state-cursor 'hollow)
@@ -34,7 +26,6 @@
 (evil-set-undo-system 'undo-redo)
 
 ;; Normal state
-;; (evil-define-key 'normal 'fundamental-mode "\C-m" 'newline)
 (evil-define-key 'normal 'global "\C-z" 'evil-undo)
 (evil-define-key 'normal 'global "\M-u" 'universal-argument)
 (evil-define-key 'normal 'global "\C-g" 'gpb-evil-keyboard-quit)
@@ -45,9 +36,10 @@
 (evil-define-key 'insert 'global "\M-v" 'yank-pop)
 (evil-define-key 'insert 'completion-in-region-mode "\C-g" 'keyboard-quit)
 
-;; Undo region when in visual state.  We don't want `evil-undo' here
-;; because it disables the selection.
+;; Undo region when in visual state.  We have advised `undo' and `redo' to
+;; preserve the mark elsewhere.
 (evil-define-key 'visual 'global "\C-z" 'undo)
+(evil-define-key 'visual 'global "\C-R" 'redo)
 
 ;; Allow [y|d|c]io to be abbreviated as [y|d|c]o.
 ;; https://github.com/noctuid/general.el?tab=readme-ov-file#mapping-under-non-prefix-keys
@@ -58,13 +50,10 @@
 (evil-define-key 'emacs 'global "\\" 'evil-emacs-state)
 (evil-define-key 'emacs 'global "\C-g" 'evil-normal-state)
   
-;; (evil-define-key 'motion 'global "\C-o" 'better-jumper-jump-backward)
-;; (evil-define-key 'motion 'global "\M-o" 'better-jumper-jump-forward)
-
 ;; Free up some bindings
 (defvar gpb-evil-key-blacklist
   ;; '("C-w" "C-e" "RET" "!" "C-i" "<tab>")
-  '("C-w" "RET" "C-i" "<tab>")
+  '("C-w" "RET") ;; "C-i" "<tab>")
   "Don't let `evil' conflict with these bindings.")
 
 (setq evil-collection-key-blacklist gpb-evil-key-blacklist)
