@@ -14,6 +14,8 @@
 
 (require 'gpb-packages)
 (gpb-ensure-packages-installed)
+(setq package-archives '(("gnu"   . "https://elpa.gnu.org/packages/")
+                         ("melpa" . "https://melpa.org/packages/")))
 
 (use-package wgrep
   :config (setq wgrep-auto-save-buffer t)) 
