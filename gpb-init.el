@@ -8,8 +8,7 @@
   ;; Add current directory to load path without
   (add-to-list 'load-path (expand-file-name "."))
   ;; Add most subdirectories to `load-path'.  The directories
-  ;; machine-specific and backports are excluded because they contain
-  ;; empty .nosearch files (see
+  ;; that contain files named .nosearch are ignored. 
   ;; `normal-top-level-add-subdirs-to-load-path').
   (normal-top-level-add-subdirs-to-load-path))
 
