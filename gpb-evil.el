@@ -15,13 +15,15 @@
 (require 'evil)
 (require 'evil-collection)
 (require 'evil-goggles)
-(require 'evil-visualstar)
-
 ;; (require 'better-jumper)
 
 (evil-mode 1)
 (evil-goggles-mode 1)
-(global-evil-visualstar-mode t)
+
+;; (use-package evil-visualstar
+;;   :config
+;;   (global-evil-visualstar-mode t)
+;;   (setq evil-visualstar/persistent t))
 
 ;; (better-jumper-mode 1)
 
@@ -29,6 +31,7 @@
       evil-emacs-state-cursor 'hollow)
 
 (evil-select-search-module 'evil-select-search-mode 'evil-search)
+(evil-set-undo-system 'undo-redo)
 
 ;; Normal state
 ;; (evil-define-key 'normal 'fundamental-mode "\C-m" 'newline)
@@ -71,6 +74,8 @@
 
 (evil-collection-init)
 
+;; Define a `defun' text object.
+
 (evil-define-text-object evil-a-defun (count &optional beg end type)
   "Select a defun."
   ;; `evil-select-an-object; doesn't seem to work, so we use
@@ -97,17 +102,40 @@
 
 (define-key evil-outer-text-objects-map "d" 'evil-a-defun)
 (define-key evil-inner-text-objects-map "d" 'evil-inner-defun)
-
-;; https://github.com/emacs-evil/evil/issues/874
-(add-hook 'edebug-mode-hook 'evil-normalize-keymaps)
-
-(setq evil-emacs-state-modes
-      (delq 'completion-list-mode evil-emacs-state-modes))
+     
+(evil-set-initial-state 'completion-list-mode 'normal) 
 
 (defun gpb-evil-keyboard-quit ()
   (interactive)
   (evil-ex-nohighlight)
   (keyboard-quit))
+
+(defun gpb-window-selection-change-function (&optional frame)
+  "Return to the initial mode when you switch into a buffer."
+  (evil-change-to-initial-state))
+
+(add-hook 'window-selection-change-functions
+          'gpb-window-selection-change-function)
+
+;; Start a search immediately from visual mode.
+
+(defun gpb-search-visual-selection (&rest args)
+  (interactive)
+  (when (eq evil-state 'visual)
+    (let* ((txt (buffer-substring-no-properties
+                 evil-visual-beginning evil-visual-end))
+           (key (this-command-keys)) 
+           (start (cond
+                   ((string-equal key "#") "?")
+                   ((string-equal key "#") "/")
+                   (t key))) 
+           (cmd (concat start txt "\n")))
+      ;; (message "Command: %S" cmd)
+      (evil-normal-state)
+      (execute-kbd-macro cmd))))
+
+(evil-define-key 'visual 'global "?" 'gpb-search-visual-selection)
+(evil-define-key 'visual 'global "/" 'gpb-search-visual-selection)
 
 (with-eval-after-load 'prat (require 'prat-evil))
 
