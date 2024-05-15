@@ -160,6 +160,12 @@ argument is given."
    (t
     (call-interactively 'keyboard-quit))))
 
+(defun preserve-mark (symbol)
+  "Prevent the function attached to SYMBOL from deactivating the mark" 
+  (advice-add symbol :after 'set-deactivate-mark-nil)) 
+
+(defun set-deactivate-mark-nil (&rest r)
+  (setq deactivate-mark nil))
                 
   
 (defun gpb-new-document ()

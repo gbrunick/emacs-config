@@ -98,6 +98,11 @@
 (setq undo-limit 200000)
 (setq undo-strong-limit 300000)
 
+;; Preserve the region during a chain of undo's.
+(with-eval-after-load 'gpb-util
+  (preserve-mark 'undo)
+  (preserve-mark 'redo))
+
 (setq-default ediff-use-faces t
               ediff-highlighting-style 'face
               ediff-highlight-all-diffs t
