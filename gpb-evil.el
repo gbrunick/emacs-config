@@ -15,9 +15,11 @@
 (require 'evil)
 (require 'evil-collection)
 (require 'evil-goggles)
+(require 'evil-surround)
 
 (evil-mode 1)
 (evil-goggles-mode 1)
+(evil-surround-mode 1)
 
 (setq evil-visual-state-cursor 'hollow
       evil-emacs-state-cursor 'hollow)
