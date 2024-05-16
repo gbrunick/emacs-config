@@ -47,7 +47,7 @@ With a prefix argument, we recreate the mirror directory."
   (interactive "P")
   (elpamr-create-mirror-for-installed gpb-local-elpa arg)
   (with-temp-buffer
-    (insert (pp-to-string gpb-selected-packages))
+    (insert (pp-to-string (cl-sort package-selected-packages #'string<)))
     (write-file gpb-selected-packages-file)))
 
 
