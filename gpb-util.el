@@ -7,41 +7,46 @@
 (defvar gpb-grep-history nil
   "Used to record previously entered GREP regular expressions.")
 
-(defcustom gpb-grep-exclude-dirs nil
-  "A list of directories to exclude."
+(defcustom gpb-grep-exclude-dirs nil 
+  "A list of globs.  Matching directories are excluded by `gpb-grep'."
   :type '(repeat string))
 
-(defcustom gpb-grep-exclude-files nil
-  "List of regular expressions used to exclude files."
+(defcustom gpb-grep-exclude-files
+  '("TAGS" "*~" "#*#") 
+  "List of globs.  Maching filenames are exclude by `gpb-grep'."
   :type '(repeat string))
 
 (defun gpb-grep (dir regex)
   (interactive (list (read-directory-name "Directory: ")
-                     (read-from-minibuffer "Regex: "
-                                           nil nil nil
-                                           'gpb-grep-history)))
+                     (cond
+                      (mark-active
+                       (buffer-substring-no-properties
+                        (region-beginning) (region-end)))
+                      (t (read-from-minibuffer "Regex: " nil nil nil
+                                               'gpb-grep-history)))))
   (let* ((compilation-ask-about-save nil)
          (default-directory dir)
-         (exclude-dirs (mapconcat (lambda (x)
-                                    (format "--exclude-dir=\"%s\" " x))
-                                  gpb-grep-exclude-dirs
-                                  ""))
-         (exclude-files (mapconcat (lambda (x)
-                                     (format "--exclude=\"%s\" " x))
-                                   gpb-grep-exclude-files
-                                   ""))
+         (make-args (lambda (argname globs)
+                      (mapconcat (lambda (x)
+                                   (format "%s=\"%s\" " argname x))
+                                 globs
+                                 "")))  
+         (exclude-dirs (funcall make-args "--exclude-dir" gpb-grep-exclude-dirs))
+         (exclude-files (funcall make-args "--exclude" gpb-grep-exclude-files))
          (cmd (cl-case (window-system)
                 (w32
-                 (concat "grep -RinHI "
+                 (concat "grep -RinHI -E "
+                         (format "\"%s\" " regex)
+                         "--line-buffered "
                          exclude-dirs
                          exclude-files
-                         "--line-buffered -E "
-                         (format "\"%s\" ." regex)))
+                         "."))
                 (otherwise
-                 (concat "grep -RinH "
+                 (concat "grep -RinH -E "
+                         (format "\"%s\" " regex)
                          exclude-dirs
                          exclude-files
-                         (format "-E \"%s\" ." regex))))))
+                         ".")))))
     (grep cmd)))
 
 
