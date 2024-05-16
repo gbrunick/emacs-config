@@ -127,6 +127,13 @@
 (evil-define-key 'visual 'global "?" 'gpb-search-visual-selection)
 (evil-define-key 'visual 'global "/" 'gpb-search-visual-selection)
 
+;; Remap / to F in the package menu.
+(defun gpb-package-menu-mode-setup ()
+  (evil-define-key 'normal 'package-menu-mode-map "F"
+    (lookup-key package-menu-mode-map "/")))
+
+(add-hook 'package-menu-mode-hook #'gpb-package-menu-mode-setup)
+
 ;; Configure `prat' bindings.
 
 (with-eval-after-load 'prat (require 'prat-evil))
