@@ -138,39 +138,29 @@
 
 (with-eval-after-load 'prat (require 'prat-evil))
 
-(defvar gpb-maybe-repeat-evil-macro--count nil)
-(defvar gpb-maybe-repeat-evil-macro--keymap nil)
-(defvar gpb-maybe-repeat-evil-macro--register nil)
-(defvar gpb-maybe-repeat-evil-macro--macro nil)
-(defvar gpb-maybe-repeat-evil-macro--help nil)
+;; Allow repetition of evil macros by repeating just the register key (like
+;; C-x z in Emacs).
+(defun gpb-evil-macro-advice (f count macro)
+  "Advice for `evil-execute-macro'"
+  ;; The (interactive ...) clause in `evil-execute-macro' gets called
+  ;; before this advice.  It reads a character, but we pick that up with
+  ;; `this-command-keys'.
+  (let* ((this-keys (this-command-keys))
+         (last-char (substring this-keys (1- (length this-keys))))
 
-(defun gpb-maybe-repeat-evil-macro (count)
-  (interactive "p")
-  (setq gpb-maybe-repeat-evil-macro--count count
-        gpb-maybe-repeat-evil-macro--register (read-key)
-        gpb-maybe-repeat-evil-macro--keymap (make-sparse-keymap)
-        gpb-maybe-repeat-evil-macro--macro
-          (evil-get-register gpb-maybe-repeat-evil-macro--register t)
-        gpb-maybe-repeat-evil-macro--help
-        (format "%s repeats the macro" (char-to-string
-                                        gpb-maybe-repeat-evil-macro--register)))
-  (evil-execute-macro gpb-maybe-repeat-evil-macro--count
-                      gpb-maybe-repeat-evil-macro--macro)
-  (define-key gpb-maybe-repeat-evil-macro--keymap
-              (vector gpb-maybe-repeat-evil-macro--register)
-              #'gpb-maybe-repeat-evil-macro-1)
-  (message "Keymap: %S" gpb-maybe-repeat-evil-macro--keymap) 
-  ;; KEEP-PRED doesn't seem to work in this situation.
-  (set-transient-map gpb-maybe-repeat-evil-macro--keymap nil nil
-                     gpb-maybe-repeat-evil-macro--help))
+         (repeater `(lambda () (interactive)
+                      (evil-execute-macro ,count ,macro)))
+         (keymap (make-sparse-keymap))
+         (help (format "Use \"%s\" to repeat the macro..." last-char)))
+    ;; (message "this-keys: %S" this-keys)
+    ;; (message "last-char: %S" last-char)
+    ;; (message "repeater: %S" repeater)
+    ;; (message "help: %S" help)
+    (funcall f count macro)
+    (define-key keymap last-char repeater)
+    ;; The next call to `evil-execute-macro' triggers this advice again.
+    (set-transient-map keymap nil nil help)))
 
-(defun gpb-maybe-repeat-evil-macro-1 ()
-  (interactive)
-  (evil-execute-macro gpb-maybe-repeat-evil-macro--count
-                      gpb-maybe-repeat-evil-macro--macro)
-  (set-transient-map gpb-maybe-repeat-evil-macro--keymap nil nil
-                     gpb-maybe-repeat-evil-macro--help))
-
-(evil-define-key 'normal 'global "@" #'gpb-maybe-repeat-evil-macro)
+(advice-add 'evil-execute-macro :around 'gpb-evil-macro-advice) 
 
 (provide 'gpb-evil)
