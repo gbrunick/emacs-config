@@ -99,12 +99,16 @@
   (evil-ex-nohighlight)
   (keyboard-quit))
 
+
+;; Reset to the initial state when you enter a window.
+
 (defun gpb-window-selection-change-function (&optional frame)
   "Return to the initial mode when you switch into a buffer."
   (evil-change-to-initial-state))
 
 (add-hook 'window-selection-change-functions
           'gpb-window-selection-change-function)
+
 
 ;; Start a search immediately from visual mode.
 
@@ -113,18 +117,15 @@
   (when (eq evil-state 'visual)
     (let* ((txt (buffer-substring-no-properties
                  evil-visual-beginning evil-visual-end))
-           (key (this-command-keys)) 
-           (start (cond
-                   ((string-equal key "#") "?")
-                   ((string-equal key "#") "/")
-                   (t key))) 
-           (cmd (concat start txt "\n")))
+           (cmd (concat (this-command-keys) txt "\n")))
       ;; (message "Command: %S" cmd)
       (evil-normal-state)
       (execute-kbd-macro cmd))))
 
 (evil-define-key 'visual 'global "?" 'gpb-search-visual-selection)
 (evil-define-key 'visual 'global "/" 'gpb-search-visual-selection)
+
+;; Configure `prat' bindings.
 
 (with-eval-after-load 'prat (require 'prat-evil))
 
