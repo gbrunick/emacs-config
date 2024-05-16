@@ -138,4 +138,39 @@
 
 (with-eval-after-load 'prat (require 'prat-evil))
 
+(defvar gpb-maybe-repeat-evil-macro--count nil)
+(defvar gpb-maybe-repeat-evil-macro--keymap nil)
+(defvar gpb-maybe-repeat-evil-macro--register nil)
+(defvar gpb-maybe-repeat-evil-macro--macro nil)
+(defvar gpb-maybe-repeat-evil-macro--help nil)
+
+(defun gpb-maybe-repeat-evil-macro (count)
+  (interactive "p")
+  (setq gpb-maybe-repeat-evil-macro--count count
+        gpb-maybe-repeat-evil-macro--register (read-key)
+        gpb-maybe-repeat-evil-macro--keymap (make-sparse-keymap)
+        gpb-maybe-repeat-evil-macro--macro
+          (evil-get-register gpb-maybe-repeat-evil-macro--register t)
+        gpb-maybe-repeat-evil-macro--help
+        (format "%s repeats the macro" (char-to-string
+                                        gpb-maybe-repeat-evil-macro--register)))
+  (evil-execute-macro gpb-maybe-repeat-evil-macro--count
+                      gpb-maybe-repeat-evil-macro--macro)
+  (define-key gpb-maybe-repeat-evil-macro--keymap
+              (vector gpb-maybe-repeat-evil-macro--register)
+              #'gpb-maybe-repeat-evil-macro-1)
+  (message "Keymap: %S" gpb-maybe-repeat-evil-macro--keymap) 
+  ;; KEEP-PRED doesn't seem to work in this situation.
+  (set-transient-map gpb-maybe-repeat-evil-macro--keymap nil nil
+                     gpb-maybe-repeat-evil-macro--help))
+
+(defun gpb-maybe-repeat-evil-macro-1 ()
+  (interactive)
+  (evil-execute-macro gpb-maybe-repeat-evil-macro--count
+                      gpb-maybe-repeat-evil-macro--macro)
+  (set-transient-map gpb-maybe-repeat-evil-macro--keymap nil nil
+                     gpb-maybe-repeat-evil-macro--help))
+
+(evil-define-key 'normal 'global "@" #'gpb-maybe-repeat-evil-macro)
+
 (provide 'gpb-evil)
