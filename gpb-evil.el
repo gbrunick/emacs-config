@@ -43,12 +43,7 @@
 (evil-define-key 'visual 'global "\C-z" 'undo)
 (evil-define-key 'visual 'global "\C-R" 'redo)
 
-;; Allow [y|d|c]io to be abbreviated as [y|d|c]o.
-;; https://github.com/noctuid/general.el?tab=readme-ov-file#mapping-under-non-prefix-keys
-(evil-define-key 'operator 'global "o" 'evil-inner-symbol)
-(evil-define-key 'visual 'global "o" 'evil-inner-symbol)
-
-;; Press \ twice to stay in emacs state.  Then C-Z to leave.
+;; Press \ twice to stay in emacs state.  Then C-g to leave.
 (evil-define-key 'emacs 'global "\\" 'evil-emacs-state)
 (evil-define-key 'emacs 'global "\C-g" 'evil-normal-state)
   
@@ -162,5 +157,16 @@
     (set-transient-map keymap nil nil help)))
 
 (advice-add 'evil-execute-macro :around 'gpb-evil-macro-advice) 
+
+
+;; Associate a default text object with SPC
+
+(evil-define-key 'operator 'global " " #'evil-inner-symbol)
+(evil-define-key 'visual 'global " " #'evil-inner-symbol)
+
+(defun gpb-set-default-text-object (obj)
+  (evil-define-key 'operator 'local " " obj)
+  (evil-define-key 'visual 'local " " obj))
+ 
 
 (provide 'gpb-evil)
