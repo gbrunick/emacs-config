@@ -133,8 +133,10 @@
 
 (with-eval-after-load 'prat (require 'prat-evil))
 
-;; Allow repetition of evil macros by repeating just the register key (like
-;; C-x z in Emacs).
+
+;; Allow repetition of evil macros by repeating a register key (like
+;; C-x z z z ... in Emacs).
+
 (defun gpb-evil-macro-advice (f count macro)
   "Advice for `evil-execute-macro'"
   ;; The (interactive ...) clause in `evil-execute-macro' gets called
@@ -168,5 +170,34 @@
   (evil-define-key 'operator 'local " " obj)
   (evil-define-key 'visual 'local " " obj))
  
+
+;; Give programming modes an "!" operator.
+
+(defvar-local gpb-eval-code-function nil
+  "A function accepting (BEG END).
+This function will be called by the operator ! in programming modes.")
+
+(evil-define-operator gpb-eval-code-operator (count beg end)
+  "Evaluate code hunk in range BEG END"
+  :repeat nil 
+  :keep-visual nil 
+  ;; :line 'block
+  (interactive "<c><r>")
+  (message "count: %S" count)
+  (unless (or (null count) (= count 1))
+    (error "`count' must be 1"))
+  (unless (and (boundp 'gpb-eval-code-function)
+               gpb-eval-code-function)
+    (error "`gpb-eval-code-function' is not defined"))
+  (funcall gpb-eval-code-function beg end))
+
+(add-hook 'prog-mode-hook
+          (lambda ()
+            (evil-define-key 'normal 'local "!" #'gpb-eval-code-operator)
+            (evil-define-key 'visual 'local "!" #'gpb-eval-code-operator)))
+
+(add-hook 'emacs-lisp-mode-hook (lambda () (setq gpb-eval-code-function
+                                                 #'eval-region)))
+
 
 (provide 'gpb-evil)

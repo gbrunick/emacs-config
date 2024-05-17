@@ -7,13 +7,6 @@
 (require 'evil)
 (require 'ess-r-mode)
 
-(evil-define-operator gpb-r-eval-object (beg end)
-  "Evalute text object in R process"
-  (gpb-r-eval-region beg end))
-
-(evil-define-key 'normal 'gpb-r-code-mode "!" 'gpb-r-eval-object)
-(evil-define-key 'visual 'gpb-r-code-mode "!" 'gpb-r-eval-object)
-
 ;; Use ESS for R source code files but attempt to stop it from installing
 ;; all its seemingly buggy hooks.
 (setq ess-r-mode-hook nil
@@ -47,6 +40,7 @@
   (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
 
   (setq-local ess-indent-with-fancy-comments nil)
+  (setq-local gpb-eval-code-function #'gpb-r-eval-region)
 
   ;; (nconc ess-imenu-S-generic-expression
   ;;        '(("Chunks" "^```{r \\(.*\\)}" 1)))
