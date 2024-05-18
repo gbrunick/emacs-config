@@ -1,8 +1,3 @@
-(defun load-safe (filename)
-  "Issue warnings rather than failing when things fail to load."
-  (condition-case-unless-debug err
-      (load filename)
-    (error (message "Error loading %s: %S" filename err))))
 
 (defun gpb-next-window (arg)
   "Select next window using `other-window'
@@ -78,6 +73,7 @@ first row in the  window and then scroll backwards by pages."
   (message "gpb-backward-page: %S" arg)
   (gpb-forward-page (- arg)))
 
+
 (defun gpb-delete-path-segment-backwards ()
   (interactive)
   (delete-region (point)
@@ -88,6 +84,7 @@ first row in the  window and then scroll backwards by pages."
                          (forward-char)
                        (move-beginning-of-line nil))
                      (point)))))
+
 
 (defun gpb-keyboard-quit ()
   (interactive)
@@ -115,7 +112,11 @@ first row in the  window and then scroll backwards by pages."
 (defun gpb-set-deactivate-mark-nil (&rest r)
   (setq deactivate-mark nil))
                
-  
+
+;;
+;; Make some multi-character commands repeatable by their last keystroke.
+;;
+
 (defun gpb-repeatable-command-advice (f &rest args)
   "This is used to make a command repeatable with a single key.
 
@@ -143,7 +144,11 @@ advised command repeats the command."
     (advice-add command :around 'gpb-repeatable-command-advice)))
 
 
-;; Add some feedback in the message buffer
+
+;;
+;; Make some commands give feedback in the message buffer
+;;
+
 (defmacro gpb-add-feedback (command msg)
   "Echo MSG in the minibuffer when `command' is run interactively.
 
@@ -155,6 +160,7 @@ dynamically generated advice function."
     `(progn
        ;; Define an advice function with a dynamically generated name. 
        (defun ,advice-symbol (&rest args)
+         "Dynamically generated advice function.  See `gpb-add-feedback'."
          (when (called-interactively-p) (message "%s" ,msg)))
 
        ;; And then arrange for it to be called after `command'.
@@ -162,6 +168,16 @@ dynamically generated advice function."
 
        ;; Return the new advice function.
        #',advice-symbol)))
+
+
+;; To debug the macro gpb-add-feedback:
+;;
+;; (with-current-buffer (get-buffer-create "*macroexpand*")
+;;   (erase-buffer)
+;;   (fundamental-mode)
+;;   (insert (pp-to-string (macroexpand
+;;                          '(gpb-add-feedback revert-buffer
+;;                             (format "Reverted %s" (current-buffer)))))))
 
 
 (provide 'gpb-util)
