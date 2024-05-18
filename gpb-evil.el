@@ -2,15 +2,9 @@
 ;; could use :init for this below, but it doesn't seem to work.
 (setq evil-want-keybinding nil
       evil-want-integration t
-      evil-move-beyond-eol nil
-      evil-want-C-i-jump nil
-      evil-want-C-u-scroll t
-      evil-want-C-d-scroll t 
-      evil-want-Y-yank-to-eol t
-      ;; evil-want-minibuffer t
-      evil-respect-visual-line-mode t
-      evil-move-cursor-back nil
-      evil-cross-lines t)
+      evi-respect-visual-line-mode t
+      ;; Seems like `evil-want-Y-yank-to-eol' needs to be here. 
+      evil-want-Y-yank-to-eol t)
 
 (require 'evil)
 (require 'evil-collection)
@@ -21,16 +15,27 @@
 (evil-goggles-mode 1)
 (evil-surround-mode 1)
 
-(setq evil-visual-state-cursor 'hollow
-      evil-emacs-state-cursor 'hollow)
+(setq ;; evil-move-beyond-eol t 
+      evil-want-C-i-jump t 
+      ;; evil-want-C-u-scroll t
+      ;; evil-want-C-d-scroll t 
+      ;; evil-want-minibuffer t
+      ;; evil-move-cursor-back t
+      evil-cross-lines t
+      evil-visual-state-cursor 'hollow
+      evil-emacs-state-cursor 'bar)
 
 (evil-select-search-module 'evil-select-search-mode 'evil-search)
 (evil-set-undo-system 'undo-redo)
 
 ;; Normal state
 (evil-define-key 'normal 'global "\C-z" 'evil-undo)
-(evil-define-key 'normal 'global "\M-u" 'universal-argument)
 (evil-define-key 'normal 'global "\C-g" 'gpb-evil-keyboard-quit)
+
+;; I get paste on \C-v with VIM in the terminal.
+(evil-define-key 'normal 'global "\C-v" 'yank)
+(evil-define-key 'normal 'global [remap yank-pop] nil)
+(evil-define-key 'normal 'global "\M-v" 'yank-pop)
 
 ;; Insert state
 (evil-define-key 'insert 'global "\C-h" 'backward-delete-char-untabify)
@@ -42,22 +47,18 @@
 ;; preserve the mark elsewhere.
 (evil-define-key 'visual 'global "\C-z" 'undo)
 (evil-define-key 'visual 'global "\C-R" 'redo)
+(evil-define-key 'visual 'global "\C-v" 'yank)
+
+;; Motion state
+(evil-define-key 'motion 'global (kbd "C-w" ) nil)
+(evil-define-key 'motion 'global (kbd "RET" ) nil)
 
 ;; Press \ twice to stay in emacs state.  Then C-g to leave.
 (evil-define-key 'emacs 'global "\\" 'evil-emacs-state)
 (evil-define-key 'emacs 'global "\C-g" 'evil-normal-state)
   
 ;; Free up some bindings
-(defvar gpb-evil-key-blacklist
-  ;; '("C-w" "C-e" "RET" "!" "C-i" "<tab>")
-  '("C-w" "RET") ;; "C-i" "<tab>")
-  "Don't let `evil' conflict with these bindings.")
-
-(setq evil-collection-key-blacklist gpb-evil-key-blacklist)
-
-(dolist (keydef gpb-evil-key-blacklist)
-  (define-key evil-motion-state-map (kbd keydef) nil))
-
+(setq evil-collection-key-blacklist '("C-w" "RET"))
 (evil-collection-init)
 
 ;; Define a `defun' text object.
@@ -164,7 +165,7 @@
 ;; Associate a default text object with SPC
 
 (evil-define-key 'operator 'global " " #'evil-inner-symbol)
-(evil-define-key 'visual 'global " " #'evil-inner-symbol)
+(evil-define-key 'visual   'global " " #'evil-inner-symbol)
 
 (defun gpb-set-default-text-object (obj)
   (evil-define-key 'operator 'local " " obj)
@@ -191,13 +192,14 @@ This function will be called by the operator ! in programming modes.")
     (error "`gpb-eval-code-function' is not defined"))
   (funcall gpb-eval-code-function beg end))
 
-(add-hook 'prog-mode-hook
-          (lambda ()
-            (evil-define-key 'normal 'local "!" #'gpb-eval-code-operator)
-            (evil-define-key 'visual 'local "!" #'gpb-eval-code-operator)))
+(defun gpb-define-eval-code-operator (f &optional key)
+  (let ((key (or key "!")))
+    (setq-local gpb-eval-code-function f)
+    (evil-define-key 'normal 'local key #'gpb-eval-code-operator)
+    (evil-define-key 'visual 'local key #'gpb-eval-code-operator)))
 
-(add-hook 'emacs-lisp-mode-hook (lambda () (setq gpb-eval-code-function
-                                                 #'eval-region)))
+(add-hook 'emacs-lisp-mode-hook
+          (lambda () (gpb-define-eval-code-operator #'eval-region)))
 
 
 (provide 'gpb-evil)
