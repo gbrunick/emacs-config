@@ -86,22 +86,22 @@ argument is given."
     (kill-buffer)
     (message "Killed %s" buf-name)))
 
-;; (defun gpb-quit-all ()
-;;   (interactive)
-;;   (evil-curre
+(defun gpb-forward-page (&optional arg)
+  "Move cursor to the last row in the window.
 
-(defun gpb-forward-page-1 (&optional arg)
-  "Move to top of page, then scroll up by a single page"
+If the cursor is already on the last row, scroll forward a page.  ARG gives
+a repeatition count.  If ARG is negative, we first move the cursor to the
+first row in the  window and then scroll backwards by pages."
   (interactive "p")
-  (setq arg (or arg 1))
-  (let* (;; (initial-pt (save-excursion (beginning-of-line) (point)))
+  (message "gpb-forward-page: %S" arg)
+  (let* ((arg (or arg 1))
+         ;; Last point on the first line.
          (first-line-pt (save-excursion (move-to-window-line 0)
                                         (end-of-line)
                                         (point)))
-         (center-line (truncate (* 0.5 (- (window-height) 1))))
-         (center-line-pt (save-excursion (move-to-window-line center-line)
-                                         (point)))
+         ;; First point on the last line.
          (last-line-pt (save-excursion (move-to-window-line -1)
+                                       (forward-line 0)
                                        (point)))
          (next-screen-context-lines 1)
          (scroll-preserve-screen-position 'always))
@@ -114,31 +114,28 @@ argument is given."
      ((> arg 0)
       (setq last-command 'next-line this-command 'next-line)
       (cond
-       ((< (point) center-line-pt) (move-to-window-line center-line))
        ((< (point) last-line-pt) (move-to-window-line -1))
        (t (scroll-up) (move-to-window-line -1)))
-      (gpb-forward-page-1 (1- arg)))
+      (gpb-forward-page (1- arg)))
+
      ;; Moving backward
      ((< arg 0)
       (setq last-command 'previous-line this-command 'previous-line)
       (cond
-       ((> (point) (save-excursion (goto-char center-line-pt)
-                                   (end-of-line)
-                                   (point)))
-        (move-to-window-line center-line))
        ((> (point) first-line-pt) (move-to-window-line 0))
        (t (scroll-down) (move-to-window-line 0)))
-      (gpb-forward-page-1 (1+ arg))))
+      (gpb-forward-page (1+ arg))))
 
     (vertical-motion (cons (or goal-column
                                (truncate (or (car-safe temporary-goal-column)
                                              temporary-goal-column)))
                            0))))
 
-(defun gpb-backward-page-1 ()
+(defun gpb-backward-page (arg)
   "Move to top of page, or scroll up by a single page"
-  (interactive)
-  (gpb-forward-page-1 -1))
+  (interactive "p")
+  (message "gpb-backward-page: %S" arg)
+  (gpb-forward-page (- arg)))
 
 (defun gpb:delete-path-segment-backwards ()
   (interactive)

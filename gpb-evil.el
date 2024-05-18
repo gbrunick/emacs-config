@@ -37,6 +37,9 @@
 (evil-define-key 'normal 'global [remap yank-pop] nil)
 (evil-define-key 'normal 'global "\M-v" 'yank-pop)
 
+(evil-define-key 'normal 'global "H" 'gpb-backward-page)
+(evil-define-key 'normal 'global "L" 'gpb-forward-page)
+
 ;; Insert state
 (evil-define-key 'insert 'global "\C-h" 'backward-delete-char-untabify)
 (evil-define-key 'insert 'global "\C-v" 'yank)
