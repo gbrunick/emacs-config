@@ -3,7 +3,6 @@
 (setq evil-want-keybinding nil
       evil-want-integration t
       evi-respect-visual-line-mode t
-      ;; Seems like `evil-want-Y-yank-to-eol' needs to be here. 
       evil-want-Y-yank-to-eol t)
 
 (require 'evil)
@@ -13,10 +12,9 @@
 
 (evil-mode 1)
 (evil-goggles-mode 1)
-(evil-surround-mode 1)
+(global-evil-surround-mode 1)
 
 (setq ;; evil-move-beyond-eol t 
-      evil-want-C-i-jump t 
       ;; evil-want-C-u-scroll t
       ;; evil-want-C-d-scroll t 
       ;; evil-want-minibuffer t
@@ -29,6 +27,7 @@
 (evil-set-undo-system 'undo-redo)
 
 ;; Normal state
+(evil-define-key 'normal 'global "\C-b" 'switch-to-buffer)
 (evil-define-key 'normal 'global "\C-z" 'evil-undo)
 (evil-define-key 'normal 'global "\C-g" 'gpb-evil-keyboard-quit)
 
@@ -55,17 +54,24 @@
 ;; Motion state
 (evil-define-key 'motion 'global (kbd "C-w" ) nil)
 (evil-define-key 'motion 'global (kbd "RET" ) nil)
+; Move `evil-jump-forward' off of TAB
+(evil-define-key 'motion 'global (kbd "TAB") 'indent-for-tab-command)
+(evil-define-key 'motion 'global (kbd "M-o") 'evil-jump-forward) 
 
 ;; Press \ twice to stay in emacs state.  Then C-g to leave.
 (evil-define-key 'emacs 'global "\\" 'evil-emacs-state)
 (evil-define-key 'emacs 'global "\C-g" 'evil-normal-state)
-  
+
+;; Never start in insert or emacs state.
+(setq evil-insert-state-modes nil
+      evil-emacs-state-modes nil)
+
 ;; Free up some bindings
-(setq evil-collection-key-blacklist '("C-w" "RET"))
+(setq evil-collection-key-blacklist '("C-w" "RET" "C-b"))
 (evil-collection-init)
 
 ;; Make some commands repeatable with one keypress.
-(with-eval-after-load 'gpb-utils
+(with-eval-after-load 'gpb-util
   (gpb-make-repeatable #'evil-execute-macro
                        #'evil-forward-section-begin
                        #'evil-backward-section-begin
@@ -102,8 +108,6 @@
 (define-key evil-outer-text-objects-map "d" 'evil-a-defun)
 (define-key evil-inner-text-objects-map "d" 'evil-inner-defun)
      
-(evil-set-initial-state 'completion-list-mode 'normal) 
-
 (defun gpb-evil-keyboard-quit ()
   (interactive)
   (evil-ex-nohighlight)
@@ -127,7 +131,7 @@
   (when (eq evil-state 'visual)
     (let* ((txt (buffer-substring-no-properties
                  evil-visual-beginning evil-visual-end))
-           (cmd (concat (this-command-keys) txt "\n")))
+           (cmd (concat (this-command-keys) txt)))
       ;; (message "Command: %S" cmd)
       (evil-normal-state)
       (execute-kbd-macro cmd))))

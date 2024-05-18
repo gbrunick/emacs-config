@@ -41,7 +41,7 @@
 (global-set-key "\C-cg" 'gpb-grep)
         
 ;; Global, largely CUA-ish bindings
-(global-set-key "\M-b" 'switch-to-buffer)
+;; (global-set-key "\C-b" 'switch-to-buffer)
 ;; (global-set-key "\C-f" 'isearch-forward)
 (global-set-key "\C-w" 'bury-buffer)
 (global-set-key "\C-s" 'save-buffer)
