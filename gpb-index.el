@@ -4,7 +4,6 @@
   (let ((keymap (make-sparse-keymap)))
     (define-key keymap "\C-m" 'gpb-index-jump-to-marker)
     (define-key keymap "o" 'gpb-index-jump-to-marker-other-window)
-    (define-key keymap "\C-G" 'quit-window)
     (set-keymap-parent keymap (make-composed-keymap button-buffer-map
                                                     special-mode-map))
     keymap))
