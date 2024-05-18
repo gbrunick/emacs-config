@@ -162,14 +162,7 @@ first row in the  window and then scroll backwards by pages."
    (t
     (call-interactively 'keyboard-quit))))
 
-(defun preserve-mark (symbol)
-  "Prevent the function attached to SYMBOL from deactivating the mark" 
-  (advice-add symbol :after 'set-deactivate-mark-nil)) 
 
-(defun set-deactivate-mark-nil (&rest r)
-  (setq deactivate-mark nil))
-                
-  
 (defun gpb-new-document ()
   (interactive)
   (let ((keymap (make-sparse-keymap))
@@ -221,9 +214,22 @@ first row in the  window and then scroll backwards by pages."
         (use-local-map keymap)
         (beginning-of-buffer)
         (forward-button 1))
-      (switch-to-buffer menu-buffer-name))))
+
+      (switch-to-buffer menu-buffer-name)))
 
 
+;; Make some commands preserve an active mark.
+;; 
+;; We apply to undo and redo so it is easier to 
+
+(defun gpb-preserve-mark (symbol)
+  "Prevent the function attached to SYMBOL from deactivating the mark" 
+  (advice-add symbol :after 'gpb-set-deactivate-mark-nil)) 
+
+(defun gpb-set-deactivate-mark-nil (&rest r)
+  (setq deactivate-mark nil))
+               
+  
 (defun gpb-repeatable-command-advice (f &rest args)
   "This is used to make a command repeatable with a single key.
 

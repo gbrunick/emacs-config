@@ -100,8 +100,8 @@
 
 ;; Preserve the region during a chain of undo's.
 (with-eval-after-load 'gpb-util
-  (preserve-mark 'undo)
-  (preserve-mark 'redo))
+  (gpb-preserve-mark 'undo)
+  (gpb-preserve-mark 'redo))
 
 (setq-default ediff-use-faces t
               ediff-highlighting-style 'face
