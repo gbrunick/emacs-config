@@ -241,15 +241,16 @@ advised command repeats the command."
          (help (format "\"%s\" repeats the last command" last-char)))
     ;; (message "this-keys: %S" this-keys)
     ;; (message "last-char: %S" last-char)
-    ;; (message "repeater: %S" repeater)
     ;; (message "help: %S" help)
+    ;; (message "interactive: %S" (called-interactively-p))
     (define-key keymap last-char #'repeat)
     ;; Make sure `f' succeeds before we install the repeater keymap.
     (apply f args)
-    ;; Install `keymap' for the next keysequence.  If we see the same key,
-    ;; that triggers `repeat' and `repeat' handles repeating itself from
-    ;; there.
-    (set-transient-map keymap nil nil help)))
+    (when (called-interactively-p)
+      ;; Install `keymap' for the next keysequence.  If we see the same key,
+      ;; that triggers `repeat' and `repeat' handles repeating itself from
+      ;; there.
+      (set-transient-map keymap nil nil help))))
 
 (defun gpb-make-repeatable (&rest commands)
   (dolist (command commands)
