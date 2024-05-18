@@ -64,6 +64,15 @@
 (setq evil-collection-key-blacklist '("C-w" "RET"))
 (evil-collection-init)
 
+;; Make some commands repeatable with one keypress.
+(with-eval-after-load 'gpb-utils
+  (gpb-make-repeatable #'evil-execute-macro
+                       #'evil-forward-section-begin
+                       #'evil-backward-section-begin
+                       #'evil-collection-unimpaired-insert-newline-below
+                       #'evil-collection-unimpaired-insert-newline-below))
+
+
 ;; Define a `defun' text object.
 
 (evil-define-text-object evil-a-defun (count &optional beg end type)
@@ -136,33 +145,6 @@
 ;; Configure `prat' bindings.
 
 (with-eval-after-load 'prat (require 'prat-evil))
-
-
-;; Allow repetition of evil macros by repeating a register key (like
-;; C-x z z z ... in Emacs).
-
-(defun gpb-evil-macro-advice (f count macro)
-  "Advice for `evil-execute-macro'"
-  ;; The (interactive ...) clause in `evil-execute-macro' gets called
-  ;; before this advice.  It reads a character, but we pick that up with
-  ;; `this-command-keys'.
-  (let* ((this-keys (this-command-keys))
-         (last-char (substring this-keys (1- (length this-keys))))
-
-         (repeater `(lambda () (interactive)
-                      (evil-execute-macro ,count ,macro)))
-         (keymap (make-sparse-keymap))
-         (help (format "Use \"%s\" to repeat the macro..." last-char)))
-    ;; (message "this-keys: %S" this-keys)
-    ;; (message "last-char: %S" last-char)
-    ;; (message "repeater: %S" repeater)
-    ;; (message "help: %S" help)
-    (funcall f count macro)
-    (define-key keymap last-char repeater)
-    ;; The next call to `evil-execute-macro' triggers this advice again.
-    (set-transient-map keymap nil nil help)))
-
-(advice-add 'evil-execute-macro :around 'gpb-evil-macro-advice) 
 
 
 ;; Associate a default text object with SPC

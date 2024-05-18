@@ -223,4 +223,31 @@ first row in the  window and then scroll backwards by pages."
         (forward-button 1))
       (switch-to-buffer menu-buffer-name))))
 
+
+(defun gpb-repeatable-command-advice (f &rest args)
+  "This is used to make a command repeatable with a single key.
+
+Repeating the final key sequence of the command sequence that invoked the
+advised command repeats the command."
+  (let* ((this-keys (this-command-keys))
+         (last-char (substring this-keys (1- (length this-keys))))
+         (keymap (make-sparse-keymap))
+         (help (format "\"%s\" repeats the last command" last-char)))
+    ;; (message "this-keys: %S" this-keys)
+    ;; (message "last-char: %S" last-char)
+    ;; (message "repeater: %S" repeater)
+    ;; (message "help: %S" help)
+    (define-key keymap last-char #'repeat)
+    ;; Make sure `f' succeeds before we install the repeater keymap.
+    (apply f args)
+    ;; Install `keymap' for the next keysequence.  If we see the same key,
+    ;; that triggers `repeat' and `repeat' handles repeating itself from
+    ;; there.
+    (set-transient-map keymap nil nil help)))
+
+(defun gpb-make-repeatable (&rest commands)
+  (dolist (command commands)
+    (advice-add command :around 'gpb-repeatable-command-advice)))
+
+
 (provide 'gpb-util)
