@@ -123,7 +123,8 @@
 ;; Save every 5 minutes.
 (recentf-mode 1)
 (run-at-time (* 5 60) (* 5 60) 'recentf-save-list)
-(setq recentf-max-saved-items 1000)
+(setq recentf-max-saved-items 1000
+      recentf-keep nil)
 
 ;; More convenience names for some interactive functions.
 (defalias 'ediff-with-saved 'gpb-ediff-with-saved)
@@ -132,6 +133,8 @@
 (setenv "PYTHONUNBUFFERED" "1")
 
 (require 'tramp)
+(remove-hook 'tramp-cleanup-connection-hook 'tramp-recentf-cleanup)
+(remove-hook 'tramp-cleanup-all-connections-hook 'tramp-recentf-cleanup-all)
 
 ;; Make `shell' in a remote buffer use bash instead of sh.
 ;; (setq explicit-shell-file-name "/bin/bash")
