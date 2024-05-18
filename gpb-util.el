@@ -137,7 +137,7 @@ first row in the  window and then scroll backwards by pages."
   (message "gpb-backward-page: %S" arg)
   (gpb-forward-page (- arg)))
 
-(defun gpb:delete-path-segment-backwards ()
+(defun gpb-delete-path-segment-backwards ()
   (interactive)
   (delete-region (point)
                  (save-excursion

@@ -171,7 +171,8 @@
   (define-key minibuffer-local-map [(control tab)] 'gpb-next-window)
   (define-key minibuffer-local-map [(control shift tab)] 'gpb-previous-window)
   (define-key minibuffer-local-filename-completion-map "\M-h"
-    'gpb:delete-path-segment-backwards))
+    'gpb-delete-path-segment-backwards))
+
 
 (define-key lisp-mode-shared-map "\t" 'completion-at-point)
 (define-key lisp-interaction-mode-map [(control return)] 'eval-print-last-sexp)
