@@ -36,7 +36,6 @@
 (transient-mark-mode 1)
 
 ;; Control-c bindings
-(global-set-key "\C-cn" 'gpb-new-document)
 (global-set-key "\C-c$" 'ispell)
 (global-set-key "\C-cg" 'gpb-grep)
         
