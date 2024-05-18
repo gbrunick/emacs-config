@@ -4,52 +4,6 @@
       (load filename)
     (error (message "Error loading %s: %S" filename err))))
 
-(defvar gpb-grep-history nil
-  "Used to record previously entered GREP regular expressions.")
-
-(defcustom gpb-grep-exclude-dirs nil 
-  "A list of globs.  Matching directories are excluded by `gpb-grep'."
-  :type '(repeat string))
-
-(defcustom gpb-grep-exclude-files
-  '("TAGS" "*~" "#*#") 
-  "List of globs.  Maching filenames are exclude by `gpb-grep'."
-  :type '(repeat string))
-
-(defun gpb-grep (dir regex)
-  (interactive (list (read-directory-name "Directory: ")
-                     (cond
-                      (mark-active
-                       (buffer-substring-no-properties
-                        (region-beginning) (region-end)))
-                      (t (read-from-minibuffer "Regex: " nil nil nil
-                                               'gpb-grep-history)))))
-  (let* ((compilation-ask-about-save nil)
-         (default-directory dir)
-         (make-args (lambda (argname globs)
-                      (mapconcat (lambda (x)
-                                   (format "%s=\"%s\" " argname x))
-                                 globs
-                                 "")))  
-         (exclude-dirs (funcall make-args "--exclude-dir" gpb-grep-exclude-dirs))
-         (exclude-files (funcall make-args "--exclude" gpb-grep-exclude-files))
-         (cmd (cl-case (window-system)
-                (w32
-                 (concat "grep -RinHI -E "
-                         (format "\"%s\" " regex)
-                         "--line-buffered "
-                         exclude-dirs
-                         exclude-files
-                         "."))
-                (otherwise
-                 (concat "grep -RinH -E "
-                         (format "\"%s\" " regex)
-                         exclude-dirs
-                         exclude-files
-                         ".")))))
-    (grep cmd)))
-
-
 (defun gpb-next-window (arg)
   "Select next window using `other-window'
 
