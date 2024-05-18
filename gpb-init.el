@@ -152,13 +152,6 @@
 (autoload 'prat-user-command-prefix-keymap "prat" nil nil 'keymap)
 (global-set-key "\C-cv" 'prat-user-command-prefix-keymap)
 
-(with-eval-after-load 'isearch
-  (setq search-nonincremental-instead nil
-        isearch-allow-scroll t)
-  (define-key isearch-mode-map "\C-h" 'isearch-delete-char)
-  (define-key isearch-mode-map "\C-f" 'isearch-repeat-forward)
-  (define-key isearch-mode-map "\C-v" 'isearch-yank-kill))
-
 (with-eval-after-load 'minibuffer
   (define-key minibuffer-local-map "\C-h" 'backward-delete-char-untabify)
   (define-key minibuffer-local-map "\C-f" 'forward-char)
