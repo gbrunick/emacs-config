@@ -185,4 +185,8 @@
 (require 'gpb-util)
 (require 'gpb-r-mode)
 
+(require 'gpb-rectangle-mark-mode)
+(global-set-key (kbd "C-x SPC") #'gpb-enter-rectangle-mark-mode)
+ 
+
 (setq debug-on-quit nil)
