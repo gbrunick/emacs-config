@@ -220,7 +220,7 @@ first row in the  window and then scroll backwards by pages."
 
 ;; Make some commands preserve an active mark.
 ;; 
-;; We apply to undo and redo so it is easier to 
+;; We apply to `undo' and `redo' so it is easier repeat
 
 (defun gpb-preserve-mark (symbol)
   "Prevent the function attached to SYMBOL from deactivating the mark" 
