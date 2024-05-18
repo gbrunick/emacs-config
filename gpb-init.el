@@ -49,10 +49,6 @@
 ;; (global-set-key "\M-v" 'yank-pop)
 (global-set-key "\C-g" 'gpb-keyboard-quit)
 (global-set-key [(control shift s)] 'write-file)
-(global-set-key "\M-r" '(lambda ()
-                          (interactive)
-                          (revert-buffer nil t)
-                          (message "Reverted %s" (current-buffer))))
 (global-set-key [(control tab)] 'gpb-next-window)
 (global-set-key [(control shift iso-lefttab)] 'gpb-previous-window)
 (global-set-key [(control shift tab)] 'gpb-previous-window)
@@ -126,7 +122,7 @@
 (setq recentf-max-saved-items 1000
       recentf-keep nil)
 
-;; More convenience names for some interactive functions.
+;; More convenient name for an interactive functions.
 (defalias 'ediff-with-saved 'gpb-ediff-with-saved)
 
 (setenv "PAGER" "cat")
@@ -166,6 +162,14 @@
   (define-key minibuffer-local-filename-completion-map "\M-h"
     'gpb-delete-path-segment-backwards))
 
+
+;; Add minibuffer feedback after some commands.
+
+(with-eval-after-load 'gpb-util
+  (gpb-add-feedback kill-buffer (format "Killed %s" (current-buffer)))
+  (gpb-add-feedback save-buffer (format "Saved %s" (current-buffer)))
+  (gpb-add-feedback eval-buffer (format "Evaluated %s" (current-buffer)))
+  (gpb-add-feedback revert-buffer (format "Reverted %s" (current-buffer))))
 
 (define-key lisp-mode-shared-map "\t" 'completion-at-point)
 (define-key lisp-interaction-mode-map [(control return)] 'eval-print-last-sexp)

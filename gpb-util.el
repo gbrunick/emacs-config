@@ -72,19 +72,6 @@ argument is given."
   (when (memq (window-system) '(x w32 ns))
     (x-focus-frame (selected-frame))))
 
-(define-key emacs-lisp-mode-map "\C-c\C-c" 'gpb-eval-buffer)
-
-(defun gpb-eval-buffer ()
-  (interactive)
-  (eval-buffer)
-  (message "Evaluated %s" (buffer-name)))
-
-(defun gpb-kill-buffer ()
-  "Don't ask which buffer to kill.  Just kill the current buffer."
-  (interactive)
-  (let ((buf-name (buffer-name)))
-    (kill-buffer)
-    (message "Killed %s" buf-name)))
 
 (defun gpb-forward-page (&optional arg)
   "Move cursor to the last row in the window.
@@ -164,6 +151,7 @@ first row in the  window and then scroll backwards by pages."
 
 
 (defun gpb-new-document ()
+  "Show user a menu and ask for the major mode of the new buffer."
   (interactive)
   (let ((keymap (make-sparse-keymap))
         (indent "    ")
@@ -182,7 +170,7 @@ first row in the  window and then scroll backwards by pages."
 
       (define-key keymap "\t" 'forward-button)
       (define-key keymap [(backtab)] 'backward-button)
-      (define-key keymap "q" 'gpb-kill-buffer)
+      (define-key keymap "q" 'quit-window)
 
       (with-current-buffer (get-buffer-create menu-buffer-name)
         (erase-buffer)
@@ -255,6 +243,27 @@ advised command repeats the command."
 (defun gpb-make-repeatable (&rest commands)
   (dolist (command commands)
     (advice-add command :around 'gpb-repeatable-command-advice)))
+
+
+;; Add some feedback in the message buffer
+(defmacro gpb-add-feedback (command msg)
+  "Echo MSG in the minibuffer when `command' is run interactively.
+
+MSG can be a string or an Sexp that evaluates to a string when evaluated in
+an after advice function.  Return the symbol corresponding to the
+dynamically generated advice function."
+  (declare (indent defun))
+  (let ((advice-symbol (intern (format "gpb-%s-feedback-advice" command))))
+    `(progn
+       ;; Define an advice function with a dynamically generated name. 
+       (defun ,advice-symbol (&rest args)
+         (when (called-interactively-p) (message "%s" ,msg)))
+
+       ;; And then arrange for it to be called after `command'.
+       (advice-add #',command :after #',advice-symbol)
+
+       ;; Return the new advice function.
+       #',advice-symbol)))
 
 
 (provide 'gpb-util)
