@@ -162,12 +162,7 @@ At the moment, there can only be one active process")
 
   ;; Try to shutdown gracefully when the buffer is killed.
   (add-hook 'kill-buffer-hook #'gpb-r--kill-buffer-hook nil t)
-
-  (gpb-r-send-command (with-temp-buffer
-                        (insert-file-contents (locate-library "gpb-r-mode.R"))
-                        (buffer-string))
-                      (current-buffer))
-
+  
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
   (setq-local comint-input-autoexpand nil)
   (setq-local comint-input-sender #'gpb-r--input-sender)
@@ -185,7 +180,9 @@ At the moment, there can only be one active process")
   ;; that we want the other filter functions to pick up (e.g. file link
   ;; text).
   (add-hook 'comint-output-filter-functions
-            #'gpb-r--callback-filter-function nil t))
+            #'gpb-r--callback-filter-function nil t)
+
+  (gpb-r-source-R-init-file))
 
 
 (defun gpb-r-set-active-process ()
@@ -222,6 +219,7 @@ At the moment, there can only be one active process")
                         (marker-position (process-mark proc)) line))
            (response (gpb-r-send-command cmd buf)))
       (read response))))
+
 
 (defun gpb-r-send-command (cmd &optional buf)
   "Send CMD to R process in BUF the return the output as a string.
@@ -715,20 +713,21 @@ send the resulting string to `comint-simple-send'."
 
 (defun gpb-r-send-input (cmd &optional pop buf)
   "Insert `cmd' into R process buffer and send."
-  (let* ((procbuf (or buf (gpb-r-get-proc-buffer))))
+  (let* ((procbuf (or buf (gpb-r-get-proc-buffer)))
+         (proc (get-buffer-process procbuf)))
 
-    (or (process-live-p (get-buffer-process procbuf))
+    (or (process-live-p proc)
         (error "No R process available"))
 
     (with-current-buffer procbuf
       (save-excursion
         (comint-goto-process-mark)
         (insert (string-trim cmd))
+        (accept-process-output proc 0 nil t)
         (comint-send-input)))
 
-    (when pop
-      (pop-to-buffer procbuf)
-      (with-current-buffer procbuf (goto-char (point-max))))))
+    (when pop (pop-to-buffer procbuf))
+    (with-current-buffer procbuf (goto-char (point-max)))))
 
 (defun gpb-r-send-traceback (&optional buf)
   (interactive)
@@ -907,6 +906,32 @@ ignoring the directory."
   (dolist (buf gpb-r-all-worker-buffers)
     (and buf (buffer-live-p buf) (kill-buffer buf)))
   (setq gpb-r-all-worker-buffers nil))
+
+
+(defun gpb-r-source-R-init-file ()
+  "Source gpb-r-mode.R in the interpreter.
+
+Should be called from the interpreter buffer."
+  (let* ((basename "gpb-r-mode.R")
+         (local-init-script (locate-library "gpb-r-mode.R"))
+         (remote-init-script (expand-file-name (concat "." basename))))
+
+    (cond
+     ;; If we are running R on a remote machine over TRAMP, we write our R
+     ;; init script to ".gpb-r-mode.R" at the root of the R repo and then
+     ;; source it.
+     ((file-remote-p remote-init-script)
+      (let ((coding-system-for-write 'us-ascii-unix))
+        (with-temp-file remote-init-script 
+          (insert "# Written by Emacs package gpb-r-mode\n\n")
+          (insert-file-contents local-init-script)
+          ;; Another attempt to clean up line endings.
+          (delete-trailing-whitespace)))
+      (gpb-r-send-input (format "source(\".%s\")\n" basename)))
+
+     ;; Otherwise, we can just source the file directly.
+     (t
+      (gpb-r-send-input (format "source(\".%s\")\n" local-init-script))))))
 
 
 (provide 'gpb-r-mode)
