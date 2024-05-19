@@ -17,6 +17,7 @@
       ess-roxy-hide-show-p nil
       ess-roxy-fold-examples nil
       ess-indent-with-fancy-comments nil
+      ess-history-file nil
       ;; ESS doing background stuff over TRAMP may by hanging Emacs.
       ess-can-eval-in-background nil
       poly-r-can-eval-in-background nil)
@@ -940,6 +941,23 @@ Should be called from the interpreter buffer."
      ;; Otherwise, we can just source the file directly.
      (t
       (gpb-r-send-input (format "source(\".%s\")\n" local-init-script))))))
+
+
+(defun gpb-r-read-history ()
+  "Read .Rhistory into comint input ring."
+  (interactive)
+
+  ;; Use an absolute path for `comint-input-ring-file-name' so it is not
+  ;; impacted by changes to the R working directory.
+  (setq-local comint-input-ring-file-name (expand-file-name ".Rhistory"))
+  (setq-local comint-input-ring-separator "\n")
+  ;; (setq-local comint-input-filter #'gpb-r--comint-input-filter)
+  
+  ;; Keep comments in the history as we use comments for some special
+  ;; commands like eval region that are actually handled by input filter
+  ;; functions.
+  (setq-local comint-input-history-ignore "^.* # Emacs command$")
+  (comint-read-input-ring))
 
 
 (provide 'gpb-r-mode)
