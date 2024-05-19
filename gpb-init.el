@@ -37,8 +37,6 @@
 
 ;; Control-c bindings
 (global-set-key "\C-c$" 'ispell)
-(global-set-key "\C-cg" 'gpb-grep)
-        
 ;; Global, largely CUA-ish bindings
 ;; (global-set-key "\C-b" 'switch-to-buffer)
 ;; (global-set-key "\C-f" 'isearch-forward)
@@ -184,6 +182,9 @@
 (require 'gpb-evil)
 (require 'gpb-util)
 (require 'gpb-r-mode)
+
+(require 'gpb-grep)
+(global-set-key "\C-cg" 'gpb-grep)
 
 (require 'gpb-rectangle-mark-mode)
 (global-set-key (kbd "C-x SPC") #'gpb-enter-rectangle-mark-mode)

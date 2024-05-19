@@ -51,3 +51,4 @@
     (grep cmd)))
 
 
+(provide 'gpb-grep)
