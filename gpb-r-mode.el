@@ -505,66 +505,6 @@ displayed."
       (indent-according-to-mode))))
 
 
-(defun gpb-r--notice-r-process-start (str)
-  "Switch to `gpb-inferior-r-mode' when we notice an R process starting."
-  (let ((start (if (and (markerp comint-last-output-start)
-                        (eq (marker-buffer comint-last-output-start)
-                            (current-buffer))
-                        (marker-position comint-last-output-start))
-                   comint-last-output-start
-                 (point-min)))
-        (end (process-mark (get-buffer-process (current-buffer))))
-        ;; We need to save buffer local state between calls.
-        (state (and (boundp 'gpb-r--notice-r-process-start--state)
-                    gpb-r--notice-r-process-start--state)))
-    (gpb-log-forms 'gpb-r--notice-r-process-start 'str 'start 'end 'state)
-    (save-excursion
-      (save-match-data
-        (goto-char start)
-        (cond
-         ;; Waiting for the R process to complete its initial output.
-         ((eq state 'waiting)
-          (when (re-search-forward "^> " end t)
-            ;; We don't want to change modes in the middle of a call to
-            ;; `comint-output-filter'; this seems to cause all kinds of
-            ;; problems, so wait a bit and the do the change.
-            (remove-hook 'comint-output-filter-functions
-                         'gpb-r--notice-r-process-start t)
-            (run-at-time 0.5 nil 'gpb-r--notice-r-process-start--switch-mode
-                         (current-buffer))))
-         (t
-          (when (re-search-forward gpb-r-process-header-regex end t)
-            (setq-local gpb-r--notice-r-process-start--state 'waiting))))))))
-
-
-(defun gpb-r--notice-r-process-start--switch-mode (buf)
-  "Implementation detail of `gpb-r--notice-r-process-start'"
-  (gpb-log-forms 'gpb-r--notice-r-process-start--switch-mode
-                 'buf)
-  (with-current-buffer buf
-    (remove-hook 'post-command-hook
-                 'gpb-r--notice-r-process-start--switch-mode t)
-    (gpb-inferior-r-mode)
-    (delete-region (save-excursion (forward-line 0) (point)) (point))
-    (comint-send-string (get-buffer-process (current-buffer)) "\n")))
-
-
-(defun gpb-r-watch-for-r-process ()
-  "Configure a buffer to automatically switch to `gpb-inferior-r-mode'.
-
-If you add the following to your .emacs:
-
-(add-hook 'shell-mode-hook #'gpb-r-watch-for-r-process)
-
-then shell buffers will automatically switch to `gpb-inferior-r-mode'
-when they see an R process start.  This used the standard R
-header output so it won't work if you pass the R process the
---quiet flag."
-  (interactive)
-  (add-hook 'comint-output-filter-functions
-            'gpb-r--notice-r-process-start nil t))
-
-
 (defun gpb-r--add-links (beg end)
   "Add buttons that allow one to jump to souce code locations."
   (interactive "r")
