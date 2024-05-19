@@ -994,3 +994,39 @@ ignoring the directory."
           (indent-to-column col))))))
 
 
+(defun gpb-r-create-function-header ()
+  (interactive)
+  (let (start args (indent "#'"))
+    (save-excursion
+      (search-forward-regexp "function(")
+      (setq start (match-end 0))
+      (backward-char 1)
+      (forward-sexp 1)
+      (setq end (point))
+      (goto-char start)
+      (while (re-search-forward " *\\([a-zA-Z0-9_]+\\) *[,=)]" end t)
+        (push (match-string 1) args)))
+
+    (skip-chars-forward " \n")
+    (forward-line 0)
+    (setq indent (concat (string-pad "" (current-indentation)) indent))
+    (insert indent " ")   ;; We leave the point here
+    (setq pt (point))
+    (insert "\n" indent "\n")
+    (dolist (arg (reverse args))
+      (insert (format "%s @param %s \n" indent (string-trim arg))))
+    (insert indent "\n")
+    (insert indent " @return \n")
+    (insert indent "\n")
+    (insert indent " @export \n")
+    (insert indent "\n")
+    (goto-char pt)
+    (when (and (boundp 'evil-mode) evil-mode)
+      (run-at-time 0.1 nil (lambda ()
+                             (evil-insert-state)
+                             (goto-char (1+ (point)))
+                             ;;((insert " ")
+                             ;;((evil-forward-char)
+                             )))))
+
+
