@@ -139,7 +139,7 @@ At the moment, there can only be one active process")
   (xref-etags-mode 1)
 
   (setq-local ess-indent-offset 2)
-  (setq-local indent-line-function #'gpb-r-indent-line)
+  ;; (setq-local indent-line-function #'gpb-r-indent-line)
   (setq-local completion-at-point-functions
               '(tags-completion-at-point-function dabbrev-capf))
   (setq-local eldoc-documentation-functions nil)
@@ -817,52 +817,52 @@ ignoring the directory."
 
 
 
-(defun gpb-r-indent-line ()
-  (prog1
-      (ess-r-indent-line)
-    (let ((pt (point))
-          (continue t)
-          init-depth col)
-      (setq init-depth (car (syntax-ppss)))
-      (catch 'done
-        (setq start (save-excursion
-                      (ess-backward-up-list)
-                      (unless (looking-at-p "(\\|\\[") (throw 'done t))
-                      (point)))
+;; (defun gpb-r-indent-line ()
+;;   (prog1
+;;       (ess-r-indent-line)
+;;     (let ((pt (point))
+;;           (continue t)
+;;           init-depth col)
+;;       (setq init-depth (car (syntax-ppss)))
+;;       (catch 'done
+;;         (setq start (save-excursion
+;;                       (ess-backward-up-list)
+;;                       (unless (looking-at-p "(\\|\\[") (throw 'done t))
+;;                       (point)))
 
-        ;; Look for an outer comma.  If we find one, we are in an argument
-        ;; list and should only look back to the start of this argument to
-        ;; find the "~" or ":=".
-        (save-excursion
-          (while (and continue (re-search-backward "," start t))
-            (when (<= (car (syntax-ppss)) init-depth)
-              (setq continue nil
-                    start (point)))))
+;;         ;; Look for an outer comma.  If we find one, we are in an argument
+;;         ;; list and should only look back to the start of this argument to
+;;         ;; find the "~" or ":=".
+;;         (save-excursion
+;;           (while (and continue (re-search-backward "," start t))
+;;             (when (<= (car (syntax-ppss)) init-depth)
+;;               (setq continue nil
+;;                     start (point)))))
 
-        (save-excursion
-          (setq continue t)
-          (beginning-of-line)
-          (while (and continue (>= (point) start))
-            (if (re-search-backward "~\\|:=" start t)
-                (cond
-                 ;; If the "~" or ":=" we found is not inside a string or
-                 ;; some other nested expression.
-                 ((and (null (nth 3 (syntax-ppss)))
-                       (<= (car (syntax-ppss)) init-depth))
-                  (goto-char (match-end 0))
-                  (skip-chars-forward " ")
-                  (setq col (current-column)
-                        continue nil))
-                 ;; Otherwise, keep looking.
-                 (t (backward-char)))
-              ;; We didn't find a string match
-              (throw 'done t))))
+;;         (save-excursion
+;;           (setq continue t)
+;;           (beginning-of-line)
+;;           (while (and continue (>= (point) start))
+;;             (if (re-search-backward "~\\|:=" start t)
+;;                 (cond
+;;                  ;; If the "~" or ":=" we found is not inside a string or
+;;                  ;; some other nested expression.
+;;                  ((and (null (nth 3 (syntax-ppss)))
+;;                        (<= (car (syntax-ppss)) init-depth))
+;;                   (goto-char (match-end 0))
+;;                   (skip-chars-forward " ")
+;;                   (setq col (current-column)
+;;                         continue nil))
+;;                  ;; Otherwise, keep looking.
+;;                  (t (backward-char)))
+;;               ;; We didn't find a string match
+;;               (throw 'done t))))
 
-        (unless (null col)
-          (beginning-of-line)
-          (when (looking-at " +")
-            (delete-region (match-beginning 0) (match-end 0)))
-          (indent-to-column col))))))
+;;         (unless (null col)
+;;           (beginning-of-line)
+;;           (when (looking-at " +")
+;;             (delete-region (match-beginning 0) (match-end 0)))
+;;           (indent-to-column col))))))
 
 
 (defun gpb-r-create-function-header ()
