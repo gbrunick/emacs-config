@@ -21,7 +21,8 @@
       ;; evil-move-cursor-back t
       evil-cross-lines t
       evil-visual-state-cursor 'hollow
-      evil-emacs-state-cursor 'bar)
+      evil-emacs-state-cursor 'bar
+      evil-shift-width 2)
 
 (evil-select-search-module 'evil-select-search-mode 'evil-search)
 (evil-set-undo-system 'undo-redo)
@@ -55,7 +56,7 @@
 (evil-define-key 'motion 'global (kbd "C-w" ) nil)
 (evil-define-key 'motion 'global (kbd "RET" ) nil)
 ; Move `evil-jump-forward' off of TAB
-(evil-define-key 'motion 'global (kbd "TAB") 'indent-for-tab-command)
+(evil-define-key 'motion 'global (kbd "TAB") nil)
 (evil-define-key 'motion 'global (kbd "M-o") 'evil-jump-forward) 
 
 ;; Press \ twice to stay in emacs state.  Then C-g to leave.
@@ -116,7 +117,16 @@
 
 ;; elisp-mode
 
-(evil-define-key 'normal emacs-lisp-mode-map "gr" 'revert-buffer)
+(evil-define-key 'normal emacs-lisp-mode-map
+  "gr"        'revert-buffer
+
+  ;; Work around an unfortunate interaction with the VIM cursor model.
+  (kbd "TAB") (lambda ()
+                (interactive)
+                (forward-line 0)
+                (call-interactively #'indent-for-tab-command)
+                (message "char-after: %S" (char-after))
+                (if (eolp) (evil-append 1) (evil-insert 1))))
   
 
 ;; Start a search immediately from visual mode.
