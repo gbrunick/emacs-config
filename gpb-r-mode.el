@@ -1,6 +1,5 @@
 ;; Provides an alternative inferior R process mode that inherits from
-;; `comint-mode' and a related minor mode for use in buffers that are
-;; editting R code.
+;; `comint-mode' and attempts to use a little in `ess-r-mode' as possible.
 
 (require 'cl-lib)
 (require 'subr-x)
@@ -8,86 +7,57 @@
 (require 'ess-r-mode)
 
 ;; Use ESS for R source code files but attempt to stop it from installing
-;; all its seemingly buggy hooks.
+;; all of its seemingly buggy hooks.
 (setq ess-r-mode-hook nil
       ess-use-auto-complete nil
+      ess-use-company nil
       ess-use-tracebug nil 
+      ess-imenu-use-S nil
+      ess-roxy-hide-show-p nil
+      ess-roxy-fold-examples nil
+      ess-indent-with-fancy-comments nil
+      ;; ESS doing background stuff over TRAMP may by hanging Emacs.
       ess-can-eval-in-background nil
-      poly-r-can-eval-in-background nil
-      ;; Clear out the keymap
-      ess-r-mode-map (make-sparse-keymap))
+      poly-r-can-eval-in-background nil)
 
-(add-hook 'ess-r-mode-hook 'gpb:ess-r-mode-hook)
+;; We use a hook to highly customize `ess-r-mode' rather than create our
+;; own R code mode to avoid breaking `poly-R' integration.
+(add-hook 'ess-r-mode-hook 'gpb-ess-r-mode-hook)
 (remove-hook 'shell-mode-hook 'ess-r-package-activate-directory-tracker)
 
-(defun gpb:ess-r-mode-hook ()
-  (gpb-r-code-mode 1)
+(defvar gpb-ess-r-mode-map-orig ess-r-mode-map
+  "A copy of `ess-r-mode-map' before we redfined it.")
 
-  ;; Get rid of the annoying "smart underscore" behaviour.
-  (local-set-key "_" 'self-insert-command)
+;; Completely stomp over `ess-r-mode-map'.
+(setq ess-r-mode-map (let ((keymap (make-sparse-keymap)))
+                       (define-key keymap "\C-c\C-b" 'gpb-r-insert-browser)
+                       (define-key keymap "\C-c\C-c" 'gpb-r-save-and-exec-command)
+                       ;; Eval current function
+                       (define-key keymap "\C-\M-x" "!id")
+                       ;; You have to set a keymap to avoid inheriting bindings.
+                       (set-keymap-parent keymap (make-sparse-keymap))
+                       keymap))
 
-  ;; Clear out some annoying ESS bindings.
-  (local-set-key "\C-c\C-p" nil)
-  (local-set-key "\C-c\C-n" nil)
-  (local-set-key "\C-c\C-b" nil)
+(defvar gpb-inferior-r-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [?\t] 'gpb-r-tab-command)
+    (define-key map [(backtab)] 'backward-button)
+    (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
+    (define-key map "\C-c\C-t" 'gpb-r-send-traceback)
+    (define-key map [remap forward-button] 'gpb-r-forward-button) 
+    (define-key map [remap backward-button] 'gpb-r-backward-button) 
+    ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
+    map)
+  "Keymap for `gpb-inferior-r-mode'.")
 
-  (local-set-key "\C-cb" 'gpb:ess-insert-browser)
-  (local-set-key "\C-cq" 'gpb:ess-send-quit-command)
-  (local-set-key "\C-co" 'gpb:ess-view-data-frame)
-  (local-set-key "\C-ct" 'gpb:ess-test-package)
-  (local-set-key "\C-c\C-s" 'gpb:ess-choose-interpreter)
-  ;; Override the help function
-  (local-set-key "\C-c\C-v" 'gpb-ess:show-help)
-
-  (setq-local ess-indent-with-fancy-comments nil)
-  (setq-local gpb-eval-code-function #'gpb-r-eval-region)
-
-  ;; (nconc ess-imenu-S-generic-expression
-  ;;        '(("Chunks" "^```{r \\(.*\\)}" 1)))
-
-  ;;(gpb:ess-sniff-out-two-space-indentation)
-  (setq ess-indent-offset 2)
-  (setcdr (assoc 'ess-indent-offset (assoc 'RRR ess-style-alist)) 2)
-
-  ;; Allow movement within camel-case identifiers.
-  (subword-mode 1)
-
-  ;; Use etags rather than ESS's custom xref implementation.
-  (xref-etags-mode 1)
-
-  ;; Enable tab completion of R object names.
-  ;; (setq ess-tab-complete-in-script t)
-
-  ;; (let ((package-item (or (assoc "Package" ess-imenu-S-generic-expression)
-  ;;                         (assoc "Packages" ess-imenu-S-generic-expression))))
-  ;;   (setcar package-item "Packages")
-  ;;   (setcdr package-item '("^.*\\(library\\|require\\)(\\([^,)]*\\)" 2)))
-
-  (setq-local indent-line-function #'gpb:ess-indent-line)
-
-  ;; (when (require 'yasnippet nil t)
-  ;;   (yas-minor-mode 1))
-
-  ;; (when (require 'gpb-text-objects nil t)
-  ;;   (setq-local execute-text-object-function 'gpb-r-eval-text-object)
-  ;;   (gpb-tobj--define-key 'root "t" 'ess-test-func :local t)
-  ;;   (gpb-tobj--define-key 'root "T" 'ess-test-func :local t :backwards t)
-  ;;   (gpb-tobj--define-key 'root "c" 'ess-rmarkdown-chunk :local t)
-  ;;   (gpb-tobj--define-key 'root "C" 'ess-rmarkdown-chunk :local t :backwards t))
-  )
-
-
+(when (and (boundp 'evil-mode) evil-mode)
+  (evil-define-key 'motion gpb-inferior-r-mode-map [?\t] 'forward-button) 
+  (evil-define-key 'motion gpb-inferior-r-mode-map [(backtab)] 'backward-button)
+  (evil-define-key 'insert gpb-inferior-r-mode-map [?\t] 'completion-at-point))
 
 
 (defgroup gpb-r-mode nil
   "Settings related to the Emacs 'gpb-r-mode' package/feature.")
-
-(defcustom gpb-r-x-display
-  (format "%s:0" (format-network-address
-                  (car (network-interface-info "eth0")) t))
-  "The DISPLAY environment variable to use on a server."
-  :type 'string
-  :group 'gpb-r-mode)
 
 (defcustom gpb-r-history-save-frequency (* 5 60)
   "The frequency with which we save the history of the R process in seconds.
@@ -142,8 +112,7 @@ and HYPERLINK are integers giving match indices in REGEXP."
 These functions are called after the input is added to the input
 ring and immediately before the input is sent to the inferior R
 process.  The current use case is to interpret 'magic' commands
-that are imbedded in R comments that require coordination with
-Emacs.")
+that are imbedded in R comments")
 
 (defvar gpb-r-end-of-output-marker
   "END:75b30f72-85a0-483c-98ce-d24414394ff0"
@@ -154,22 +123,34 @@ Emacs.")
 
 At the moment, there can only be one active process")
 
-(defvar gpb-inferior-r-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [?\t] 'gpb-r-tab-command)
-    (define-key map [(backtab)] 'gpb-r-backward-button)
-    (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
-    (define-key map "\C-c\C-t" 'gpb-r-send-traceback)
-    ;; (define-key map "\C-co" 'gpb:ess-view-data-frame)
-    ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
-
-    map)
-  "Local keymap `gpb-inferior-r-mode'.")
-
 (defvar gpb-inferior-r-mode--syntax-table
   (let ((st (make-syntax-table)))
     (modify-syntax-entry ?. "_" st)
     st))
+
+(defun gpb-ess-r-mode-hook ()
+  "Hook function that overrides most of `ess-r-mode'"
+  ;; Allow movement within camel-case identifiers.
+  (subword-mode 1)
+
+  ;; Use etags rather than ESS's custom xref implementation.
+  (xref-etags-mode 1)
+
+  (setq-local ess-indent-offset 2)
+  (setq-local indent-line-function #'gpb-r-indent-line)
+  (setq-local completion-at-point-functions
+              '(tags-completion-at-point-function dabbrev-capf))
+  (setq-local eldoc-documentation-functions nil)
+  (setq-local ess-idle-timer-functions nil)
+
+  ;; Configure "!" command.  See gpb-evil.el.
+  (gpb-define-eval-code-operator #'gpb-r-eval-region)
+
+  (remove-hook 'xref-backend-functions #'ess-r-xref-backend 'local)
+  (remove-hook 'project-find-functions #'ess-r-project 'local)
+
+  (setcdr (assoc 'ess-indent-offset (assoc 'RRR ess-style-alist)) 2))
+
 
 (define-derived-mode gpb-inferior-r-mode comint-mode "Inferior R Mode"
   "Major mode for an inferior R process.
@@ -205,18 +186,17 @@ At the moment, there can only be one active process")
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
-
-  ;; Append `gpb-r--busy-state-input-filter' so it runs after any escape
-  ;; sequences have been processed.
+  ;; This filters manage the local variable `gpb-r--inferior-process-busy'
   (add-hook 'comint-input-filter-functions
             #'gpb-r--busy-state-input-filter t t)
+  (add-hook 'comint-output-filter-functions
+            #'gpb-r--busy-state-output-filter nil t)
 
+  ;; Look for traceback and debug output.
   (add-hook 'comint-output-filter-functions
             #'gpb-r-mode-debug-filter-function nil t)
   (add-hook 'comint-output-filter-functions
             #'gpb-r--add-links-filter-function nil t)
-  (add-hook 'comint-output-filter-functions
-            #'gpb-r--busy-state-output-filter nil t)
 
   ;; We add the callback filter last as it may insert text in the buffer
   ;; that we want the other filter functions to pick up (e.g. file link
@@ -230,24 +210,11 @@ At the moment, there can only be one active process")
   (eldoc-mode 0))
 
 
-(defvar gpb-r-code-minor-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-c\C-c" 'gpb-r-save-and-exec-command)
-    (define-key map "\C-\M-x" "!id")
-    map))
-
-(define-minor-mode gpb-r-code-mode
-  "Minor mode for R code buffers."
-  :keymap gpb-r-code-minor-mode-map
-  :lighter "gpb-r"
-  (setq-local eldoc-documentation-function
-              #'gpb-r--eldoc-documentation-function)
-  (eldoc-mode 0))
-
 (defun gpb-r-set-active-process ()
   (interactive)
   (setq gpb-r-active-process-buffer (current-buffer))
   (message "Active R process buffer: %S" gpb-r-active-process-buffer))
+
 
 (defun gpb-r-tab-command ()
   (interactive)
@@ -258,13 +225,15 @@ At the moment, there can only be one active process")
 
 (defun gpb-r-forward-button ()
   (interactive)
-  (condition-case exc
-      (forward-button 1 nil t)
-    (error (goto-char (point-max)))))
+  (or
+   (forward-button 1 nil t t)
+   (goto-char (point-max))))
 
 (defun gpb-r-backward-button ()
   (interactive)
-  (forward-button -1 nil t))
+  (or
+   (forward-button -1 nil t t)
+   (goto-char (point-min))))
 
 (defun gpb-r-completion-at-point ()
   (save-excursion
@@ -283,7 +252,7 @@ If BUF is omitted, we use the current buffer.  We move the
 process into new buffer, send `cmd' to the R process, wait for
 the result, and return a buffer that contains the result."
   (interactive "sR Command: ")
-  (let* ((buf (gpb-r-get-proc-buffer buf))
+  (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (wrapped-cmd (format "tryCatch({ %s }, finally = cat('\\n%s\\n'))\n"
                               cmd gpb-r-end-of-output-marker))
          (proc (or (get-buffer-process buf)
@@ -375,11 +344,14 @@ Also updates `default-directory' in the process buffer.  This
 function is safe to call when the R process in the browser
 debugging state."
   (interactive)
-  (let* ((buf (gpb-r-get-proc-buffer buf))
+  (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (local-wd (gpb-r-send-command "cat(sprintf('%s\\n', getwd()))" buf)))
     (with-current-buffer buf
       (setq default-directory (concat (gpb-r--get-tramp-prefix)
                                       (file-name-as-directory local-wd)))
+
+      (when (called-interactively-p)
+        (message "Working Dir: %s" default-directory))
       default-directory)))
 
 
@@ -415,7 +387,6 @@ Rmarkdown render expression."
      ;; If we are in a package, save any modified source files in the
      ;; package and reload the package.
      ((string-equal (ignore-errors (file-name-base dir)) "R")
-      (gpb-r-mode-save-package)
       (let* ((pkg-dir (ignore-errors (directory-file-name
                                       (file-name-directory dir)))))
         (setq cmd (read-string "Load command: "
@@ -447,30 +418,6 @@ Rmarkdown render expression."
       (comint-send-input))
 
     (display-buffer r-proc-buf)))
-
-
-(defun gpb-r-mode-save-package ()
-  "Save all files in the current package that have been edited."
-  (interactive)
-  (let* ((filename (buffer-file-name))
-         (dir (ignore-errors (directory-file-name
-                              (file-name-directory filename))))
-         (is-pkg-buf-p (lambda (buf)
-                         (ignore-errors
-                           (let ((fn (buffer-file-name buf)))
-                             (and (string-prefix-p dir fn)
-                                  (string-suffix-p ".R" fn t))))))
-         src-files)
-
-    (unless (string-equal (ignore-errors (file-name-base dir)) "R")
-      (error "Buffer is not visiting a package source file"))
-
-    (setq src-files (cl-remove-if-not is-pkg-buf-p (buffer-list)))
-    (message "Package buffers: %S" src-files)
-
-    (dolist (buf src-files)
-      (when (buffer-modified-p buf)
-        (with-current-buffer buf (save-buffer))))))
 
 
 (defun gpb-r-mode-debug-filter-function (output)
@@ -536,13 +483,26 @@ displayed."
     (when pop-to (select-window window))))
 
 
-(defun gpb-r-get-proc-buffer (&optional buf)
+(defun gpb-r-get-proc-buffer ()
   "Get the currently active R process buffer"
-  (or buf
-      (let ((proc (get-buffer-process (current-buffer))))
-        (and (process-live-p proc) (current-buffer)))
-      (let ((proc (get-buffer-process gpb-r-active-process-buffer)))
-        (and (process-live-p proc) gpb-r-active-process-buffer))))
+  (let ((proc1 (get-buffer-process (current-buffer)))
+        (proc2 (get-buffer-process gpb-r-active-process-buffer)))
+    (or
+     (and (process-live-p proc1) (current-buffer)) 
+     (and (process-live-p proc2) gpb-r-active-process-buffer))))
+
+
+(defun gpb-r-insert-browser ()
+  "Insert \"browser()\" at the point as save the buffer."
+  (interactive)
+  (save-match-data
+    (let ((pt (point)))
+      (beginning-of-line)
+      ;; I don't understand why save-excursion doesn't do what I want here.
+      (let ((pt (point)))
+        (insert "browser()\n")
+        (goto-char pt))
+      (indent-according-to-mode))))
 
 
 (defun gpb-r--notice-r-process-start (str)
@@ -886,7 +846,7 @@ Looks for the TAGS_DIR file and then calls underyling R code."
 ;; Track the busy state of the inferior process
 
 (defvar-local gpb-r--inferior-process-busy nil
-  "Is the inferrior process currently running.
+  "Is the inferior process currently running.
 
 We track this so we know when we can send commands (e.g. eldoc
 info).  The mark the process buffer as busy after each input
@@ -936,7 +896,7 @@ This value is set in `gpb-inferior-r-mode' based on the
 (defun gpb-r--comint-input-filter (input)
   "Returns t if  `input' should be included in history."
   (and (comint-nonblank-p input)
-       ;; Don't recordd browser() commands.
+       ;; Don't record browser() commands.
        (not (string-match "Q *" input))
        (not (string-match "q(.*) *" input))))
 
@@ -1058,4 +1018,54 @@ ignoring the directory."
          (cmd (format "print(help(\"%s\", try.all.packages = FALSE))"
                       object-name)))
     (gpb-r-send-command cmd buf)))
+
+
+
+(defun gpb-r-indent-line ()
+  (prog1
+      (ess-r-indent-line)
+    (let ((pt (point))
+          (continue t)
+          init-depth col)
+      (setq init-depth (car (syntax-ppss)))
+      (catch 'done
+        (setq start (save-excursion
+                      (ess-backward-up-list)
+                      (unless (looking-at-p "(\\|\\[") (throw 'done t))
+                      (point)))
+
+        ;; Look for an outer comma.  If we find one, we are in an argument
+        ;; list and should only look back to the start of this argument to
+        ;; find the "~" or ":=".
+        (save-excursion
+          (while (and continue (re-search-backward "," start t))
+            (when (<= (car (syntax-ppss)) init-depth)
+              (setq continue nil
+                    start (point)))))
+
+        (save-excursion
+          (setq continue t)
+          (beginning-of-line)
+          (while (and continue (>= (point) start))
+            (if (re-search-backward "~\\|:=" start t)
+                (cond
+                 ;; If the "~" or ":=" we found is not inside a string or
+                 ;; some other nested expression.
+                 ((and (null (nth 3 (syntax-ppss)))
+                       (<= (car (syntax-ppss)) init-depth))
+                  (goto-char (match-end 0))
+                  (skip-chars-forward " ")
+                  (setq col (current-column)
+                        continue nil))
+                 ;; Otherwise, keep looking.
+                 (t (backward-char)))
+              ;; We didn't find a string match
+              (throw 'done t))))
+
+        (unless (null col)
+          (beginning-of-line)
+          (when (looking-at " +")
+            (delete-region (match-beginning 0) (match-end 0)))
+          (indent-to-column col))))))
+
 
