@@ -114,6 +114,10 @@
   (keyboard-quit))
 
 
+;; elisp-mode
+
+(evil-define-key 'normal emacs-lisp-mode-map "gr" 'revert-buffer)
+  
 ;; Reset to the initial state when you enter a window.
 
 (defun gpb-window-selection-change-function (&optional frame)
