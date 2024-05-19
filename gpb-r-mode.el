@@ -119,6 +119,12 @@ that are imbedded in R comments")
 
 At the moment, there can only be one active process")
 
+(defvar gpb-r-all-inferior-buffers nil
+  "A list of buffers.  Used by `gpb-r-kill-all-inferior-buffers'.")
+
+(defvar gpb-r-all-worker-buffers nil
+  "A list of buffers.  Used by `gpb-r-kill-all-worker-buffers'.")
+
 (defvar gpb-inferior-r-mode--syntax-table
   (let ((st (make-syntax-table)))
     (modify-syntax-entry ?. "_" st)
@@ -152,6 +158,8 @@ At the moment, there can only be one active process")
   "Major mode for an inferior R process.
 \\<gpb-inferior-r-mode-map>
 \\{gpb-inferior-r-mode-map}"
+  (push (current-buffer) gpb-r-all-inferior-buffers)
+
   ;; Try to shutdown gracefully when the buffer is killed.
   (add-hook 'kill-buffer-hook #'gpb-r--kill-buffer-hook nil t)
 
@@ -231,6 +239,9 @@ the result, and return a buffer that contains the result."
          (server-buf (get-buffer-create server-buf-name))
          (inhibit-read-only t)
          start end)
+
+    (setq gpb-r-all-worker-buffers
+          (cl-union (list server-buf) gpb-r-all-worker-buffers))
 
     ;; Try to pull any pending output from the proces before we send
     ;; `wrapped-cmd'.
@@ -880,6 +891,22 @@ ignoring the directory."
       (run-at-time 0.1 nil (lambda ()
                              (evil-insert-state)
                              (goto-char (1+ (point))))))))
+
+
+(defun gpb-r-kill-all-inferior-buffers ()
+  "Kill all inferior R process buffers." 
+  (interactive)
+  (gpb-r-kill-all-worker-buffers)
+  (dolist (buf gpb-r-all-inferior-buffers)
+    (and buf (buffer-live-p buf) (kill-buffer buf)))
+  (setq gpb-r-all-inferior-buffers nil))
+
+(defun gpb-r-kill-all-worker-buffers ()
+  "Kill all worker/command buffers." 
+  (interactive)
+  (dolist (buf gpb-r-all-worker-buffers)
+    (and buf (buffer-live-p buf) (kill-buffer buf)))
+  (setq gpb-r-all-worker-buffers nil))
 
 
 (provide 'gpb-r-mode)
