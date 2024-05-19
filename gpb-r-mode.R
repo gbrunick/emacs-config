@@ -122,6 +122,11 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
     invisible(NULL)
   }
 
+  shut_down <- function() {
+    savehistory()
+    quit(save = "no")
+  }
+  
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location)
@@ -130,5 +135,6 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
   list(get_completions = get_completions,
        get_args = get_args,
        region_file = region_file,
-       eval_region_file = eval_region_file)
+       eval_region_file = eval_region_file
+       shut_down = shut_down)
 })

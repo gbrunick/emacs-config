@@ -5,6 +5,7 @@
 (require 'subr-x)
 (require 'evil)
 (require 'ess-r-mode)
+(require 'gpb-logging)
 
 ;; Use ESS for R source code files but attempt to stop it from installing
 ;; all of its seemingly buggy hooks.
@@ -128,6 +129,9 @@ At the moment, there can only be one active process")
     (modify-syntax-entry ?. "_" st)
     st))
 
+(defvar-local gpb-r-mode-history-save-timer nil
+  "Used to cancel the timer")
+
 (defun gpb-ess-r-mode-hook ()
   "Hook function that overrides most of `ess-r-mode'"
   ;; Allow movement within camel-case identifiers.
@@ -171,8 +175,13 @@ At the moment, there can only be one active process")
   ;; functions.
   (setq-local comint-input-history-ignore "^$")
   (comint-read-input-ring t)
-  (gpb-r--maybe-save-history-later)
 
+  (setq-local gpb-r-mode-history-save-timer 
+              (run-at-time gpb-r-history-save-frequency
+                           gpb-r-history-save-frequency
+                           `(lambda ()
+                              (gpb-r-save-history ,(current-buffer)))))
+  
   ;; Try to shutdown gracefully when the buffer is killed.
   (add-hook 'kill-buffer-hook #'gpb-r--kill-buffer-hook nil t)
 
@@ -353,6 +362,13 @@ debugging state."
       (when (called-interactively-p)
         (message "Working Dir: %s" default-directory))
       default-directory)))
+
+
+(defun gpb-r-save-history (&optional buf)
+  "Request the R process save the .Rhistory file."
+  (interactive)
+  (gpb-r-send-input "utils::savehistory()" nil buf)
+  (message "Saved R History"))
 
 
 (defun gpb-r-save-and-exec-command (arg)
@@ -790,32 +806,6 @@ until we see the next prompt.")
       (setq-local gpb-r--inferior-process-busy nil))))
 
 
-(provide 'gpb-r-mode)
-
-
-;; History file management
-
-(defvar-local gpb-r--history-file nil
-  "The file that store the inferior R history.
-
-This value is set in `gpb-inferior-r-mode' based on the
-`default-directory' when the interpreter is started.")
-
-(defun gpb-r--maybe-save-history-later ()
-  "Save history later when `gpb-r-history-save-frequency' is set"
-  (when (and gpb-r-history-save-frequency
-             (> gpb-r-history-save-frequency 0))
-    (run-at-time gpb-r-history-save-frequency nil
-                 'gpb-r--maybe-save-history-later-1 (current-buffer))))
-
-(defun gpb-r--maybe-save-history-later-1 (buf)
-  "Save the history ring in `buf'"
-  (when (buffer-live-p buf)
-    (with-current-buffer buf
-      (comint-write-input-ring)
-      (gpb-r--maybe-save-history-later))))
-
-
 ;; Filter comint ring history
 
 (defun gpb-r--comint-input-filter (input)
@@ -828,23 +818,15 @@ This value is set in `gpb-inferior-r-mode' based on the
 
 ;; Shut down gracefully
 
-(defun gpb-r--close-inferior-process (&optional buf)
+(defun gpb-r--kill-buffer-hook (&optional buf)
   "Attempt to close inferior process gracefully."
   (let* ((buf (or buf (current-buffer)))
          (proc (get-buffer-process buf)))
-    (when (and (buffer-live-p buf) (process-live-p proc))
-      (with-current-buffer buf
-        (save-excursion
-          (goto-char (process-mark proc))
-          (forward-line 0)
-          (when (looking-at-p "^Browse\\[[0-9]+\\]> *")
-            (send-string proc "Q\n"))
-          (send-string proc "q(save = 'no')\n")
-          (accept-process-output proc 0.1 nil t))))))
-
-(defun gpb-r--kill-buffer-hook ()
-  (comint-write-input-ring)
-  (gpb-r--close-inferior-process))
+    (when (buffer-live-p buf)
+      (and gpb-r-mode-history-save-timer
+           (cancel-timer gpb-r-mode-history-save-timer))
+      (when (process-live-p proc)
+        (gpb-r-send-command "Q\nQ\n.gpb_r_mode$shut_down()")))))
 
 
 ;; Input preprocessing
@@ -863,7 +845,7 @@ send the resulting string to `comint-simple-send'."
 
 (defun gpb-r-send-input (cmd &optional pop buf)
   "Insert `cmd' into R process buffer and send."
-  (let* ((procbuf (gpb-r-get-proc-buffer buf)))
+  (let* ((procbuf (or buf (gpb-r-get-proc-buffer))))
 
     (or (process-live-p (get-buffer-process procbuf))
         (error "No R process available"))
@@ -1024,9 +1006,9 @@ ignoring the directory."
     (when (and (boundp 'evil-mode) evil-mode)
       (run-at-time 0.1 nil (lambda ()
                              (evil-insert-state)
-                             (goto-char (1+ (point)))
-                             ;;((insert " ")
-                             ;;((evil-forward-char)
-                             )))))
+                             (goto-char (1+ (point))))))))
+
+
+(provide 'gpb-r-mode)
 
 
