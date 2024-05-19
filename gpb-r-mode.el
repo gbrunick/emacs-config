@@ -680,21 +680,6 @@ This function returns a string or nil"
               info)))))))
 
 
-(defun gpb-r-update-tags (&optional dir)
-  "Update TAGS in dir or one of its parent dirctories.
-
-Looks for the TAGS_DIR file and then calls underyling R code."
-  (interactive)
-  (let ((dir (file-name-as-directory (or dir default-directory)))
-        next file)
-    (while (and dir (not (file-exists-p (concat dir "TAG_DIRS"))))
-      (setq next (file-name-directory (directory-file-name dir))
-            dir (if (string= next dir) nil next)))
-    (setq file (concat dir "TAG_DIRS"))
-    (when (file-exists-p file)
-      (gpb-r-send-command (format ".gpb_r_mode$update_tags(%S)" file)))))
-
-
 (defun gpb-r--get-tramp-prefix (&optional dir)
   (let ((dir (or dir default-directory)))
     (or (file-remote-p dir) "")))

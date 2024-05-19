@@ -99,27 +99,6 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
     invisible(NULL)
   }
 
-  update_tags <- function(dirs_file) {
-    stopifnot(file.exists(dirs_file))
-    dir <- normalizePath(dirname(dirs_file))
-    tags_file <- file.path(dir, "TAGS")
-    cat("", file = tags_file)
-    cat(sprintf("\nTAGS file: %s\n", tags_file))
-    wd <- setwd(dir)
-    on.exit(setwd(wd))
-    relpaths <- readLines(dirs_file)
-
-    for (relpath in relpaths) {
-      cat(sprintf("Source dir: %s\n", relpath))
-      files <- file.path(relpath, list.files(path = relpath,
-                                             pattern = "\\.[Rr]$",
-                                             full.names = FALSE,
-                                             recursive = FALSE))
-      cat(paste(sprintf("Source file: %s\n", files), collapse = ""))
-      rtags(src = files, ofile = tags_file, append = TRUE)
-    }
-  }
-
   # We pass this temp file to Emacs for region evaluation.
   region_file <- tempfile("region-", fileext = ".R")
 
@@ -147,9 +126,9 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
           pager = "cat",
           error = print_error_location)
 
+  # This is the API exposed to grp-r-mode.el.
   list(get_completions = get_completions,
        get_args = get_args,
-       update_tags = update_tags,
        region_file = region_file,
        eval_region_file = eval_region_file)
 })
