@@ -48,6 +48,8 @@
     (define-key map "\C-c\C-t" 'gpb-r-send-traceback)
     (define-key map "\C-c\C-w" 'gpb-r-getwd)
     (define-key map "\C-c\C-d" 'gpb-r-show-docs)
+    (define-key map "\C-s" 'gpb-r-save-history)
+    (define-key map "\C-c\C-r" 'gpb-r-read-history)
     (define-key map [remap forward-button] 'gpb-r-forward-button) 
     (define-key map [remap backward-button] 'gpb-r-backward-button) 
     ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
@@ -183,6 +185,7 @@ At the moment, there can only be one active process")
   (add-hook 'comint-output-filter-functions
             #'gpb-r--callback-filter-function nil t)
 
+  (gpb-r-read-history)
   (gpb-r-source-R-init-file))
 
 
@@ -677,16 +680,6 @@ that contains the callback."
   line)
 
 
-;; Filter comint ring history
-
-(defun gpb-r--comint-input-filter (input)
-  "Returns t if  `input' should be included in history."
-  (and (comint-nonblank-p input)
-       ;; Don't record browser() commands.
-       (not (string-match "Q *" input))
-       (not (string-match "q(.*) *" input))))
-
-
 ;; Shut down gracefully
 
 (defun gpb-r--kill-buffer-hook (&optional buf)
@@ -695,6 +688,10 @@ that contains the callback."
          (server-buf-name (gpb-r--get-command-buffer-name buf))
          (server-buf (get-buffer server-buf-name))
          (proc (get-buffer-process buf)))
+    (and comint-input-ring-file-name
+         (y-or-n-p (format "Write %s?" (expand-file-name
+                                        comint-input-ring-file-name)))
+         (gpb-r-save-history))
     (and server-buf
          (buffer-live-p server-buf)
          (progn (kill-buffer server-buf)
@@ -957,7 +954,14 @@ Should be called from the interpreter buffer."
   ;; commands like eval region that are actually handled by input filter
   ;; functions.
   (setq-local comint-input-history-ignore "^.* # Emacs command$")
-  (comint-read-input-ring))
+  (comint-read-input-ring)
+  (message "Read: %s" comint-input-ring-file-name))
+
+
+(defun gpb-r-save-history ()
+  (interactive)
+  (comint-write-input-ring)
+  (message "Wrote: %s" comint-input-ring-file-name))
 
 
 (provide 'gpb-r-mode)
