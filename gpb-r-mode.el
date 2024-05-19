@@ -45,6 +45,7 @@
     (define-key map [(backtab)] 'backward-button)
     (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
     (define-key map "\C-c\C-t" 'gpb-r-send-traceback)
+    (define-key map "\C-c\C-d" 'gpb-r-getwd)
     (define-key map [remap forward-button] 'gpb-r-forward-button) 
     (define-key map [remap backward-button] 'gpb-r-backward-button) 
     ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
@@ -59,13 +60,6 @@
 
 (defgroup gpb-r-mode nil
   "Settings related to the Emacs 'gpb-r-mode' package/feature.")
-
-(defcustom gpb-r-history-save-frequency (* 5 60)
-  "The frequency with which we save the history of the R process in seconds.
-
-Set to nil or zero to disable auto-saving history."
-  :type 'integer
-  :group 'gpb-r-mode)
 
 (defcustom gpb-r-file-link-definitions
   `(;; Don't underline the " at " part of the traceback.
@@ -129,9 +123,6 @@ At the moment, there can only be one active process")
     (modify-syntax-entry ?. "_" st)
     st))
 
-(defvar-local gpb-r-mode-history-save-timer nil
-  "Used to cancel the timer")
-
 (defun gpb-ess-r-mode-hook ()
   "Hook function that overrides most of `ess-r-mode'"
   ;; Allow movement within camel-case identifiers.
@@ -160,28 +151,6 @@ At the moment, there can only be one active process")
   "Major mode for an inferior R process.
 \\<gpb-inferior-r-mode-map>
 \\{gpb-inferior-r-mode-map}"
-  (setq truncate-lines t)
-
-  ;; History setup
-  ;;
-  ;; Use an absolute path for `comint-input-ring-file-name' so it is not
-  ;; impacted by changes to the R working directory.
-  (setq-local comint-input-ring-file-name (expand-file-name ".Rhistory"))
-  (setq-local comint-input-ring-separator "\n")
-  (setq-local comint-input-filter #'gpb-r--comint-input-filter)
-
-  ;; Keep comments in the history as we use comments for some special
-  ;; commands like eval region that are actually handled by input filter
-  ;; functions.
-  (setq-local comint-input-history-ignore "^$")
-  (comint-read-input-ring t)
-
-  (setq-local gpb-r-mode-history-save-timer 
-              (run-at-time gpb-r-history-save-frequency
-                           gpb-r-history-save-frequency
-                           `(lambda ()
-                              (gpb-r-save-history ,(current-buffer)))))
-  
   ;; Try to shutdown gracefully when the buffer is killed.
   (add-hook 'kill-buffer-hook #'gpb-r--kill-buffer-hook nil t)
 
@@ -276,6 +245,7 @@ the result, and return a buffer that contains the result."
     (while (accept-process-output proc 0.1 nil 1))
 
     (with-current-buffer server-buf
+      (fundamental-mode)
       (erase-buffer)
       (setq-local original-proc-buffer buf)
       (setq-local original-sentinel-func (process-sentinel proc))
@@ -362,13 +332,6 @@ debugging state."
       (when (called-interactively-p)
         (message "Working Dir: %s" default-directory))
       default-directory)))
-
-
-(defun gpb-r-save-history (&optional buf)
-  "Request the R process save the .Rhistory file."
-  (interactive)
-  (gpb-r-send-input "utils::savehistory()" nil buf)
-  (message "Saved R History"))
 
 
 (defun gpb-r-save-and-exec-command (arg)
@@ -806,27 +769,14 @@ until we see the next prompt.")
       (setq-local gpb-r--inferior-process-busy nil))))
 
 
-;; Filter comint ring history
-
-(defun gpb-r--comint-input-filter (input)
-  "Returns t if  `input' should be included in history."
-  (and (comint-nonblank-p input)
-       ;; Don't record browser() commands.
-       (not (string-match "Q *" input))
-       (not (string-match "q(.*) *" input))))
-
-
 ;; Shut down gracefully
 
 (defun gpb-r--kill-buffer-hook (&optional buf)
   "Attempt to close inferior process gracefully."
   (let* ((buf (or buf (current-buffer)))
          (proc (get-buffer-process buf)))
-    (when (buffer-live-p buf)
-      (and gpb-r-mode-history-save-timer
-           (cancel-timer gpb-r-mode-history-save-timer))
-      (when (process-live-p proc)
-        (gpb-r-send-command "Q\nQ\n.gpb_r_mode$shut_down()")))))
+    (when (and (buffer-live-p buf) (process-live-p proc))
+      (gpb-r-send-command "Q\nQ\nquit(save = \"no\")\n"))))
 
 
 ;; Input preprocessing
