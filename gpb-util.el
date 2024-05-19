@@ -12,14 +12,14 @@ argument is given."
         (cl-mapcar (lambda (w b) (set-window-buffer w b))
                    wins bufs)))
   (other-window 1 t)
-  (when (memq (window-system) '(x w32 ns))
-    (x-focus-frame (selected-frame))))
+  (when (and (boundp 'evil-mode) evil-mode)
+    (evil-change-to-initial-state)))
 
 (defun gpb-previous-window ()
   (interactive)
   (other-window -1 t)
-  (when (memq (window-system) '(x w32 ns))
-    (x-focus-frame (selected-frame))))
+  (when (and (boundp 'evil-mode) evil-mode)
+    (evil-change-to-initial-state)))
 
 
 (defun gpb-forward-page (&optional arg)

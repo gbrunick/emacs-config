@@ -118,15 +118,6 @@
 
 (evil-define-key 'normal emacs-lisp-mode-map "gr" 'revert-buffer)
   
-;; Reset to the initial state when you enter a window.
-
-(defun gpb-window-selection-change-function (&optional frame)
-  "Return to the initial mode when you switch into a buffer."
-  (evil-change-to-initial-state))
-
-(add-hook 'window-selection-change-functions
-          'gpb-window-selection-change-function)
-
 
 ;; Start a search immediately from visual mode.
 
