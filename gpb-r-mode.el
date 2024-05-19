@@ -229,11 +229,10 @@ process into new buffer, send `cmd' to the R process, wait for
 the result, and return a buffer that contains the result."
   (interactive "sR Command: ")
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
-         (wrapped-cmd (format "tryCatch({ %s }, finally = cat('\\n%s\\n'))\n"
-                              cmd gpb-r-end-of-output-marker))
+         (wrapped-cmd (format ".emacs_cmd({ %S })\n" cmd))
          (proc (or (get-buffer-process buf)
                    (error "No R process available")))
-         (server-buf-name (concat (buffer-name buf) " [commands]"))
+         (server-buf-name (gpb-r--get-command-buffer-name buf))
          (server-buf (get-buffer-create server-buf-name))
          (inhibit-read-only t)
          start end)
@@ -692,9 +691,16 @@ that contains the callback."
 (defun gpb-r--kill-buffer-hook (&optional buf)
   "Attempt to close inferior process gracefully."
   (let* ((buf (or buf (current-buffer)))
+         (server-buf-name (gpb-r--get-command-buffer-name buf))
+         (server-buf (get-buffer server-buf-name))
          (proc (get-buffer-process buf)))
-    (when (and (buffer-live-p buf) (process-live-p proc))
-      (gpb-r-send-command "Q\nQ\nquit(save = \"no\")\n"))))
+    (and server-buf
+         (buffer-live-p server-buf)
+         (progn (kill-buffer server-buf)
+                (message "Killed %S" server-buf-name)))
+    (and (buffer-live-p buf)
+         (process-live-p proc)
+         (send-string proc "Q\nQ\nquit(save = \"no\")\n"))))
 
 
 ;; Input preprocessing
@@ -891,6 +897,8 @@ ignoring the directory."
                              (evil-insert-state)
                              (goto-char (1+ (point))))))))
 
+(defun gpb-r--get-command-buffer-name (process-buffer)
+  (concat (buffer-name process-buffer) " [commands]"))
 
 (defun gpb-r-kill-all-inferior-buffers ()
   "Kill all inferior R process buffers." 

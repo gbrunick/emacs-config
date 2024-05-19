@@ -35,6 +35,16 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
 }
 
 
+.emacs_cmd <- function(text) {
+  ## We write the marker in all cases. 
+  marker <- "\nEND:75b30f72-85a0-483c-98ce-d24414394ff0\n" 
+  tryCatch({
+    expr <- parse(text = text)
+    eval(expr)
+  }, finally = cat(marker))
+}
+
+
 # We collect all our functions in single list to avoid poluting the R
 # global namespace too much.
 .gpb_r_mode <- local({
