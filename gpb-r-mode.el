@@ -46,6 +46,7 @@
     (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
     (define-key map "\C-c\C-t" 'gpb-r-send-traceback)
     (define-key map "\C-c\C-d" 'gpb-r-getwd)
+    (define-key map "\C-c\C-f" 'gpb-r-show-help)
     (define-key map [remap forward-button] 'gpb-r-forward-button) 
     (define-key map [remap backward-button] 'gpb-r-backward-button) 
     ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
@@ -158,17 +159,13 @@ At the moment, there can only be one active process")
                         (insert-file-contents (locate-library "gpb-r-mode.R"))
                         (buffer-string))
                       (current-buffer))
+
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
   (setq-local comint-input-autoexpand nil)
   (setq-local comint-input-sender #'gpb-r--input-sender)
+  (setq-local eldoc-documentation-functions nil)
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
-
-  ;; This filters manage the local variable `gpb-r--inferior-process-busy'
-  (add-hook 'comint-input-filter-functions
-            #'gpb-r--busy-state-input-filter t t)
-  (add-hook 'comint-output-filter-functions
-            #'gpb-r--busy-state-output-filter nil t)
 
   ;; Look for traceback and debug output.
   (add-hook 'comint-output-filter-functions
@@ -180,12 +177,7 @@ At the moment, there can only be one active process")
   ;; that we want the other filter functions to pick up (e.g. file link
   ;; text).
   (add-hook 'comint-output-filter-functions
-            #'gpb-r--callback-filter-function nil t)
-
-  ;; eldoc support
-  (setq-local eldoc-documentation-function
-              #'gpb-r--eldoc-documentation-function)
-  (eldoc-mode 0))
+            #'gpb-r--callback-filter-function nil t))
 
 
 (defun gpb-r-set-active-process ()
@@ -588,77 +580,6 @@ that contains the callback."
     (insert (format " at %s#%s" file line))))
 
 
-;; eldoc integration
-
-(defvar-local gpb-r--eldoc-hash
-  (make-hash-table :test #'equal))
-
-(defun gpb-r-clear-eldoc-cache ()
-  "Clear the eldoc documentation cache.
-
-If the R function definitions have changed, call this function to
-clear the cache."
-  (interactive)
-  (with-current-buffer (gpb-r-get-proc-buffer)
-    (clrhash gpb-r--eldoc-hash)))
-
-(defun gpb-r--eldoc-documentation-function ()
-  "Identify the current function and return argument info.
-
-This function only recognizes a function once you enter the
-parenthesis for its arguments.  We don't try to highlight the
-current argument.  Handling this correctly in the presence of
-named arguments would be complicated and it's just not worth it.
-
-This function returns a string or nil"
-  ;; We bound how far we search to look for an opening parenthesis.  In an
-  ;; inferion process buffer, you want to ignore any previous input or
-  ;; error output before the current prompt.  In an R code buffer, you want
-  ;; to avoid invalid code that is far away from the point.
-  (save-match-data
-    (let* ((lbound (if (derived-mode-p 'comint-mode)
-                       (comint-line-beginning-position)
-                     (save-excursion (forward-line -25) (point))))
-           (parse-info (parse-partial-sexp lbound (point)))
-           end func-name)
-
-      ;; Only proceed if we are inside a parenthetical expression that starts
-      ;; on or after `lbound'.  A half-open expression counts.
-      (when (> (car parse-info) 0)
-
-        ;; Find the function name immediately before the openning
-        ;; parenthesis, including any module prefix.
-        (setq func-name (save-excursion
-                          ;; Go to opening parenthesis
-                          (goto-char (cadr parse-info))
-                          (skip-chars-backward " \t")
-                          (setq end (point))
-                          (skip-chars-backward "a-zA-Z0-9_.")
-                          (when (looking-back "::")
-                            (backward-char 2)
-                            (skip-chars-backward "a-zA-Z0-9_."))
-                          (buffer-substring-no-properties (point) end)))
-
-        (when (and func-name
-                   (not (member func-name '("if" "for" "function")))
-                   (gpb-r-get-proc-buffer))
-          (with-current-buffer (gpb-r-get-proc-buffer)
-            ;; We associate a single buffer local cache with each process.
-            (setq info (or (gethash func-name gpb-r--eldoc-hash)
-                           ;; If the inferior process is busy, we don't try
-                           ;; to get eldoc info now.
-                           (and (not gpb-r--inferior-process-busy)
-                                (puthash func-name
-                                         (gpb-r-send-command
-                                          (format ".gpb_r_mode$get_args(%S)"
-                                                  func-name)
-                                          (current-buffer))
-                                         gpb-r--eldoc-hash))))
-            (if (string= info "NULL")
-                nil
-              info)))))))
-
-
 (defun gpb-r--get-tramp-prefix (&optional dir)
   (let ((dir (or dir default-directory)))
     (or (file-remote-p dir) "")))
@@ -747,26 +668,14 @@ This function returns a string or nil"
   line)
 
 
-;; Track the busy state of the inferior process
+;; Filter comint ring history
 
-(defvar-local gpb-r--inferior-process-busy nil
-  "Is the inferior process currently running.
-
-We track this so we know when we can send commands (e.g. eldoc
-info).  The mark the process buffer as busy after each input
-until we see the next prompt.")
-
-(defun gpb-r--busy-state-input-filter (line)
-  (setq-local gpb-r--inferior-process-busy t))
-
-(defun gpb-r--busy-state-output-filter (line)
-  (save-restriction
-    (widen)
-    (when (save-excursion
-            (goto-char (point-max))
-            (forward-line 0)
-            (looking-at-p "^> *$"))
-      (setq-local gpb-r--inferior-process-busy nil))))
+(defun gpb-r--comint-input-filter (input)
+  "Returns t if  `input' should be included in history."
+  (and (comint-nonblank-p input)
+       ;; Don't record browser() commands.
+       (not (string-match "Q *" input))
+       (not (string-match "q(.*) *" input))))
 
 
 ;; Shut down gracefully
@@ -869,12 +778,26 @@ ignoring the directory."
 
 (defun gpb-r-show-help (object-name &optional buf)
   "Show help on OBJECT-NAME."
-  (interactive (list (read-string "R Object: " (gpb-ess:symbol-at-point))))
+  (interactive (list (read-string "Get Help on R Object: "
+                                  (save-excursion
+                                    (skip-chars-backward " (")
+                                    (symbol-name (symbol-at-point))))))
 
-  (let* ((buf (gpb-r-get-proc-buffer buf))
+  (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (cmd (format "print(help(\"%s\", try.all.packages = FALSE))"
-                      object-name)))
-    (gpb-r-send-command cmd buf)))
+                      object-name))
+         (help-txt (gpb-r-send-command cmd buf))
+         (help-buf (get-buffer-create (format "*R Help: %s" object-name)))
+         (inhibit-read-only t))
+    (with-current-buffer help-buf
+      (erase-buffer)
+      (special-mode)
+      (insert help-txt)
+      (goto-char (point-min))
+      (save-excursion
+        (while (re-search-forward "." nil t)
+          (delete-region (match-beginning 0) (match-end 0)))))
+    (display-buffer help-buf))) 
 
 
 
