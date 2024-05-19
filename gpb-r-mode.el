@@ -46,8 +46,8 @@
     (define-key map [(backtab)] 'backward-button)
     (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
     (define-key map "\C-c\C-t" 'gpb-r-send-traceback)
-    (define-key map "\C-c\C-d" 'gpb-r-getwd)
-    (define-key map "\C-c\C-f" 'gpb-r-show-help)
+    (define-key map "\C-c\C-w" 'gpb-r-getwd)
+    (define-key map "\C-c\C-d" 'gpb-r-show-docs)
     (define-key map [remap forward-button] 'gpb-r-forward-button) 
     (define-key map [remap backward-button] 'gpb-r-backward-button) 
     ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
@@ -793,9 +793,9 @@ ignoring the directory."
       buf))))
 
 
-(defun gpb-r-show-help (object-name &optional buf)
+(defun gpb-r-show-docs (object-name &optional buf)
   "Show help on OBJECT-NAME."
-  (interactive (list (read-string "Get Help on R Object: "
+  (interactive (list (read-string "Show Docs: "
                                   (save-excursion
                                     (skip-chars-backward " (")
                                     (symbol-name (symbol-at-point))))))
