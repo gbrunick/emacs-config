@@ -39,7 +39,6 @@ first row in the  window and then scroll backwards by pages."
          (last-line-pt (save-excursion (move-to-window-line -1)
                                        (forward-line 0)
                                        (point)))
-         (next-screen-context-lines 1)
          (scroll-preserve-screen-position 'always))
     (unless (memq last-command '(previous-line next-line))
       ;; see line-move-visual
