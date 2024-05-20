@@ -40,7 +40,7 @@ any command output and doesn't require any shell quoting.")
 (defvar prat-command-output-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "!" 'prat-shell-command)
-    (define-key map "q" 'bury-buffer)
+    (define-key map "q" 'quit-window)
     map))
 
 (define-derived-mode prat-command-output-mode special-mode "Git Output")

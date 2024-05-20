@@ -133,6 +133,7 @@
 (setenv "PYTHONUNBUFFERED" "1")
 
 (require 'tramp)
+(setq tramp-verbose 2)
 (remove-hook 'tramp-cleanup-connection-hook 'tramp-recentf-cleanup)
 (remove-hook 'tramp-cleanup-all-connections-hook 'tramp-recentf-cleanup-all)
 
