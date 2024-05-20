@@ -225,6 +225,8 @@ At the moment, there can only be one active process")
       (read response))))
 
 
+(defvar gpb-r-waiting-timer nil)
+
 (defun gpb-r-send-command (cmd &optional buf)
   "Send CMD to R process in BUF the return the output as a string.
 
@@ -238,6 +240,8 @@ the result, and return a buffer that contains the result."
                    (error "No R process available")))
          (server-buf-name (gpb-r--get-command-buffer-name buf))
          (server-buf (get-buffer-create server-buf-name))
+         (msg "Waiting on R process (C-G to cancel)...")
+         (regex (concat "^" gpb-r-end-of-output-marker "\n"))
          (inhibit-read-only t)
          start end)
 
@@ -265,44 +269,38 @@ the result, and return a buffer that contains the result."
       (setq start (point))
       (send-string proc wrapped-cmd)
 
+      ;; Provide some feedback if the command takes longer than a second.
+      (setq gpb-r-waiting-timer (run-at-time 1 nil (lambda () (message msg))))
+                                             
       (condition-case
           error-var
           (unwind-protect
-              (with-temp-message "Waiting on R process..."
+              (progn
                 ;; Accept output until we see the end-of-output marker
                 (while (not (save-excursion
                               (goto-char start)
-                              (re-search-forward
-                               (concat "^" gpb-r-end-of-output-marker
-                                       "\n\\(Browse.*\\)?>")
-                               nil t)))
-                  ;; If we are trying to run a command when the prompt is
-                  ;; in a Browser state, we may need to send a few "n" to
-                  ;; complete the command.
-                  (when (save-excursion (goto-char start)
-                                        (forward-line 0)
-                                        (re-search-forward
-                                         "Browse\\[[0-9]+\\]> " nil t))
-                    (end-of-line)
-                    (insert "n\n")
-                    (move-marker (process-mark proc) (point))
-                    (setq start (point))
-                    (send-string proc "n\n"))
-                  (accept-process-output proc 0.5 nil t)
-                  (ansi-color-filter-region (point-min) (point-max)))
-                (goto-char (match-beginning 0))
-                ;; We use a marker for `end` so that it is not disturbed by
-                ;; the deletions below.
-                (setq end (copy-marker (point)))
-                (goto-char start)
-                ;; Remove any continuation prompts between `start' and
-                ;; `and' in the buffer
-                (save-excursion
-                  (while (re-search-forward "^+ " end t)
-                    (delete-region (match-beginning 0) (match-end 0))))
-                (string-trim (buffer-substring-no-properties start end)))
+                              (re-search-forward regex nil t)))
+                  (accept-process-output proc 10 nil t))
 
-            (let ((inhibit-message t)) (message "Waiting on R process...done"))
+                (save-excursion
+                  (ansi-color-filter-region (point-min) (point-max))
+                  (goto-char start)
+                  ;; R apparently uses _^H to indicate underlines. 
+                  (save-excursion
+                    (while (re-search-forward "." nil t)
+                      (delete-region (match-beginning 0) (match-end 0))))
+                  (re-search-forward regex)
+                  (goto-char (match-beginning 0))
+                  ;; We use a marker for `end` so that it is not disturbed by
+                  ;; the deletions below.
+                  (setq end (copy-marker (point)))
+                  (goto-char start)
+                  ;; Remove any continuation prompts between `start' and
+                  ;; `and' in the buffer
+                  (save-excursion
+                    (while (re-search-forward "^+ " end t)
+                      (delete-region (match-beginning 0) (match-end 0))))
+                  (string-trim (buffer-substring-no-properties start end))))
 
             ;; Return the process to its original buffer even if there is an
             ;; error.
@@ -310,7 +308,10 @@ the result, and return a buffer that contains the result."
             (set-process-sentinel proc original-sentinel-func)
             (set-process-filter proc original-filter-func)
             (set-marker (process-mark proc)
-                        original-mark-pos original-proc-buffer))
+                        original-mark-pos original-proc-buffer)
+
+            ;; Cancel the timer if it is still pending.
+            (cancel-timer gpb-r-waiting-timer))
 
         ;; If there is an error, of the call hangs and the user has to
         ;; `keyboard-quit' to get control of Emacs, we show the server
@@ -336,6 +337,13 @@ debugging state."
       (when (called-interactively-p)
         (message "Working Dir: %s" default-directory))
       default-directory)))
+
+
+(defun gpb-r-hanging-command (&optional buf)
+  "A command that hangs for testing."
+  (interactive)
+  (let* ((buf (or buf (gpb-r-get-proc-buffer))))
+    (gpb-r-send-command "readline('Press <return> to continue')" buf)))
 
 
 (defun gpb-r-save-and-exec-command (arg)
@@ -807,10 +815,7 @@ ignoring the directory."
       (erase-buffer)
       (special-mode)
       (insert help-txt)
-      (goto-char (point-min))
-      (save-excursion
-        (while (re-search-forward "." nil t)
-          (delete-region (match-beginning 0) (match-end 0)))))
+      (goto-char (point-min)))
     (display-buffer help-buf))) 
 
 
