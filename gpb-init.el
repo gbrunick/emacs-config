@@ -8,7 +8,7 @@
   ;; Add current directory to load path without
   (add-to-list 'load-path (expand-file-name "."))
   ;; Add most subdirectories to `load-path'.  The directories
-  ;; that contain files named .nosearch are ignored. 
+  ;; that contain files named .nosearch are ignored.
   ;; `normal-top-level-add-subdirs-to-load-path').
   (normal-top-level-add-subdirs-to-load-path))
 
@@ -18,7 +18,7 @@
                          ("melpa" . "https://melpa.org/packages/")))
 
 (use-package wgrep
-  :config (setq wgrep-auto-save-buffer t)) 
+  :config (setq wgrep-auto-save-buffer t))
 
 (use-package dired
   :hook (dired-mode . dired-omit-mode)
@@ -77,7 +77,7 @@
       apropos-do-all                    t
       backup-by-copying                 t
       enable-remote-dir-locals          t
-      next-screen-context-lines         0 
+      next-screen-context-lines         0
       ;; Show the file path in the window title.
       frame-title-format '(:eval (or (buffer-file-name) "emacs"))
       ;; Show the point in the mode line
@@ -188,6 +188,8 @@
 ;; Completion in M-x execute-extended-command.
 (define-key read-expression-map "\t" 'completion-at-point)
 
+(add-hook 'before-save-hook 'delete-trailing-whitespace)
+
 ;; Evil config
 (require 'gpb-evil)
 (require 'gpb-util)
@@ -198,6 +200,6 @@
 
 (require 'gpb-rectangle-mark-mode)
 (global-set-key (kbd "C-x SPC") #'gpb-enter-rectangle-mark-mode)
- 
+
 
 (setq debug-on-quit nil)
