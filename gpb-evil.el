@@ -2,7 +2,7 @@
 ;; could use :init for this below, but it doesn't seem to work.
 (setq evil-want-keybinding nil
       evil-want-integration t
-      evi-respect-visual-line-mode t
+      evil-respect-visual-line-mode t
       evil-want-Y-yank-to-eol t)
 
 (require 'evil)
@@ -22,7 +22,8 @@
       evil-cross-lines t
       evil-visual-state-cursor 'hollow
       evil-emacs-state-cursor 'bar
-      evil-shift-width 2)
+      evil-shift-width 2
+      evil-kill-on-visual-paste nil)
 
 (evil-select-search-module 'evil-select-search-mode 'evil-search)
 (evil-set-undo-system 'undo-redo)
@@ -76,7 +77,7 @@
   (gpb-make-repeatable #'evil-execute-macro
                        #'evil-forward-section-begin
                        #'evil-backward-section-begin
-                       #'evil-collection-unimpaired-insert-newline-below
+                       #'evil-collection-unimpaired-insert-newline-above
                        #'evil-collection-unimpaired-insert-newline-below))
 
 
@@ -117,8 +118,7 @@
 
 ;; elisp-mode
 
-(evil-define-key 'normal emacs-lisp-mode-map
-  "gr"        'revert-buffer
+(evil-define-key 'normal emacs-lisp-mode-map "gr" 'revert-buffer)
 
   ;; Work around an unfortunate interaction with the VIM cursor model.
   (kbd "TAB") (lambda ()

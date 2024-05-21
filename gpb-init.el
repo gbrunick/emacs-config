@@ -81,7 +81,9 @@
       ;; Show the file path in the window title.
       frame-title-format '(:eval (or (buffer-file-name) "emacs"))
       ;; Show the point in the mode line
-      mode-line-position '(20 (:eval (format "(%%l,%%3c) %5d" (point)))))
+      mode-line-position '(20 (:eval (format "(%%l,%%3c) %5d" (point))))
+      ;; Show a continuation marker in `visual-line-mode'.
+      visual-line-fringe-indicators '(nil right-curly-arrow))
 
 
 (setq-default indent-tabs-mode nil
