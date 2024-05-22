@@ -12,7 +12,7 @@
 (setq ess-r-mode-hook nil
       ess-use-auto-complete nil
       ess-use-company nil
-      ess-use-tracebug nil 
+      ess-use-tracebug nil
       ess-imenu-use-S nil
       ess-roxy-hide-show-p nil
       ess-roxy-fold-examples nil
@@ -34,6 +34,7 @@
 (setq ess-r-mode-map (let ((keymap (make-sparse-keymap)))
                        (define-key keymap "\C-c\C-b" 'gpb-r-insert-browser)
                        (define-key keymap "\C-c\C-c" 'gpb-r-save-and-exec-command)
+                       (define-key keymap "\C-c\C-d" 'gpb-r-show-docs)
                        ;; Eval current function
                        (define-key keymap "\C-\M-x" "!id")
                        ;; You have to set a keymap to avoid inheriting bindings.
@@ -50,14 +51,14 @@
     (define-key map "\C-c\C-d" 'gpb-r-show-docs)
     (define-key map "\C-s" 'gpb-r-save-history)
     (define-key map "\C-c\C-r" 'gpb-r-read-history)
-    (define-key map [remap forward-button] 'gpb-r-forward-button) 
-    (define-key map [remap backward-button] 'gpb-r-backward-button) 
+    (define-key map [remap forward-button] 'gpb-r-forward-button)
+    (define-key map [remap backward-button] 'gpb-r-backward-button)
     ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
     map)
   "Keymap for `gpb-inferior-r-mode'.")
 
 (when (and (boundp 'evil-mode) evil-mode)
-  (evil-define-key 'motion gpb-inferior-r-mode-map [?\t] 'forward-button) 
+  (evil-define-key 'motion gpb-inferior-r-mode-map [?\t] 'forward-button)
   (evil-define-key 'motion gpb-inferior-r-mode-map [(backtab)] 'backward-button)
   (evil-define-key 'insert gpb-inferior-r-mode-map [?\t] 'completion-at-point))
 
@@ -154,7 +155,8 @@ At the moment, there can only be one active process")
   (remove-hook 'xref-backend-functions #'ess-r-xref-backend 'local)
   (remove-hook 'project-find-functions #'ess-r-project 'local)
 
-  (setcdr (assoc 'ess-indent-offset (assoc 'RRR ess-style-alist)) 2))
+  (setq ess-indent-offset 2
+        ess-indent-with-fancy-comments nil))
 
 
 (define-derived-mode gpb-inferior-r-mode comint-mode "Inferior R Mode"
@@ -165,7 +167,7 @@ At the moment, there can only be one active process")
 
   ;; Try to shutdown gracefully when the buffer is killed.
   (add-hook 'kill-buffer-hook #'gpb-r--kill-buffer-hook nil t)
-  
+
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
   (setq-local comint-input-autoexpand nil)
   (setq-local comint-input-sender #'gpb-r--input-sender)
@@ -489,7 +491,7 @@ displayed."
   (let ((proc1 (get-buffer-process (current-buffer)))
         (proc2 (get-buffer-process gpb-r-active-process-buffer)))
     (or
-     (and (process-live-p proc1) (current-buffer)) 
+     (and (process-live-p proc1) (current-buffer))
      (and (process-live-p proc2) gpb-r-active-process-buffer))))
 
 
@@ -691,7 +693,7 @@ that contains the callback."
             (goto-char (point-max))
             (insert "\n\n"))
 
-          ;; Only write tothe message buffer to avoid flicker
+          ;; Only write to the message buffer to avoid flicker
           (let ((inhibit-message t)) (message "Wrote %s" region-filename))
 
           (setq line (format ".gpb_r_mode$eval_region_file(%S)" srcbuf))))))
@@ -943,7 +945,7 @@ Should be called from the interpreter buffer."
      ;; source it.
      ((file-remote-p remote-init-script)
       (let ((coding-system-for-write 'us-ascii-unix))
-        (with-temp-file remote-init-script 
+        (with-temp-file remote-init-script
           (insert "# Written by Emacs package gpb-r-mode\n\n")
           (insert-file-contents local-init-script)
           ;; Another attempt to clean up line endings.
@@ -964,7 +966,7 @@ Should be called from the interpreter buffer."
   (setq-local comint-input-ring-file-name (expand-file-name ".Rhistory"))
   (setq-local comint-input-ring-separator "\n")
   ;; (setq-local comint-input-filter #'gpb-r--comint-input-filter)
-  
+
   ;; Keep comments in the history as we use comments for some special
   ;; commands like eval region that are actually handled by input filter
   ;; functions.
