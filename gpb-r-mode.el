@@ -179,7 +179,8 @@ At the moment, there can only be one active process")
   (let ((staging-buffer (gpb-r--get-staging-buffer (current-buffer) 'ensure)))
     (with-current-buffer staging-buffer
       (let ((inhibit-read-only t))
-        (erase-buffer)))
+        (erase-buffer)
+        (special-mode)))
     (push staging-buffer gpb-r-all-inferior-buffers))
 
   (add-hook 'comint-preoutput-filter-functions #'gpb-r-mode-preoutput-filter)
@@ -387,26 +388,6 @@ Rmarkdown render expression."
     (display-buffer r-proc-buf)))
 
 
-(defun gpb-r-mode-debug-filter-function (output)
-  "Filter function that tracks debug output"
-  ;; This function is called with empty output at odd times that can lead
-  ;; to misleading highlighting if you don't ignore it those calls.
-  (when (> (string-width output) 0)
-    (save-match-data
-      (save-excursion
-        (goto-char comint-last-output-start)
-        (when (re-search-forward "^debug at \\([^#:]+\\)[#:]\\([0-9]+\\):" nil t)
-          (gpb-log-forms 'gpb-r-mode-debug-filter-function
-                         'comint-last-output-start
-                         '(match-beginning 0))
-          ;; We grab the match substrings immediately as some of the later
-          ;; functions might reset the match data.
-          (let* ((filename (match-string-no-properties 1))
-                 (line-number (string-to-number (match-string-no-properties 2)))
-                 (buf (gpb-r--find-buffer filename)))
-            (gpb-r-show-line buf line-number)))))))
-
-
 (defvar gpb-r-show-line--overlay nil
   "Current highlighting overlay used in `gpb-r-show-line")
 
@@ -509,63 +490,6 @@ displayed."
          (line (button-get button 'line)))
     (setq buf (gpb-r--find-buffer file t))
     (gpb-r-show-line buf line)))
-
-
-(defvar-local gpb-r--add-links-marker nil
-  "We have already looked for source links prior to this marker")
-
-(defun gpb-r--add-links-filter-function (output)
-  (gpb-log-forms 'gpb-r--add-links-filter-function
-                 'comint-last-output-start
-                 'output)
-  (when (> (string-width output) 0)
-    (let* ((proc (get-buffer-process (current-buffer)))
-           (start (or gpb-r--add-links-marker (point-min)))
-           (end (save-excursion (goto-char (process-mark proc))
-                                (forward-line 0)
-                                (point))))
-      (gpb-r--add-links start end)
-      (setq-local gpb-r--add-links-marker (copy-marker end)))))
-
-
-(defun gpb-r--callback-filter-function (output)
-  "Looks for specific callback requests for the R code.
-
-All callback requests look like gpb-r-callback: [lisp sexp]
-followed by `gpb-r-end-of-output-marker'.  the sexp is evaluated
-in the process buffer with point set to the start of the line
-that contains the callback."
-  (when (> (string-width output) 0)
-    (let ((proc (get-buffer-process (current-buffer)))
-          (marker (or (and (boundp 'gpb-r--callback-filter-function--marker)
-                           (markerp gpb-r--callback-filter-function--marker)
-                           gpb-r--callback-filter-function--marker)
-                      (copy-marker (point-min))))
-          (regex (format "^gpb-r-callback: \\(.*\\) %s\n"
-                         gpb-r-end-of-output-marker))
-          sexp)
-
-      (when comint-last-output-start
-        (set-marker marker (max comint-last-output-start marker)))
-
-      (gpb-log-forms 'gpb-r--callback-filter-function
-                     'comint-last-output-start
-                     'output 'marker 'regex)
-
-      (save-excursion
-        (goto-char marker)
-        (while (re-search-forward regex nil t)
-          (setq sexp (read (match-string-no-properties 1)))
-          (gpb-log-forms 'gpb-r--callback-filter-function 'sexp)
-          (save-excursion
-            (goto-char (match-beginning 0))
-            (delete-region (match-beginning 0) (match-end 0))
-            (eval sexp)))
-        (goto-char (process-mark proc))
-        (forward-line 0)
-        (move-marker marker (point)))
-
-      (setq-local gpb-r--callback-filter-function--marker marker))))
 
 
 ;; Callback functions.  See gpb-r-mode.R.
@@ -726,6 +650,19 @@ send the resulting string to `comint-simple-send'."
   "Implementation detail of `gpb-r--find-buffer'")
 
 (defun gpb-r--find-buffer (path &optional cycle)
+  (let* ((working-dir (get-text-property 0 'current-working-dir path))
+         (abspath (gpb-r-mode--expand-filename path working-dir)))
+    (message "path: %S" path)
+    (message "working-dir: %S" working-dir)
+    (message "abspath: %S" abspath)
+    (cond
+     ((file-exists-p abspath)
+      (find-file-noselect abspath))
+     (t
+      (error "Invalid path: %S" abspath)))))
+
+
+(defun gpb-r--find-buffer-old (path &optional cycle)
   "Return a buffer visiting `path'
 
 If `cycle' is t and we can't find a match to the full path of
@@ -876,12 +813,14 @@ ignoring the directory."
                              (evil-insert-state)
                              (goto-char (1+ (point))))))))
 
-(defun gpb-r--get-staging-buffer (process-buffer ensure)
+(defun gpb-r--get-staging-buffer (process-buffer &optional ensure)
   "Get the staging buffer associated with PROCESS-BUFFER.
 If ENSURE is non-nil, we create the buffer if it doesn't already exist."
   (let ((buf-name (concat (buffer-name process-buffer) " [staging]")))
     (if ensure
-        (get-buffer-create buf-name)
+        (let ((buf (get-buffer-create buf-name)))
+          (with-current-buffer buf (special-mode))
+          buf)
       (get-buffer buf-name))))
 
 
@@ -942,7 +881,9 @@ Should be called from the interpreter buffer."
   (message "Wrote: %s" comint-input-ring-file-name))
 
 
+;;
 ;; Preoutput filter functions
+;;
 
 (defvar gpb-r-mode-guid "75b30f72-85a0-483c-98ce-d24414394ff0")
 (defvar gpb-r-mode-prompt-regex (format "PROMPT:%s" gpb-r-mode-guid))
@@ -959,25 +900,30 @@ Accumulates output into a staging buffer so that it may be returned in
 chunks that contain complete lines.  As a result, all
 `comint-output-filter-functions' receive only complete lines.
 
-It also looks for messages from we send from R that indicate when the
-current directory changes (e.g., when knitting an R markdown document) and
-sets the text property `current-working-dir' on `string`.  Functions in
-'comint-output-filter-functions' can use.
+Looks for messages we send from R that indicate when the working directory
+has changed in the R process (e.g., when knitting an R markdown document)
+and sets the text property `current-working-dir' on STRING to reflect the
+working directory at the time the output was generated.  Functions in
+'comint-output-filter-functions' can use this text property to properly
+expand relative paths in the R output.
 
 Also checks `gpb-r-mode--async-calls' to see if we are in the middle of a
-`gpb-r-send-input' with a callback.  If so, we accumulate all the R command
+`gpb-r-send-input'.  If so, we accumulate all the R command
 output until the next prompt.  We then pop the first function off
-`gpb-r-mode--async-calls' and call it in a buffer that contains the R
-command output.
+`gpb-r-mode--async-calls' and pass it the contents of the buffer as a
+string.
 
 Called by `comint' in an R inferior process buffer."
-  (gpb-r-mode-preoutput-filter-1 (current-buffer) string))
+  (save-match-data
+    (save-excursion
+      (gpb-r-mode-preoutput-filter-1 (current-buffer) string))))
 
 
 (defun gpb-r-mode-preoutput-filter-1 (buf string)
   "Implementation of `gpb-r-mode-preoutput-filter'
 
-BUF is the inferior R process buffer.  STRING is the output from the R process."
+BUF is an inferior R process buffer.  STRING contins output from the R
+process."
   (message "gpb-r-mode-preoutput-filter-1 %S %S" buf string)
   (with-current-buffer buf
     (cl-assert (derived-mode-p 'gpb-inferior-r-mode)))
@@ -1054,12 +1000,23 @@ BUF is the inferior R process buffer.  STRING is the output from the R process."
 
              ;; There are no async calls pending.
              (t
-              ;; Replace the prompts.
-              (save-excursion
-                (while (re-search-forward gpb-r-mode-prompt-regex nil t)
-                  (replace-match "> "))
-                (message "Here: %S %S" (point) (eobp))
-                (if (eobp)
+              (let* ((regex (format "\\(%s\\)\\|\\(%s\\)"
+                                    gpb-r-mode-prompt-regex
+                                    "Browse\\[[0-9]+\\]>"))
+                     (ends-with-prompt (save-excursion
+                                         (goto-char (point-max))
+                                         (forward-line 0)
+                                         (re-search-forward regex nil t))))
+
+                (message "regex %S" regex)
+                (message "ends-with-prompt: %S" ends-with-prompt)
+
+                ;; Replace prompt hashes with standard prompts.
+                (save-excursion
+                  (while (re-search-forward gpb-r-mode-prompt-regex nil t)
+                    (replace-match "> ")))
+
+                (if ends-with-prompt
                     ;; The current output ends with a prompt, so return it
                     ;; all.
                     (progn (setq string (buffer-substring (point-min) (point-max)))
@@ -1076,6 +1033,26 @@ BUF is the inferior R process buffer.  STRING is the output from the R process."
                     (delete-region from to)
                     string)))))))))))
 
+
+;;
+;; Output filter functions
+;;
+
+(defun gpb-r-mode-debug-filter-function (output)
+  "Filter function that tracks debug output"
+  ;; This function is called with empty output at odd times that can lead
+  ;; to misleading highlighting if you don't ignore it those calls.
+  (when (and output (> (length output) 0))
+    (save-match-data
+      (save-excursion
+        (goto-char comint-last-output-start)
+        (when (re-search-forward "^debug at \\([^#:]+\\)[#:]\\([0-9]+\\):" nil t)
+          ;; We grab the match substrings first as the later functions
+          ;; might reset the match data.
+          (let* ((filename (match-string 1))
+                 (line-number (string-to-number (match-string-no-properties 2)))
+                 (buf (gpb-r--find-buffer filename)))
+            (gpb-r-show-line buf line-number)))))))
 
 (defun gpb-r-mode--expand-filename (name &optional dir)
   (message "gpb-r-mode--expand-filename: %S %S" name dir)
