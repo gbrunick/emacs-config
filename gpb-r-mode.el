@@ -7,6 +7,9 @@
 (require 'ess-r-mode)
 (require 'gpb-logging)
 
+(defvar gpb-r-mode-debug t
+  "When t we takes steps to make things easier to debug.")
+
 ;; Use ESS for R source code files but attempt to stop it from installing
 ;; all of its seemingly buggy hooks.
 (setq ess-r-mode-hook nil
@@ -172,15 +175,12 @@ At the moment, there can only be one active process")
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
-  (setq-local gpb-r-mode--inferior-r-buffer (current-buffer))
-  (setq-local gpb-r-mode--staging-buffer
-              (get-buffer-create (format "%s [buffering]" (buffer-name))))
-
-  (with-current-buffer gpb-r-mode--staging-buffer
-    (let ((inhibit-read-only t))
-      (erase-buffer)))
-
-  (push gpb-r-mode--staging-buffer gpb-r-all-inferior-buffers)
+  ;; Set up the helper buffer.
+  (let ((staging-buffer (gpb-r--get-staging-buffer (current-buffer) 'ensure)))
+    (with-current-buffer staging-buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)))
+    (push staging-buffer gpb-r-all-inferior-buffers))
 
   (add-hook 'comint-preoutput-filter-functions #'gpb-r-mode-preoutput-filter)
 
@@ -241,7 +241,7 @@ At the moment, there can only be one active process")
 (defvar gpb-r-mode-lock nil
   "We can only send one syncronous command at a time.")
 
-(defun gpb-r-send-command (cmd &optional buf callback)
+(defun gpb-r-send-command (cmd &optional buf callback steal-lock)
   "Send CMD to R process in BUF the return the output as a string.
 
 If BUF is omitted, we use the current buffer.  We move the
@@ -252,59 +252,49 @@ the result, and return a buffer that contains the result."
          (wrapped-cmd (format ".emacs_cmd({ %S })\n" cmd))
          (proc (or (get-buffer-process buf)
                    (error "No R process available")))
-         (staging-buffer (or gpb-r-mode--staging-buffer
-                             (error "gpb-r-mode--staging-buffer not set")))
          (msg "Waiting on R process (C-G to cancel)..."))
 
     ;; Try to pull any pending output from the proces before we send
     ;; `wrapped-cmd'.
     (while (accept-process-output proc 0 nil t))
 
-    (if callback
-        (progn
-          (push callback gpb-r-mode--async-calls)
-          (send-string proc wrapped-cmd))
-
-      ;; Otherwise we have to wait.
-      (when gpb-r-mode-lock (error "gpb-r-mode-lock is not nil"))
-      (setq gpb-r-mode-lock 'waiting)
-      (push (lambda () (setq gpb-r-mode-lock
-                             (buffer-substring (point-min) (point-max))))
-            gpb-r-mode--async-calls)
-
-      ;; Provide some feedback if the command takes longer than a second.
-      (setq gpb-r-waiting-timer (run-at-time 1 nil `(lambda () (message ,msg))))
-
-      (condition-case
-          error-var
+    (with-current-buffer buf
+      (if callback
           (progn
-            ;; Accept output until the callback above it triggered.
-            (while (eq gpb-r-mode-lock 'waiting)
-              (accept-process-output proc 1 nil t))
+            (push callback gpb-r-mode--async-calls)
+            (send-string proc wrapped-cmd))
 
-            ;; Cancel the timer if it is still pending.
-            (cancel-timer gpb-r-waiting-timer)
+        ;; Otherwise we have to wait.
+        (when gpb-r-mode-lock
+          (unless steal-lock (error "gpb-r-mode-lock is not nil")))
+        (setq gpb-r-mode-lock 'waiting)
+        (push (lambda (txt)
+                (message "response: %S" txt)
+                (setq gpb-r-mode-lock txt))
+              gpb-r-mode--async-calls)
 
-            (with-current-buffer staging-buffer (gpb-r-send-command-1)))
+        ;; Provide some feedback if the command takes longer than a second.
+        (setq gpb-r-waiting-timer (run-at-time 1 nil `(lambda () (message ,msg))))
 
-        ;; If there is an error, of the call hangs and the user has to
-        ;; `keyboard-quit' to get control of Emacs, we show the server
-        ;; buffer and raise an error.
-        ((error quit)
-         (pop-to-buffer staging-buffer)
-         (error "`gpb-r-send-command' failed"))))))
+        ;; Send the string and wait for a response.
+        (send-string proc wrapped-cmd)
+        (condition-case error-var
+            (progn
+              ;; Accept output until the callback above it triggered.
+              (while (eq gpb-r-mode-lock 'waiting)
+                (accept-process-output proc 1 nil t))
 
+              ;; Cancel the timer if it is still pending.
+              (cancel-timer gpb-r-waiting-timer)
 
-(defun gpb-r-send-command-1 ()
-  "Called in buffer containing results of call."
-  (message "gpb-r-send-command-1")
-  (ansi-color-filter-region (point-min) (point-max))
-  (goto-char (point-min))
-  ;; R apparently uses _^H to indicate underlines.
-  (save-excursion
-    (while (re-search-forward "." nil t)
-      (delete-region (match-beginning 0) (match-end 0))))
-  (string-trim (buffer-substring (point-min) (point-max))))
+              gpb-r-mode-lock)
+
+          ;; If there is an error, of the call hangs and the user has to
+          ;; `keyboard-quit' to get control of Emacs, we show the server
+          ;; buffer and raise an error.
+          ('quit
+           (pop-to-buffer (gpb-r--get-staging-buffer buf))
+           (error "`gpb-r-send-command' failed")))))))
 
 
 (defun gpb-r-getwd (&optional buf)
@@ -679,20 +669,16 @@ that contains the callback."
 (defun gpb-r--kill-buffer-hook (&optional buf)
   "Attempt to close inferior process gracefully."
   (let* ((buf (or buf (current-buffer)))
-         (server-buf-name (gpb-r--get-command-buffer-name buf))
-         (server-buf (get-buffer server-buf-name))
-         (proc (get-buffer-process buf)))
+         (proc (get-buffer-process buf))
+         (staging-buf (gpb-r--get-staging-buffer buf)))
     (and comint-input-ring-file-name
          (y-or-n-p (format "Write %s?" (expand-file-name
                                         comint-input-ring-file-name)))
          (gpb-r-save-history))
-    (and server-buf
-         (buffer-live-p server-buf)
+    (and staging-buf
+         (buffer-live-p staging-buf)
          (progn (kill-buffer server-buf)
-                (message "Killed %S" server-buf-name)))
-    (and (buffer-live-p buf)
-         (process-live-p proc)
-         (send-string proc "Q\nQ\nquit(save = \"no\")\n"))))
+                (message "Killed %S" server-buf)))))
 
 
 ;; Input preprocessing
@@ -799,17 +785,13 @@ ignoring the directory."
          (help-buf (get-buffer-create (format "*R Help: %s" object-name)))
          (inhibit-read-only t))
 
-    (gpb-r-send-command cmd buf `(lambda ()
-                                   (let* ((help-txt (buffer-substring
-                                                     (point-min) (point-max))))
+    (gpb-r-send-command cmd buf `(lambda (txt)
+                                   (let ((inhibit-read-only t))
                                      (with-current-buffer ,help-buf
                                        (erase-buffer)
                                        (special-mode)
-                                       (insert help-txt)
-                                       (goto-char (point-min))
-                                       (save-excursion
-                                         (while (re-search-forward "." nil t)
-                                           (delete-region (match-beginning 0) (match-end 0)))))
+                                       (insert txt)
+                                       (goto-char (point-min)))
                                      (display-buffer ,help-buf))))))
 
 
@@ -894,8 +876,14 @@ ignoring the directory."
                              (evil-insert-state)
                              (goto-char (1+ (point))))))))
 
-(defun gpb-r--get-command-buffer-name (process-buffer)
-  (concat (buffer-name process-buffer) " [commands]"))
+(defun gpb-r--get-staging-buffer (process-buffer ensure)
+  "Get the staging buffer associated with PROCESS-BUFFER.
+If ENSURE is non-nil, we create the buffer if it doesn't already exist."
+  (let ((buf-name (concat (buffer-name process-buffer) " [staging]")))
+    (if ensure
+        (get-buffer-create buf-name)
+      (get-buffer buf-name))))
+
 
 (defun gpb-r-kill-all-inferior-buffers ()
   "Kill all inferior R process buffers."
@@ -954,90 +942,91 @@ Should be called from the interpreter buffer."
   (message "Wrote: %s" comint-input-ring-file-name))
 
 
-;; Filter functions
+;; Preoutput filter functions
 
 (defvar gpb-r-mode-guid "75b30f72-85a0-483c-98ce-d24414394ff0")
 (defvar gpb-r-mode-prompt-regex (format "PROMPT:%s" gpb-r-mode-guid))
 (defvar gpb-r-mode-prompt-continue-regex (format "CONTINUE:%s" gpb-r-mode-guid))
 
-(defvar-local gpb-r-mode--staging-buffer
-  "Defined in inferior R buffers and staging buffers.")
-
-(defvar-local gpb-r-mode--inferior-r-buffer nil
-  "Defined in inferior R buffers and staging buffers.")
-
 (defvar-local gpb-r-mode--async-calls nil
   "Defined in inferior R buffers.  List of callback functions.")
-
-(defvar-local gpb-r-mode--default-directory nil
-  "Defined in inferior R buffers.
-Tracks temporary changes in `default-directory'.")
 
 
 (defun gpb-r-mode-preoutput-filter (string)
   "Preprocess R process output.
 
-Accumulates output into `gpb-r-mode--filter-buffer' and so that it may be
-return in chunks that contain complete lines.  As a result, all
+Accumulates output into a staging buffer so that it may be returned in
+chunks that contain complete lines.  As a result, all
 `comint-output-filter-functions' receive only complete lines.
 
-It also looks for messages from R that indicate when the current directory
-changes (e.g., when knitting an R markdown document) and ensures that
-`gpb-r-mode--default-directory' is properly updated in the R inferior
-process buffer before 'comint-output-filter-functions' are run.
+It also looks for messages from we send from R that indicate when the
+current directory changes (e.g., when knitting an R markdown document) and
+sets the text property `current-working-dir' on `string`.  Functions in
+'comint-output-filter-functions' can use.
 
-Also checks `gpb-r-mode--async-calls' to see we are in the middle of a
+Also checks `gpb-r-mode--async-calls' to see if we are in the middle of a
 `gpb-r-send-input' with a callback.  If so, we accumulate all the R command
 output until the next prompt.  We then pop the first function off
 `gpb-r-mode--async-calls' and call it in a buffer that contains the R
 command output.
 
 Called by `comint' in an R inferior process buffer."
-  (message "gpb-r-mode-preoutput-filter: %S" string)
+  (gpb-r-mode-preoutput-filter-1 (current-buffer) string))
+
+
+(defun gpb-r-mode-preoutput-filter-1 (buf string)
+  "Implementation of `gpb-r-mode-preoutput-filter'
+
+BUF is the inferior R process buffer.  STRING is the output from the R process."
+  (message "gpb-r-mode-preoutput-filter-1 %S %S" buf string)
+  (with-current-buffer buf
+    (cl-assert (derived-mode-p 'gpb-inferior-r-mode)))
+
   (if (or (null string) (= (length string) 0))
-      ;; comint doesn't like it if you return nil.
-      ""
-    (let ((proc-buf (or gpb-r-mode--inferior-r-buffer
-                        (error "`gpb-r-mode--inferior-r-buffer' not set")))
-          (staging-buf (or gpb-r-mode--staging-buffer
-                           (error "`gpb-r-mode--staging-buffer' not set")))
+      "" ; `comint-output-filter' doesn't like it if you return nil.
+
+    (let ((staging-buf (with-current-buffer buf
+                         ;; If we create the buffer, we want it to pick up
+                         ;; `default-directory' from `buf'.
+                         (gpb-r--get-staging-buffer buf 'ensure)))
           (inhibit-read-only t)
-          (dir (or default-directory (error "`default-directory' not set")))
+          ;; `beg' and `end' will lie on line breaks.
           beg end)
       (with-current-buffer staging-buf
-        ;; Ensure these values are available in the staging buffer.
-        (setq gpb-r-mode--inferior-r-buffer proc-buf
-              gpb-r-mode--staging-buffer staging-buf
-              default-directory dir)
+        ;; We use `default-directory' to track the working directory of the
+        ;; inferior R process.
+        (cl-assert default-directory)
 
         (save-excursion
           (goto-char (point-max))
           (setq beg (save-excursion (forward-line 0) (point)))
           (insert string)
+          (setq end (save-excursion (forward-line 0) (point)))
           (goto-char beg)
 
-          ;; Add `gpb-r-default-directory' text properties that track
-          ;; changes to the current directory.
+          ;; Add `current-working-dir' text properties that track
+          ;; changes to the R processes working directory.
           (save-excursion
             (while (re-search-forward "^chdir: \\(.*\\)\n" nil t)
               (put-text-property beg (match-beginning 0)
-                                 'gpb-r-mode--default-directory
+                                 'current-working-dir
                                  default-directory)
               (setq default-directory (gpb-r-mode--expand-filename
                                        (match-string 1)))
-              ;; (delete-region (match-beginning 0) (match-end 0))
-              )
+              (unless gpb-r-mode-debug
+                (delete-region (match-beginning 0) (match-end 0))))
             (unless (eobp)
-              (message "set-text-properties: %S %S %S"
-                       (point) (point-max) default-directory)
               (put-text-property (point) (point-max)
-                                 'gpb-r-mode--default-directory
+                                 'current-working-dir
                                  default-directory)))
+
+          ;; We only apply this to complete lines.
+          (comint-carriage-motion beg end)
 
           (save-excursion
             (cond
-             ;; This is an async call pending.
-             ((with-current-buffer proc-buf gpb-r-mode--async-calls)
+             ;; There is an async call pending.
+             ((with-current-buffer buf gpb-r-mode--async-calls)
               (message "asyn calls: %S" gpb-r-mode-prompt-regex)
               ;; If there is no prompt, we return nil.
               (cond
@@ -1053,13 +1042,13 @@ Called by `comint' in an R inferior process buffer."
                 ;; prompt we found above.
                 (delete-region (match-beginning 0) (point-max))
                 (goto-char (point-min))
-                (let ((callback (with-current-buffer proc-buf
+                (let ((callback (with-current-buffer buf
                                   (pop gpb-r-mode--async-calls))))
                   (message "callback: %S" callback)
-                  (funcall callback))
+                  (funcall callback (buffer-substring (point-min) (point-max))))
                 ;; Now empty buffer and recurse to handle the rest of `string',
                 (erase-buffer)
-                (gpb-r-mode-preoutput-filter string))
+                (gpb-r-mode-preoutput-filter-1 buf string))
 
                (t "")))
 
@@ -1096,6 +1085,14 @@ Called by `comint' in an R inferior process buffer."
         (concat tramp-prefix name)
       (expand-file-name name dir))))
 
+
+
+;; Testing
+;;
+;; In inferior R buffer:
+;;
+;; (setq gpb-r-mode-lock nil)
+;; (gpb-r-send-command "print(1:10)" "*R*" nil 'steal-lock)
 
 
 (provide 'gpb-r-mode)
