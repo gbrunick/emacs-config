@@ -126,9 +126,6 @@ At the moment, there can only be one active process")
 (defvar gpb-r-all-inferior-buffers nil
   "A list of buffers.  Used by `gpb-r-kill-all-inferior-buffers'.")
 
-(defvar gpb-r-all-worker-buffers nil
-  "A list of buffers.  Used by `gpb-r-kill-all-worker-buffers'.")
-
 (defvar gpb-inferior-r-mode--syntax-table
   (let ((st (make-syntax-table)))
     (modify-syntax-entry ?. "_" st)
@@ -916,20 +913,11 @@ ignoring the directory."
   (concat (buffer-name process-buffer) " [commands]"))
 
 (defun gpb-r-kill-all-inferior-buffers ()
-  "Kill all inferior R process buffers." 
+  "Kill all inferior R process buffers."
   (interactive)
-  (gpb-r-kill-all-worker-buffers)
   (dolist (buf gpb-r-all-inferior-buffers)
     (and buf (buffer-live-p buf) (kill-buffer buf)))
   (setq gpb-r-all-inferior-buffers nil))
-
-(defun gpb-r-kill-all-worker-buffers ()
-  "Kill all worker/command buffers." 
-  (interactive)
-  (dolist (buf gpb-r-all-worker-buffers)
-    (and buf (buffer-live-p buf) (kill-buffer buf)))
-  (setq gpb-r-all-worker-buffers nil))
-
 
 (defun gpb-r-source-R-init-file ()
   "Source gpb-r-mode.R in the interpreter.
