@@ -173,6 +173,16 @@ At the moment, there can only be one active process")
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
+  (setq-local gpb-r-mode--inferior-r-buffer (current-buffer))
+  (setq-local gpb-r-mode--staging-buffer
+              (get-buffer-create (format "%s [buffering]" (buffer-name))))
+
+  (with-current-buffer gpb-r-mode--staging-buffer
+    (let ((inhibit-read-only t))
+      (erase-buffer)))
+
+  (add-hook 'comint-preoutput-filter-functions #'gpb-r-mode-preoutput-filter)
+
   ;; Look for traceback and debug output.
   (add-hook 'comint-output-filter-functions
             #'gpb-r-mode-debug-filter-function nil t)
@@ -969,6 +979,136 @@ Should be called from the interpreter buffer."
   (message "Wrote: %s" comint-input-ring-file-name))
 
 
+;; Filter functions
+
+(defvar gpb-r-mode-guid "75b30f72-85a0-483c-98ce-d24414394ff0")
+(defvar gpb-r-mode-prompt-regex (format "^PROMPT:%s" gpb-r-mode-guid))
+(defvar gpb-r-mode-prompt-continue-regex (format "^CONTINUE:%s" gpb-r-mode-guid))
+
+(defvar-local gpb-r-mode--staging-buffer nil
+  "Defined in inferior R buffers and staging buffers.")
+
+(defvar-local gpb-r-mode--inferior-r-buffer nil
+  "Defined in inferior R buffers and staging buffers.")
+
+(defvar-local gpb-r-mode--async-calls nil
+  "Defined in inferior R buffers.  List of callback functions.")
+
+(defvar-local gpb-r-mode--default-directory nil
+  "Defined in inferior R buffers.
+Tracks temporary changes in `default-directory'.")
+
+
+(defun gpb-r-mode-preoutput-filter (string)
+  "Preprocess R process output.
+
+Accumulates output into `gpb-r-mode--filter-buffer' and so that it may be
+return in chunks that contain complete lines.  As a result, all
+`comint-output-filter-functions' receive only complete lines.
+
+It also looks for messages from R that indicate when the current directory
+changes (e.g., when knitting an R markdown document) and ensures that
+`gpb-r-mode--default-directory' is properly updated in the R inferior
+process buffer before 'comint-output-filter-functions' are run.
+
+Also checks `gpb-r-mode--async-calls' to see we are in the middle of a
+`gpb-r-send-input' with a callback.  If so, we accumulate all the R command
+output until the next prompt.  We then pop the first function off
+`gpb-r-mode--async-calls' and call it in a buffer that contains the R
+command output.
+
+Called by `comint' in an R inferior process buffer."
+  (message "gpb-r-mode-preoutput-filter: %S" string)
+  (when string
+    (let ((proc-buf (or gpb-r-mode--inferior-r-buffer
+                        (error "`gpb-r-mode--inferior-r-buffer' not set")))
+          (staging-buf (or gpb-r-mode--staging-buffer
+                           (error "`gpb-r-mode--staging-buffer' not set")))
+          (inhibit-read-only t)
+          (dir (or default-directory (error "`default-directory' not set")))
+          beg end)
+      (with-current-buffer staging-buf
+        ;; Ensure these values are available in the staging buffer.
+        (setq gpb-r-mode--inferior-r-buffer proc-buf
+              gpb-r-mode--staging-buffer staging-buf
+              default-directory dir)
+
+        (save-excursion
+          (goto-char (point-max))
+          (setq beg (save-excursion (forward-line 0) (point)))
+          (insert string)
+          (goto-char beg)
+
+          ;; Add `gpb-r-default-directory' text properties that track
+          ;; changes to the current directory.
+          (save-excursion
+            (while (re-search-forward "^chdir: \\(.*\\)\n" nil t)
+              (put-text-property beg (match-beginning 0)
+                                 'gpb-r-mode--default-directory
+                                 default-directory)
+              (setq default-directory (gpb-r-mode--expand-filename
+                                       (match-string 1)))
+              ;; (delete-region (match-beginning 0) (match-end 0))
+              )
+            (unless (eobp)
+              (message "set-text-properties: %S %S %S"
+                       (point) (point-max) default-directory)
+              (put-text-property (point) (point-max)
+                                 'gpb-r-mode--default-directory
+                                 default-directory)))
+
+          (save-excursion
+            (cond
+             ;; This is an async call pending.
+             (gpb-r-mode--async-calls
+              ;; If there is no prompt, we return nil.
+              (when (re-search-forward gpb-r-mode-prompt-regex nil t)
+                ;; We have all of the output associated with an async
+                ;; command.
+                ;;
+                ;; Save everything after the prompt.
+                (setq string (buffer-substring (match-end 0) (point-max)))
+                ;; Erase everything except the R process output prior to the
+                ;; prompt we found above.
+                (delete-region (match-beginning 0) (point-max))
+                (goto-char (point-min))
+                (funcall (pop gpb-r-mode--async-calls))
+                ;; Now empty buffer and recurse to handle the rest of `string',
+                (erase-buffer)
+                (gpb-r-mode-preoutput-filter string)))
+
+             ;; There are no async calls pending.
+             (t
+              ;; Replace the prompts.
+              (save-excursion
+                (while (re-search-forward gpb-r-mode-prompt-regex nil t)
+                  (replace-match "> "))
+                (message "Here: %S %S" (point) (eobp))
+                (if (eobp)
+                    ;; The current output ends with a prompt, so return it
+                    ;; all.
+                    (progn (setq string (buffer-substring (point-min) (point-max)))
+                           (erase-buffer)
+                           string)
+
+                  ;; The current output does not end with a prompt, so we
+                  ;; return all completed lines.
+                  (let ((from (point-min))
+                        (to (save-excursion (goto-char (point-max))
+                                            (forward-line 0)
+                                            (point))))
+                    (setq string (buffer-substring from to))
+                    (delete-region from to)
+                    string)))))))))))
+
+
+(defun gpb-r-mode--expand-filename (name &optional dir)
+  (message "gpb-r-mode--expand-filename: %S %S" name dir)
+  (let* ((dir (or dir default-directory))
+         (tramp-prefix (or (file-remote-p dir) "")))
+    (if (file-name-absolute-p name)
+        (concat tramp-prefix name)
+      (expand-file-name name dir))))
+
+
 (provide 'gpb-r-mode)
-
-

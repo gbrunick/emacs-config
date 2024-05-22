@@ -143,3 +143,6 @@ traceback <- function (x = NULL, max.lines = getOption("deparse.max.lines")) {
        eval_region_file = eval_region_file)
 })
 
+
+options(prompt = "PROMPT:75b30f72-85a0-483c-98ce-d24414394ff0",
+        continue = "CONTINUE:75b30f72-85a0-483c-98ce-d24414394ff0")
