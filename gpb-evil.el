@@ -14,9 +14,9 @@
 (evil-goggles-mode 1)
 (global-evil-surround-mode 1)
 
-(setq ;; evil-move-beyond-eol t 
+(setq ;; evil-move-beyond-eol t
       ;; evil-want-C-u-scroll t
-      ;; evil-want-C-d-scroll t 
+      ;; evil-want-C-d-scroll t
       ;; evil-want-minibuffer t
       ;; evil-move-cursor-back t
       evil-cross-lines t
@@ -32,6 +32,7 @@
 (evil-define-key 'normal 'global "\C-b" 'switch-to-buffer)
 (evil-define-key 'normal 'global "\C-z" 'evil-undo)
 (evil-define-key 'normal 'global "\C-g" 'gpb-evil-keyboard-quit)
+(evil-define-key 'normal 'global (kbd "TAB") 'indent-for-tab-command)
 
 ;; I get paste on \C-v with VIM in the terminal.
 (evil-define-key 'normal 'global "\C-v" 'yank)
@@ -58,7 +59,7 @@
 (evil-define-key 'motion 'global (kbd "RET" ) nil)
 ; Move `evil-jump-forward' off of TAB
 (evil-define-key 'motion 'global (kbd "TAB") nil)
-(evil-define-key 'motion 'global (kbd "M-o") 'evil-jump-forward) 
+(evil-define-key 'motion 'global (kbd "M-o") 'evil-jump-forward)
 
 ;; Press \ twice to stay in emacs state.  Then C-g to leave.
 (evil-define-key 'emacs 'global "\\" 'evil-emacs-state)
@@ -109,7 +110,7 @@
 
 (define-key evil-outer-text-objects-map "d" 'evil-a-defun)
 (define-key evil-inner-text-objects-map "d" 'evil-inner-defun)
-     
+
 (defun gpb-evil-keyboard-quit ()
   (interactive)
   (evil-ex-nohighlight)
@@ -120,14 +121,6 @@
 
 (evil-define-key 'normal emacs-lisp-mode-map "gr" 'revert-buffer)
 
-  ;; Work around an unfortunate interaction with the VIM cursor model.
-  (kbd "TAB") (lambda ()
-                (interactive)
-                (forward-line 0)
-                (call-interactively #'indent-for-tab-command)
-                (message "char-after: %S" (char-after))
-                (if (eolp) (evil-append 1) (evil-insert 1))))
-  
 
 ;; Start a search immediately from visual mode.
 
@@ -164,7 +157,7 @@
 (defun gpb-set-default-text-object (obj)
   (evil-define-key 'operator 'local " " obj)
   (evil-define-key 'visual 'local " " obj))
- 
+
 
 ;; Give programming modes an "!" operator.
 
@@ -174,8 +167,8 @@ This function will be called by the operator ! in programming modes.")
 
 (evil-define-operator gpb-eval-code-operator (count beg end)
   "Evaluate code hunk in range BEG END"
-  :repeat nil 
-  :keep-visual nil 
+  :repeat nil
+  :keep-visual nil
   ;; :line 'block
   (interactive "<c><r>")
   (message "count: %S" count)
