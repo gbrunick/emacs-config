@@ -19,7 +19,6 @@
       ess-imenu-use-S nil
       ess-roxy-hide-show-p nil
       ess-roxy-fold-examples nil
-      ess-indent-with-fancy-comments nil
       ess-history-file nil
       ;; ESS doing background stuff over TRAMP may by hanging Emacs.
       ess-can-eval-in-background nil
@@ -142,7 +141,6 @@ At the moment, there can only be one active process")
   ;; Use etags rather than ESS's custom xref implementation.
   (xref-etags-mode 1)
 
-  (setq-local ess-indent-offset 2)
   ;; (setq-local indent-line-function #'gpb-r-indent-line)
   (setq-local completion-at-point-functions
               '(tags-completion-at-point-function dabbrev-capf))
@@ -155,6 +153,7 @@ At the moment, there can only be one active process")
   (remove-hook 'xref-backend-functions #'ess-r-xref-backend 'local)
   (remove-hook 'project-find-functions #'ess-r-project 'local)
 
+  ;; Not sure exactly what is required here.
   (setq ess-indent-offset 2
         ess-indent-with-fancy-comments nil))
 
