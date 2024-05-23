@@ -10,7 +10,7 @@
 (defvar gpb-r-mode-debug nil
   "When t we takes steps to make things easier to debug.")
 
-(defvar-local gpb-r--region-file nil
+(defvar-local gpb-r-region-file nil
   "Holds the region file in an inferior R process buffer")
 
 ;; Use ESS for R source code files but attempt to stop it from installing
@@ -111,7 +111,7 @@ and HYPERLINK are integers giving match indices in REGEXP."
   :group 'gpb-r-mode)
 
 (defcustom gpb-r-preinput-filter-functions
-  '(gpb-r--region-eval-preinput-filter)
+  '(gpb-r-region-eval-preinput-filter)
   "A list of functions that modify R process input.
 
 These functions are called after the input is added to the input
@@ -168,17 +168,17 @@ At the moment, there can only be one active process")
   (push (current-buffer) gpb-r-all-inferior-buffers)
 
   ;; Try to shutdown gracefully when the buffer is killed.
-  (add-hook 'kill-buffer-hook #'gpb-r--kill-buffer-hook nil t)
+  (add-hook 'kill-buffer-hook #'gpb-r-kill-buffer-hook nil t)
 
   (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
   (setq-local comint-input-autoexpand nil)
-  (setq-local comint-input-sender #'gpb-r--input-sender)
+  (setq-local comint-input-sender #'gpb-r-input-sender)
   (setq-local eldoc-documentation-functions nil)
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
   ;; Set up the helper buffer.
-  (let ((staging-buffer (gpb-r--get-staging-buffer (current-buffer) 'ensure)))
+  (let ((staging-buffer (gpb-r-get-staging-buffer (current-buffer) 'ensure)))
     (with-current-buffer staging-buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
@@ -194,7 +194,7 @@ At the moment, there can only be one active process")
 
   ;; Make filenames clickable buttons.
   (add-hook 'comint-output-filter-functions
-            #'gpb-r--add-buttons-filter nil t)
+            #'gpb-r-add-buttons-filter nil t)
 
   (gpb-r-read-history)
 
@@ -266,11 +266,11 @@ the result, and return a buffer that contains the result."
     ;; `wrapped-cmd'.
     (while (accept-process-output proc 0 nil t))
 
-    ;; `gpb-r-mode--async-calls' is local to `buf'
+    ;; `gpb-r-mode-async-calls' is local to `buf'
     (with-current-buffer buf
       (if callback
           (progn
-            (push callback gpb-r-mode--async-calls)
+            (push callback gpb-r-mode-async-calls)
             (send-string proc wrapped-cmd))
 
         ;; Otherwise we have to wait.
@@ -279,7 +279,7 @@ the result, and return a buffer that contains the result."
         (setq gpb-r-mode-lock 'waiting)
         (push (lambda (txt)
                 (setq gpb-r-mode-lock txt))
-              gpb-r-mode--async-calls)
+              gpb-r-mode-async-calls)
 
         ;; Provide some feedback if the command takes longer than a second.
         (setq gpb-r-waiting-timer (run-at-time 1 nil `(lambda () (message ,msg))))
@@ -303,7 +303,7 @@ the result, and return a buffer that contains the result."
           ;; control of Emacs, show the staging buffer to help debug.
           ;;
           ('quit
-           (pop-to-buffer (gpb-r--get-staging-buffer buf))
+           (pop-to-buffer (gpb-r-get-staging-buffer buf))
            (error "`gpb-r-send-command' failed")))))))
 
 
@@ -393,7 +393,7 @@ If `pop-to' is non-nil, switch to the buffer in which the line is
 displayed."
   ;; If given a filename, convert that to a buffer.
   (when (stringp buf)
-    (let ((filename (gpb-r-mode--expand-filename buf)))
+    (let ((filename (gpb-r-mode-expand-filename buf)))
       (cond
        ((file-exists-p filename)
         (setq buf (find-file-noselect filename)))
@@ -473,7 +473,7 @@ displayed."
     (gpb-r-send-input cmd t)))
 
 
-(defun gpb-r--region-eval-preinput-filter (line)
+(defun gpb-r-region-eval-preinput-filter (line)
   "Input filter that looks for eval region commands"
   (when (string-match "# *eval region: +\\(\".*\"\\) +\\([0-9]+\\)-\\([0-9]+\\)$"
                       line)
@@ -481,8 +481,8 @@ displayed."
           (line1 (string-to-number (match-string 2 line)))
           (line2 (string-to-number (match-string 3 line)))
           (procbuf (current-buffer))
-          (region-filename (or gpb-r--region-file
-                               (error "gpb-r--region-file not set")))
+          (region-filename (or gpb-r-region-file
+                               (error "gpb-r-region-file not set")))
           text)
 
       (with-current-buffer srcbuf
@@ -525,11 +525,11 @@ displayed."
 
 ;; Shut down gracefully
 
-(defun gpb-r--kill-buffer-hook (&optional buf)
+(defun gpb-r-kill-buffer-hook (&optional buf)
   "Attempt to close inferior process gracefully."
   (let* ((buf (or buf (current-buffer)))
          (proc (get-buffer-process buf))
-         (staging-buf (gpb-r--get-staging-buffer buf)))
+         (staging-buf (gpb-r-get-staging-buffer buf)))
     (and comint-input-ring-file-name
          (y-or-n-p (format "Write %s?" (expand-file-name
                                         comint-input-ring-file-name)))
@@ -542,7 +542,7 @@ displayed."
 
 ;; Input preprocessing
 
-(defun gpb-r--input-sender (proc input)
+(defun gpb-r-input-sender (proc input)
   "This function is bound to `comint-input-sender'.
 
 Apply each function in `gpb-r-preinput-filter-functions' and then
@@ -581,8 +581,8 @@ send the resulting string to `comint-simple-send'."
 
 ;; Utility functions
 
-(defun gpb-r--find-buffer (path &optional cycle)
-  (let* ((abspath (gpb-r-mode--expand-filename path)))
+(defun gpb-r-find-buffer (path &optional cycle)
+  (let* ((abspath (gpb-r-mode-expand-filename path)))
     (cond
      ((file-exists-p abspath)
       (find-file-noselect abspath))
@@ -645,7 +645,7 @@ send the resulting string to `comint-simple-send'."
                              (evil-insert-state)
                              (goto-char (1+ (point))))))))
 
-(defun gpb-r--get-staging-buffer (process-buffer &optional ensure)
+(defun gpb-r-get-staging-buffer (process-buffer &optional ensure)
   "Get the staging buffer associated with PROCESS-BUFFER.
 If ENSURE is non-nil, we create the buffer if it doesn't already exist."
   (let ((buf-name (concat (buffer-name process-buffer) " [staging]")))
@@ -695,10 +695,10 @@ Should be called from the interpreter buffer.  Return region file path."
       (setq region-file (substring region-file 2 (length region-file))))
 
     ;; Set the region file.
-    (setq gpb-r--region-file (substring-no-properties
-                              (gpb-r-mode--expand-filename region-file)))
+    (setq gpb-r-region-file (substring-no-properties
+                              (gpb-r-mode-expand-filename region-file)))
     (when gpb-r-mode-debug
-      (message "Region file: %S" gpb-r--region-file))))
+      (message "Region file: %S" gpb-r-region-file))))
 
 
 (defun gpb-r-read-history ()
@@ -709,7 +709,7 @@ Should be called from the interpreter buffer.  Return region file path."
   ;; impacted by changes to the R working directory.
   (setq-local comint-input-ring-file-name (expand-file-name ".Rhistory"))
   (setq-local comint-input-ring-separator "\n")
-  ;; (setq-local comint-input-filter #'gpb-r--comint-input-filter)
+  ;; (setq-local comint-input-filter #'gpb-r-comint-input-filter)
 
   ;; Keep comments in the history as we use comments for some special
   ;; commands like eval region that are actually handled by input filter
@@ -733,7 +733,7 @@ Should be called from the interpreter buffer.  Return region file path."
 (defvar gpb-r-mode-prompt-regex (format "PROMPT:%s" gpb-r-mode-guid))
 (defvar gpb-r-mode-prompt-continue-regex (format "CONTINUE:%s" gpb-r-mode-guid))
 
-(defvar-local gpb-r-mode--async-calls nil
+(defvar-local gpb-r-mode-async-calls nil
   "Defined in inferior R buffers.  List of callback functions.")
 
 
@@ -751,10 +751,10 @@ working directory at the time the output was generated.  Functions in
 'comint-output-filter-functions' can use this text property to properly
 expand relative paths in the R output.
 
-Also checks `gpb-r-mode--async-calls' to see if we are in the middle of a
-`gpb-r-send-input'.  If so, we accumulate all the R command
+Also checks `gpb-r-mode-async-calls' to see if we are in the middle of a
+`gpb-r-mode-send-input'.  If so, we accumulate all the R command
 output until the next prompt.  We then pop the first function off
-`gpb-r-mode--async-calls' and pass it the contents of the buffer as a
+`gpb-r-mode-async-calls' and pass it the contents of the buffer as a
 string.
 
 Called by `comint' in an R inferior process buffer."
@@ -777,7 +777,7 @@ process."
     (let ((staging-buf (with-current-buffer buf
                          ;; If we create the buffer, we want it to pick up
                          ;; `default-directory' from `buf'.
-                         (gpb-r--get-staging-buffer buf 'ensure)))
+                         (gpb-r-get-staging-buffer buf 'ensure)))
           (inhibit-read-only t)
           ;; `beg' and `end' will lie on line breaks.
           beg end)
@@ -800,7 +800,7 @@ process."
               (put-text-property beg (match-beginning 0)
                                  'current-working-dir
                                  default-directory)
-              (setq default-directory (gpb-r-mode--expand-filename
+              (setq default-directory (gpb-r-mode-expand-filename
                                        (string-trim (match-string 1))))
               (when gpb-r-mode-debug
                 (message "chdir to %S" default-directory))
@@ -817,7 +817,7 @@ process."
           (save-excursion
             (cond
              ;; There is an async call pending.
-             ((with-current-buffer buf gpb-r-mode--async-calls)
+             ((with-current-buffer buf gpb-r-mode-async-calls)
               ;; If there is no prompt, we return nil.
               (cond
                ((re-search-forward gpb-r-mode-prompt-regex nil t)
@@ -831,7 +831,7 @@ process."
                 (delete-region (match-beginning 0) (point-max))
                 (goto-char (point-min))
                 (let ((callback (with-current-buffer buf
-                                  (pop gpb-r-mode--async-calls))))
+                                  (pop gpb-r-mode-async-calls))))
                   (funcall callback (buffer-substring (point-min) (point-max))))
                 ;; Now empty buffer and recurse to handle the rest of `string',
                 (erase-buffer)
@@ -892,20 +892,20 @@ process."
           ;; might reset the match data.
           (let* ((filename (match-string 1))
                  (line-number (string-to-number (match-string-no-properties 2)))
-                 (buf (gpb-r--find-buffer filename)))
+                 (buf (gpb-r-find-buffer filename)))
             (gpb-r-show-line buf line-number)))))))
 
 
-(defun gpb-r--add-buttons-filter (output)
+(defun gpb-r-add-buttons-filter (output)
   (when (and output (> (length output) 0))
     (save-match-data
       (save-excursion
         (let* ((proc (get-buffer-process (current-buffer))))
-          (gpb-r--add-buttons-filter-1 comint-last-output-start
+          (gpb-r-add-buttons-filter-1 comint-last-output-start
                                      (process-mark proc)))))))
 
 
-(defun gpb-r--add-buttons-filter-1 (beg end)
+(defun gpb-r-add-buttons-filter-1 (beg end)
   "Add buttons that allow one to jump to souce code locations."
   (interactive "r")
   (dolist (link-def gpb-r-file-link-definitions)
@@ -919,7 +919,7 @@ process."
           (while (re-search-forward regex end t)
             (let* ((file (buffer-substring (match-beginning file-subexp)
                                            (match-end file-subexp)))
-                   (abspath (gpb-r-mode--expand-filename file))
+                   (abspath (gpb-r-mode-expand-filename file file))
                    (line (ignore-errors
                            (string-to-number (buffer-substring
                                               (match-beginning line-subexp)
@@ -937,14 +937,14 @@ process."
                'file file
                'abspath abspath
                'line line
-               'action #'gpb-r--follow-link
+               'action #'gpb-r-follow-link
                ;; Abbreviate the name in the buffer, but show the full path
                ;; in the echo area when you tab to the button.
                ;; 'display (format "%s#%s" (file-name-nondirectory file) line)
                'help-echo (format "%s#%s" abspath line)))))))))
 
 
-(defun gpb-r--follow-link (button)
+(defun gpb-r-follow-link (button)
   (let* ((abspath (button-get button 'abspath))
          (line (button-get button 'line)))
    (gpb-r-show-line abspath line)))
@@ -955,7 +955,7 @@ process."
 ;;
 
 
-(defun gpb-r-mode--expand-filename (name &optional dir)
+(defun gpb-r-mode-expand-filename (name &optional dir)
   (let* ((dir (or dir
                   (get-text-property 0 'current-working-dir name)
                   default-directory))
