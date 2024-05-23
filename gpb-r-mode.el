@@ -50,7 +50,7 @@
     (define-key map [(backtab)] 'backward-button)
     (define-key map "\C-c\C-c" 'gpb-r-set-active-process)
     (define-key map "\C-c\C-t" 'gpb-r-send-traceback)
-    (define-key map "\C-c\C-w" 'gpb-r-getwd)
+    (define-key map "\C-c\C-w" 'gpb-r-sync-working-dir)
     (define-key map "\C-c\C-d" 'gpb-r-show-docs)
     (define-key map "\C-s" 'gpb-r-save-history)
     (define-key map "\C-c\C-r" 'gpb-r-read-history)
@@ -257,6 +257,7 @@ process into new buffer, send `cmd' to the R process, wait for
 the result, and return a buffer that contains the result."
   (interactive "sR Command: ")
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
+         ;; We send a string and parse it on the R side.
          (wrapped-cmd (format ".gpb_r_mode$emacs_cmd({ %S })\n" cmd))
          (proc (or (get-buffer-process buf)
                    (error "No R process available")))
@@ -266,6 +267,7 @@ the result, and return a buffer that contains the result."
     ;; `wrapped-cmd'.
     (while (accept-process-output proc 0 nil t))
 
+    ;; `gpb-r-mode--async-calls' is local to `buf'
     (with-current-buffer buf
       (if callback
           (progn
@@ -298,30 +300,24 @@ the result, and return a buffer that contains the result."
                 (setq gpb-r-mode-lock nil)
                 (string-trim value)))
 
-          ;; If there is an error, of the call hangs and the user has to
-          ;; `keyboard-quit' to get control of Emacs, we show the server
+          ;; If the call hangs and the user has to `keyboard-quit' to get
+          ;; control of Emacs, show the staging buffer to help debug.
           ;;
           ('quit
            (pop-to-buffer (gpb-r--get-staging-buffer buf))
            (error "`gpb-r-send-command' failed")))))))
 
 
-(defun gpb-r-getwd (&optional buf)
+(defun gpb-r-sync-working-dir (&optional buf)
   "Get the TRAMP-qualified working directory of the current R process.
 
 Also updates `default-directory' in the process buffer.  This
 function is safe to call when the R process in the browser
 debugging state."
   (interactive)
-  (let* ((buf (or buf (gpb-r-get-proc-buffer)))
-         (local-wd (gpb-r-send-command "cat(sprintf('%s\\n', getwd()))" buf)))
-    (with-current-buffer buf
-      (setq default-directory (concat (gpb-r--get-tramp-prefix)
-                                      (file-name-as-directory local-wd)))
-
-      (when (called-interactively-p)
-        (message "Working Dir: %s" default-directory))
-      default-directory)))
+  (let* ((buf (or buf (gpb-r-get-proc-buffer))))
+    (message "gpb-r-sync-working-dir: %S" buf)
+    (gpb-r-send-command ".gpb_r_mode$sync_working_dir()" buf)))
 
 
 (defun gpb-r-save-and-exec-command (arg)
@@ -619,7 +615,6 @@ send the resulting string to `comint-simple-send'."
                                      (display-buffer ,help-buf))))))
 
 
-
 (defun gpb-r-create-function-header ()
   (interactive)
   (let (start args (indent "#'"))
@@ -791,12 +786,14 @@ process."
           ;; Add `current-working-dir' text properties that track
           ;; changes to the R processes working directory.
           (save-excursion
-            (while (re-search-forward "^chdir: \\(.*\\)\n" nil t)
+            (while (re-search-forward "^chdir: +\\(.*\\)\n" nil t)
               (put-text-property beg (match-beginning 0)
                                  'current-working-dir
                                  default-directory)
               (setq default-directory (gpb-r-mode--expand-filename
-                                       (match-string 1)))
+                                       (string-trim (match-string 1))))
+              (when gpb-r-mode-debug
+                (message "chdir to %S" default-directory))
               (unless gpb-r-mode-debug
                 (delete-region (match-beginning 0) (match-end 0))))
             (unless (eobp)
@@ -900,10 +897,6 @@ process."
                                           (match-string 1)))
           (message "Found region-file: %S" gpb-r--region-file))))))
 
-
-;;
-;; Turn filenames into buttons that jump to source.
-;;
 
 (defun gpb-r--add-buttons-filter (output)
   (when (and output (> (length output) 0))
