@@ -7,8 +7,11 @@
 (require 'ess-r-mode)
 (require 'gpb-logging)
 
-(defvar gpb-r-mode-debug t
+(defvar gpb-r-mode-debug nil
   "When t we takes steps to make things easier to debug.")
+
+(defvar-local gpb-r--region-file nil
+  "Holds the region file in an inferior R process buffer")
 
 ;; Use ESS for R source code files but attempt to stop it from installing
 ;; all of its seemingly buggy hooks.
@@ -184,10 +187,6 @@ At the moment, there can only be one active process")
 
   (add-hook 'comint-preoutput-filter-functions #'gpb-r-mode-preoutput-filter)
 
-  ;; The R init script writes out a filename that we pick up in this filter.
-  (add-hook 'comint-output-filter-functions
-            #'gpb-r--get-region-file-filter nil t)
-
   ;; Looks for debug breakpoints and jump to the corresponding buffer
   ;; location.
   (add-hook 'comint-output-filter-functions
@@ -197,14 +196,15 @@ At the moment, there can only be one active process")
   (add-hook 'comint-output-filter-functions
             #'gpb-r--add-buttons-filter nil t)
 
-  ;; We add the callback filter last as it may insert text in the buffer
-  ;; that we want the other filter functions to pick up (e.g. file link
-  ;; text).
-  ;; (add-hook 'comint-output-filter-functions
-  ;;           #'gpb-r--callback-filter-function nil t)
-
   (gpb-r-read-history)
-  (gpb-r-source-R-init-file))
+
+  ;; Send the init script and read the region file as a response.
+  (let ((proc (get-buffer-process (current-buffer))))
+    (accept-process-output proc 1 nil t)
+    (gpb-r-source-R-init-file)
+    ;; We need another hash prompt because `gpb-r-mode-preoutput-filter' didn't
+    ;; recognize the original "> " prompt.
+    (send-string proc "\n")))
 
 
 (defun gpb-r-set-active-process ()
@@ -257,7 +257,7 @@ the result, and return a buffer that contains the result."
   (interactive "sR Command: ")
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          ;; We send a string and parse it on the R side.
-         (wrapped-cmd (format ".gpb_r_mode$emacs_cmd({ %S })\n" cmd))
+         (wrapped-cmd (format "eval(parse(text = %S))\n" cmd))
          (proc (or (get-buffer-process buf)
                    (error "No R process available")))
          (msg "Waiting on R process (C-G to cancel)..."))
@@ -315,7 +315,6 @@ function is safe to call when the R process in the browser
 debugging state."
   (interactive)
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
-    (message "gpb-r-sync-working-dir: %S" buf)
     (gpb-r-send-command ".gpb_r_mode$sync_working_dir()" buf)))
 
 
@@ -667,10 +666,11 @@ If ENSURE is non-nil, we create the buffer if it doesn't already exist."
 (defun gpb-r-source-R-init-file ()
   "Source gpb-r-mode.R in the interpreter.
 
-Should be called from the interpreter buffer."
+Should be called from the interpreter buffer.  Return region file path."
   (let* ((basename "gpb-r-mode.R")
          (local-init-script (locate-library "gpb-r-mode.R"))
-         (remote-init-script (expand-file-name (concat "." basename))))
+         (remote-init-script (expand-file-name (concat "." basename)))
+         region-file)
 
     (cond
      ;; If we are running R on a remote machine over TRAMP, we write our R
@@ -683,11 +683,22 @@ Should be called from the interpreter buffer."
           (insert-file-contents local-init-script)
           ;; Another attempt to clean up line endings.
           (delete-trailing-whitespace)))
-      (gpb-r-send-input (format "source(\".%s\")\n" basename)))
+      (setq region-file (gpb-r-send-command (format "source(\".%s\")\n"
+                                                    basename))))
 
      ;; Otherwise, we can just source the file directly.
      (t
-      (gpb-r-send-input (format "source(\".%s\")\n" local-init-script))))))
+      (setq region-file (gpb-r-send-command (format "source(\".%s\")\n"
+                                                    local-init-script)))))
+
+    (when (string-prefix-p "> " region-file)
+      (setq region-file (substring region-file 2 (length region-file))))
+
+    ;; Set the region file.
+    (setq gpb-r--region-file (substring-no-properties
+                              (gpb-r-mode--expand-filename region-file)))
+    (when gpb-r-mode-debug
+      (message "Region file: %S" gpb-r--region-file))))
 
 
 (defun gpb-r-read-history ()
@@ -830,9 +841,12 @@ process."
 
              ;; There are no async calls pending.
              (t
-              (let* ((regex (format "\\(%s\\)\\|\\(%s\\)"
+              (let* ((regex (format "\\(%s\\)\\|\\(%s\\)"  ;; \\|\\(%s\\)"
                                     gpb-r-mode-prompt-regex
-                                    "Browse\\[[0-9]+\\]>"))
+                                    "Browse\\[[0-9]+\\]>"
+                                    ;; ;; TODO: remove this
+                                    ;; "^> $"
+                                    ))
                      (ends-with-prompt (save-excursion
                                          (goto-char (point-max))
                                          (forward-line 0)
@@ -880,21 +894,6 @@ process."
                  (line-number (string-to-number (match-string-no-properties 2)))
                  (buf (gpb-r--find-buffer filename)))
             (gpb-r-show-line buf line-number)))))))
-
-
-(defvar-local gpb-r--region-file nil
-  "Holds the region file in an inferior R process buffer")
-
-(defun gpb-r--get-region-file-filter (output)
-  "Look for region-file: <filename>."
-  (when (and output (> (length output) 0))
-    (save-match-data
-      (save-excursion
-        (goto-char comint-last-output-start)
-        (while (re-search-forward "^region-file: \\(.*\\)$" nil t)
-          (setq-local gpb-r--region-file (gpb-r-mode--expand-filename
-                                          (match-string 1)))
-          (message "Found region-file: %S" gpb-r--region-file))))))
 
 
 (defun gpb-r--add-buttons-filter (output)
@@ -970,7 +969,6 @@ process."
       (expand-file-name name dir)))))
 
 
-
 ;; Testing
 ;;
 ;; In inferior R buffer:
@@ -978,13 +976,11 @@ process."
 ;; (setq gpb-r-mode-lock nil)
 ;; (gpb-r-send-command "print(1:10)" "*R*" nil 'steal-lock)
 
-
 (defun gpb-r-hanging-command (&optional buf)
   "A command that hangs for testing."
   (interactive)
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
     (gpb-r-send-command "readline('Press <return> to continue')" buf)))
-
 
 
 

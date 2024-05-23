@@ -33,7 +33,6 @@
   # Emacs writes to this file for region evaluation.
   region_file <- tempfile("region-", fileext = ".R")
   writeLines("init", region_file)
-  cat(sprintf("region-file: %s\n", normalizePath(region_file)))
 
   sync_working_dir <- function() {
     wd <- normalizePath(getwd())
@@ -65,11 +64,6 @@
     invisible(NULL)
   }
 
-  emacs_cmd <- function(text) {
-    expr <- parse(text = text)
-    eval(expr)
-  }
-
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location,
@@ -77,8 +71,11 @@
           continue = "CONTINUE:75b30f72-85a0-483c-98ce-d24414394ff0")
 
   # This is the API exposed to grp-r-mode.el.
-  list(get_completions = get_completions,
+  list(region_file = region_file,
+       get_completions = get_completions,
        eval_region_file = eval_region_file,
-       emacs_cmd = emacs_cmd,
        sync_working_dir = sync_working_dir)
 })
+
+# Emacs reads this output and sets `gpb-r-mode--region-file'.
+cat(sprintf("%s\n", normalizePath(.gpb_r_mode$region_file)))
