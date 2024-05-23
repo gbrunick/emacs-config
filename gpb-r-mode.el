@@ -61,7 +61,7 @@
   "Keymap for `gpb-inferior-r-mode'.")
 
 (when (and (boundp 'evil-mode) evil-mode)
-  (evil-define-key 'motion gpb-inferior-r-mode-map [?\t] 'forward-button)
+  (evil-define-key 'normal gpb-inferior-r-mode-map (kbd "TAB") 'forward-button)
   (evil-define-key 'motion gpb-inferior-r-mode-map [(backtab)] 'backward-button)
   (evil-define-key 'insert gpb-inferior-r-mode-map [?\t] 'completion-at-point))
 
@@ -185,17 +185,24 @@ At the moment, there can only be one active process")
 
   (add-hook 'comint-preoutput-filter-functions #'gpb-r-mode-preoutput-filter)
 
-  ;; Look for traceback and debug output.
+  ;; The R init script writes out a filename that we pick up in this filter.
+  (add-hook 'comint-output-filter-functions
+            #'gpb-r--get-region-file-filter nil t)
+
+  ;; Looks for debug breakpoints and jump to the corresponding buffer
+  ;; location.
   (add-hook 'comint-output-filter-functions
             #'gpb-r-mode-debug-filter-function nil t)
+
+  ;; Make filenames clickable buttons.
   (add-hook 'comint-output-filter-functions
-            #'gpb-r--add-links-filter-function nil t)
+            #'gpb-r--add-links-filter nil t)
 
   ;; We add the callback filter last as it may insert text in the buffer
   ;; that we want the other filter functions to pick up (e.g. file link
   ;; text).
-  (add-hook 'comint-output-filter-functions
-            #'gpb-r--callback-filter-function nil t)
+  ;; (add-hook 'comint-output-filter-functions
+  ;;           #'gpb-r--callback-filter-function nil t)
 
   (gpb-r-read-history)
   (gpb-r-source-R-init-file))
@@ -288,11 +295,13 @@ the result, and return a buffer that contains the result."
               ;; Cancel the timer if it is still pending.
               (cancel-timer gpb-r-waiting-timer)
 
-              gpb-r-mode-lock)
+              (let ((value gpb-r-mode-lock))
+                (setq gpb-r-mode-lock nil)
+                (string-trim value)))
 
           ;; If there is an error, of the call hangs and the user has to
           ;; `keyboard-quit' to get control of Emacs, we show the server
-          ;; buffer and raise an error.
+          ;;
           ('quit
            (pop-to-buffer (gpb-r--get-staging-buffer buf))
            (error "`gpb-r-send-command' failed")))))))
@@ -314,13 +323,6 @@ debugging state."
       (when (called-interactively-p)
         (message "Working Dir: %s" default-directory))
       default-directory)))
-
-
-(defun gpb-r-hanging-command (&optional buf)
-  "A command that hangs for testing."
-  (interactive)
-  (let* ((buf (or buf (gpb-r-get-proc-buffer))))
-    (gpb-r-send-command "readline('Press <return> to continue')" buf)))
 
 
 (defun gpb-r-save-and-exec-command (arg)
@@ -391,12 +393,20 @@ Rmarkdown render expression."
 (defvar gpb-r-show-line--overlay nil
   "Current highlighting overlay used in `gpb-r-show-line")
 
-
 (defun gpb-r-show-line (buf line-number &optional pop-to face)
   "Show line `line' in `buf' in some other window.
 
 If `pop-to' is non-nil, switch to the buffer in which the line is
 displayed."
+  ;; If given a filename, convert that to a buffer.
+  (when (stringp buf)
+    (let ((filename (gpb-r-mode--expand-filename buf)))
+      (cond
+       ((file-exists-p filename)
+        (setq buf (find-file-noselect filename)))
+       (t
+        (error (format "Invalid file: %S" filename))))))
+
   (when (and buf (buffer-live-p buf))
     (let* ((window (display-buffer buf 'other-window))
            (vertical-margin (and window (/ (window-height window) 4)))
@@ -453,58 +463,6 @@ displayed."
       (indent-according-to-mode))))
 
 
-(defun gpb-r--add-links (beg end)
-  "Add buttons that allow one to jump to souce code locations."
-  (interactive "r")
-  (dolist (link-def gpb-r-file-link-definitions)
-    (let ((regex (car link-def))
-          (file-subexp (nth 1 link-def))
-          (line-subexp (nth 2 link-def))
-          (link-subexp (nth 3 link-def)))
-      (save-excursion
-        (save-match-data
-          (goto-char beg)
-          (while (re-search-forward regex end t)
-            (let ((file (buffer-substring-no-properties
-                         (match-beginning file-subexp) (match-end file-subexp)))
-                  (line (ignore-errors
-                          (string-to-number
-                           (buffer-substring-no-properties
-                            (match-beginning line-subexp)
-                            (match-end line-subexp))))))
-              (make-text-button
-               (match-beginning link-subexp) (match-end link-subexp)
-               'file file
-               'line line
-               'action #'gpb-r--visit-link
-               ;; Abbreviate the name in the buffer, but show the full path
-               ;; in the echo area when you tab to the button.
-               'display (format "%s#%s" (file-name-nondirectory file) line)
-               'help-echo (format "%s#%s" file line)))))))))
-
-
-(defun gpb-r--visit-link (button)
-  "Visit the line recorded in `button'"
-  (let* ((file (concat (gpb-r--get-tramp-prefix)
-                       (button-get button 'file)))
-         (line (button-get button 'line)))
-    (setq buf (gpb-r--find-buffer file t))
-    (gpb-r-show-line buf line)))
-
-
-;; Callback functions.  See gpb-r-mode.R.
-
-(defun gpb-r--add-error-info (file line)
-  (save-excursion
-    (skip-chars-backward " \n")
-    (insert (format " at %s#%s" file line))))
-
-
-(defun gpb-r--get-tramp-prefix (&optional dir)
-  (let ((dir (or dir default-directory)))
-    (or (file-remote-p dir) "")))
-
-
 (defun gpb-r-eval-region (beg end)
   (interactive "r")
   (let* ((srcbuf (buffer-name))
@@ -521,23 +479,6 @@ displayed."
 
     (gpb-r-send-input cmd t)))
 
-;; (defun gpb-r-eval-text-object (obj start end)
-;;   (gpb-r-eval-region start end))
-
-
-(defvar-local gpb-r--region-file nil
-  "Holds the region file in an inferior R process buffer")
-
-(defun gpb-r--get-region-file ()
-  "Should be called from an R process buffer"
-
-  (let ((file gpb-r--region-file))
-    (when (null file)
-      (setq file (concat (gpb-r--get-tramp-prefix)
-                         (gpb-r-send-command
-                          "cat(sprintf('%s\n', .gpb_r_mode$region_file))")))
-      (setq-local gpb-r--region-file file))
-    file))
 
 (defun gpb-r--region-eval-preinput-filter (line)
   "Input filter that looks for eval region commands"
@@ -547,7 +488,8 @@ displayed."
           (line1 (string-to-number (match-string 2 line)))
           (line2 (string-to-number (match-string 3 line)))
           (procbuf (current-buffer))
-          (region-filename (gpb-r--get-region-file))
+          (region-filename (or gpb-r--region-file
+                               (error "gpb-r--region-file not set")))
           text)
 
       (with-current-buffer srcbuf
@@ -601,8 +543,8 @@ displayed."
          (gpb-r-save-history))
     (and staging-buf
          (buffer-live-p staging-buf)
-         (progn (kill-buffer server-buf)
-                (message "Killed %S" server-buf)))))
+         (progn (kill-buffer staging-buf)
+                (message "Killed %S" staging-buf)))))
 
 
 ;; Input preprocessing
@@ -650,63 +592,14 @@ send the resulting string to `comint-simple-send'."
   "Implementation detail of `gpb-r--find-buffer'")
 
 (defun gpb-r--find-buffer (path &optional cycle)
-  (let* ((working-dir (get-text-property 0 'current-working-dir path))
-         (abspath (gpb-r-mode--expand-filename path working-dir)))
-    (message "path: %S" path)
-    (message "working-dir: %S" working-dir)
+  (message "path: %S" path)
+  (let* ((abspath (gpb-r-mode--expand-filename path)))
     (message "abspath: %S" abspath)
     (cond
      ((file-exists-p abspath)
       (find-file-noselect abspath))
      (t
       (error "Invalid path: %S" abspath)))))
-
-
-(defun gpb-r--find-buffer-old (path &optional cycle)
-  "Return a buffer visiting `path'
-
-If `cycle' is t and we can't find a match to the full path of
-`path', we cycle through the buffers with the same filename
-ignoring the directory."
-  (let ((file-name (file-name-nondirectory path))
-        ;; Keys are filenames and values are buffers.
-        buf buf-file-name bufs dir)
-    (cond
-     ;; When we eval a buffer that has no file attached, we wrap the buffer
-     ;; name in square braces and pretend that is the file name.
-     ((string-match "^\\[\\(.*\\)\\]$" (file-name-nondirectory path))
-      (setq gpb-r--find-buffer--last-buf nil)
-      (get-buffer (match-string 1 (file-name-nondirectory path))))
-
-     ;; If the file path exists, visit that file.
-     ((file-exists-p (concat (gpb-r--get-tramp-prefix) path))
-      (setq gpb-r--find-buffer--last-buf nil)
-      (find-file-noselect path))
-
-     ;; Otherwise, look for the first buffer with the same filename as
-     ;; `path', ignoring the directory information.  If `cycle' is t and
-     ;; `gpb-r--find-buffer--last-buf' is set, we look for the first buffer
-     ;; strictly after `gpb-r--find-buffer--last-buf'.
-     (t
-      (setq bufs (nconc
-                  (when (and cycle gpb-r--find-buffer--last-buf)
-                    ;; The buffers after `gpb-r--find-buffer--last-buf'
-                    (cdr (member gpb-r--find-buffer--last-buf (buffer-list))))
-                  (buffer-list)))
-      (while bufs
-        (setq buf-file-name (buffer-file-name (car bufs)))
-        (if (and buf-file-name
-                 (string= (file-name-nondirectory buf-file-name) file-name))
-            (setq buf (car bufs)
-                  bufs nil)
-          (setq bufs (cdr bufs))))
-
-      ;; If we still haven't found a buffer, prompt the user.
-      (unless buf (message "Can't find %s" path))
-
-      (setq gpb-r--find-buffer--last-buf buf)
-
-      buf))))
 
 
 (defun gpb-r-show-docs (object-name &optional buf)
@@ -731,54 +624,6 @@ ignoring the directory."
                                        (goto-char (point-min)))
                                      (display-buffer ,help-buf))))))
 
-
-
-;; (defun gpb-r-indent-line ()
-;;   (prog1
-;;       (ess-r-indent-line)
-;;     (let ((pt (point))
-;;           (continue t)
-;;           init-depth col)
-;;       (setq init-depth (car (syntax-ppss)))
-;;       (catch 'done
-;;         (setq start (save-excursion
-;;                       (ess-backward-up-list)
-;;                       (unless (looking-at-p "(\\|\\[") (throw 'done t))
-;;                       (point)))
-
-;;         ;; Look for an outer comma.  If we find one, we are in an argument
-;;         ;; list and should only look back to the start of this argument to
-;;         ;; find the "~" or ":=".
-;;         (save-excursion
-;;           (while (and continue (re-search-backward "," start t))
-;;             (when (<= (car (syntax-ppss)) init-depth)
-;;               (setq continue nil
-;;                     start (point)))))
-
-;;         (save-excursion
-;;           (setq continue t)
-;;           (beginning-of-line)
-;;           (while (and continue (>= (point) start))
-;;             (if (re-search-backward "~\\|:=" start t)
-;;                 (cond
-;;                  ;; If the "~" or ":=" we found is not inside a string or
-;;                  ;; some other nested expression.
-;;                  ((and (null (nth 3 (syntax-ppss)))
-;;                        (<= (car (syntax-ppss)) init-depth))
-;;                   (goto-char (match-end 0))
-;;                   (skip-chars-forward " ")
-;;                   (setq col (current-column)
-;;                         continue nil))
-;;                  ;; Otherwise, keep looking.
-;;                  (t (backward-char)))
-;;               ;; We didn't find a string match
-;;               (throw 'done t))))
-
-;;         (unless (null col)
-;;           (beginning-of-line)
-;;           (when (looking-at " +")
-;;             (delete-region (match-beginning 0) (match-end 0)))
-;;           (indent-to-column col))))))
 
 
 (defun gpb-r-create-function-header ()
@@ -1054,13 +899,137 @@ process."
                  (buf (gpb-r--find-buffer filename)))
             (gpb-r-show-line buf line-number)))))))
 
+
+(defvar-local gpb-r--region-file nil
+  "Holds the region file in an inferior R process buffer")
+
+(defun gpb-r--get-region-file-filter (output)
+  "Look for region-file: <filename>."
+  (when (and output (> (length output) 0))
+    (save-match-data
+      (save-excursion
+        (goto-char comint-last-output-start)
+        (while (re-search-forward "^region-file: \\(.*\\)$" nil t)
+          (setq-local gpb-r--region-file (gpb-r-mode--expand-filename
+                                          (match-string 1)))
+          (message "Found region-file: %S" gpb-r--region-file))))))
+
+
+(defun gpb-r--add-links-filter (output)
+  (when (and output (> (length output) 0))
+    (save-match-data
+      (save-excursion
+        (let* ((proc (get-buffer-process (current-buffer))))
+          (gpb-r--add-links-filter-1 comint-last-output-start
+                                     (process-mark proc)))))))
+
+
+(defun gpb-r--add-links-filter-1 (beg end)
+  "Add buttons that allow one to jump to souce code locations."
+  (interactive "r")
+  (dolist (link-def gpb-r-file-link-definitions)
+    (let ((regex (car link-def))
+          (file-subexp (nth 1 link-def))
+          (line-subexp (nth 2 link-def))
+          (link-subexp (nth 3 link-def)))
+      (save-excursion
+        (save-match-data
+          (goto-char beg)
+          (while (re-search-forward regex end t)
+            (let* ((file (buffer-substring (match-beginning file-subexp)
+                                           (match-end file-subexp)))
+                   (abspath (gpb-r-mode--expand-filename file))
+                   (line (ignore-errors
+                           (string-to-number (buffer-substring
+                                              (match-beginning line-subexp)
+                                              (match-end line-subexp)))))
+                   (beg (match-beginning link-subexp))
+                   (end (match-end link-subexp)))
+
+              ;; Hide the file directory to save space.
+              ;; (goto-char (match-end link-subexp))
+              ;; (when (re-search-backward "/" beg t)
+              ;;   (put-text-property beg (match-end 0) 'display "")
+              ;;   (setq beg (match-end 0)))
+
+              (make-text-button beg end
+               'file file
+               'abspath abspath
+               'line line
+               'action #'gpb-r--follow-link
+               ;; Abbreviate the name in the buffer, but show the full path
+               ;; in the echo area when you tab to the button.
+               ;; 'display (format "%s#%s" (file-name-nondirectory file) line)
+               'help-echo (format "%s#%s" abspath line)))))))))
+
+
+(defun gpb-r--follow-link (button)
+  (let* ((abspath (button-get button 'abspath))
+         (line (button-get button 'line)))
+   (message "gpb-r--follow-link %S %S" abspath line)
+   (gpb-r-show-line abspath line)))
+
+
+(defun gpb-r--callback-filter-function (output)
+  "Looks for specific callback requests for the R code.
+
+All callback requests look like gpb-r-callback: [lisp sexp]
+followed by `gpb-r-end-of-output-marker'.  the sexp is evaluated
+in the process buffer with point set to the start of the line
+that contains the callback."
+  (error "Dont run")
+  (when (> (string-width output) 0)
+    (let ((proc (get-buffer-process (current-buffer)))
+          (marker (or (and (boundp 'gpb-r--callback-filter-function--marker)
+                           (markerp gpb-r--callback-filter-function--marker)
+                           gpb-r--callback-filter-function--marker)
+                      (copy-marker (point-min))))
+          (regex (format "^gpb-r-callback: \\(.*\\) %s\n"
+                         gpb-r-end-of-output-marker))
+          sexp)
+
+      (when comint-last-output-start
+        (set-marker marker (max comint-last-output-start marker)))
+
+      (gpb-log-forms 'gpb-r--callback-filter-function
+                     'comint-last-output-start
+                     'output 'marker 'regex)
+
+      (save-excursion
+        (goto-char marker)
+        (while (re-search-forward regex nil t)
+          (setq sexp (read (match-string-no-properties 1)))
+          (gpb-log-forms 'gpb-r--callback-filter-function 'sexp)
+          (save-excursion
+            (goto-char (match-beginning 0))
+            (delete-region (match-beginning 0) (match-end 0))
+            (eval sexp)))
+        (goto-char (process-mark proc))
+        (forward-line 0)
+        (move-marker marker (point)))
+
+      (setq-local gpb-r--callback-filter-function--marker marker))))
+
+
+
+;;
+;; Utility Functions
+;;
+
+
 (defun gpb-r-mode--expand-filename (name &optional dir)
-  (message "gpb-r-mode--expand-filename: %S %S" name dir)
-  (let* ((dir (or dir default-directory))
+  (message "name: %S" name)
+  (let* ((dir (or dir
+                  (get-text-property 0 'current-working-dir name)
+                  default-directory))
          (tramp-prefix (or (file-remote-p dir) "")))
-    (if (file-name-absolute-p name)
-        (concat tramp-prefix name)
-      (expand-file-name name dir))))
+    (cond
+     ((file-remote-p name)
+      name)
+     ((file-name-absolute-p name)
+      (concat tramp-prefix name))
+     (t
+      (expand-file-name name dir)))))
 
 
 
@@ -1070,6 +1039,15 @@ process."
 ;;
 ;; (setq gpb-r-mode-lock nil)
 ;; (gpb-r-send-command "print(1:10)" "*R*" nil 'steal-lock)
+
+
+(defun gpb-r-hanging-command (&optional buf)
+  "A command that hangs for testing."
+  (interactive)
+  (let* ((buf (or buf (gpb-r-get-proc-buffer))))
+    (gpb-r-send-command "readline('Press <return> to continue')" buf)))
+
+
 
 
 (provide 'gpb-r-mode)
