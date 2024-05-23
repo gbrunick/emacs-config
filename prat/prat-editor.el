@@ -70,8 +70,8 @@ output in BUFFER-OR-NAME and swithced to this buffer."
                                                     editor-script))
                   "GIT_PAGER="))
            (t
-            (list (format "GIT_EDITOR=\"%s\"" (file-local-name editor-script))
-                  (format "GIT_SEQUENCE_EDITOR=\"%s\"" (file-local-name
+            (list (format "GIT_EDITOR=\"bash '%s'\"" (file-local-name editor-script))
+                  (format "GIT_SEQUENCE_EDITOR=\"bash '%s'\"" (file-local-name
                                                         editor-script))
                   (format "PRAT_EDITOR_PIPE=\"%s\""
                           (file-local-name editor-pipe))
