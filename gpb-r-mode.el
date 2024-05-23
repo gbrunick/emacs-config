@@ -7,7 +7,7 @@
 (require 'ess-r-mode)
 (require 'gpb-logging)
 
-(defvar gpb-r-mode-debug nil
+(defvar gpb-r-debug nil
   "When t we takes steps to make things easier to debug.")
 
 (defvar-local gpb-r-region-file nil
@@ -185,12 +185,12 @@ At the moment, there can only be one active process")
         (special-mode)))
     (push staging-buffer gpb-r-all-inferior-buffers))
 
-  (add-hook 'comint-preoutput-filter-functions #'gpb-r-mode-preoutput-filter)
+  (add-hook 'comint-preoutput-filter-functions #'gpb-r-preoutput-filter)
 
   ;; Looks for debug breakpoints and jump to the corresponding buffer
   ;; location.
   (add-hook 'comint-output-filter-functions
-            #'gpb-r-mode-debug-filter-function nil t)
+            #'gpb-r-debug-filter-function nil t)
 
   ;; Make filenames clickable buttons.
   (add-hook 'comint-output-filter-functions
@@ -202,7 +202,7 @@ At the moment, there can only be one active process")
   (let ((proc (get-buffer-process (current-buffer))))
     (accept-process-output proc 1 nil t)
     (gpb-r-source-R-init-file)
-    ;; We need another hash prompt because `gpb-r-mode-preoutput-filter' didn't
+    ;; We need another hash prompt because `gpb-r-preoutput-filter' didn't
     ;; recognize the original "> " prompt.
     (send-string proc "\n")))
 
@@ -245,7 +245,7 @@ At the moment, there can only be one active process")
 
 (defvar gpb-r-waiting-timer nil)
 
-(defvar gpb-r-mode-lock nil
+(defvar gpb-r-lock nil
   "We can only send one syncronous command at a time.")
 
 (defun gpb-r-send-command (cmd &optional buf callback steal-lock)
@@ -266,20 +266,20 @@ the result, and return a buffer that contains the result."
     ;; `wrapped-cmd'.
     (while (accept-process-output proc 0 nil t))
 
-    ;; `gpb-r-mode-async-calls' is local to `buf'
+    ;; `gpb-r-async-calls' is local to `buf'
     (with-current-buffer buf
       (if callback
           (progn
-            (push callback gpb-r-mode-async-calls)
+            (push callback gpb-r-async-calls)
             (send-string proc wrapped-cmd))
 
         ;; Otherwise we have to wait.
-        (when gpb-r-mode-lock
-          (unless steal-lock (error "gpb-r-mode-lock is not nil")))
-        (setq gpb-r-mode-lock 'waiting)
+        (when gpb-r-lock
+          (unless steal-lock (error "gpb-r-lock is not nil")))
+        (setq gpb-r-lock 'waiting)
         (push (lambda (txt)
-                (setq gpb-r-mode-lock txt))
-              gpb-r-mode-async-calls)
+                (setq gpb-r-lock txt))
+              gpb-r-async-calls)
 
         ;; Provide some feedback if the command takes longer than a second.
         (setq gpb-r-waiting-timer (run-at-time 1 nil `(lambda () (message ,msg))))
@@ -289,14 +289,14 @@ the result, and return a buffer that contains the result."
         (condition-case error-var
             (progn
               ;; Accept output until the callback above it triggered.
-              (while (eq gpb-r-mode-lock 'waiting)
+              (while (eq gpb-r-lock 'waiting)
                 (accept-process-output proc 1 nil t))
 
               ;; Cancel the timer if it is still pending.
               (cancel-timer gpb-r-waiting-timer)
 
-              (let ((value gpb-r-mode-lock))
-                (setq gpb-r-mode-lock nil)
+              (let ((value gpb-r-lock))
+                (setq gpb-r-lock nil)
                 (string-trim value)))
 
           ;; If the call hangs and the user has to `keyboard-quit' to get
@@ -393,7 +393,7 @@ If `pop-to' is non-nil, switch to the buffer in which the line is
 displayed."
   ;; If given a filename, convert that to a buffer.
   (when (stringp buf)
-    (let ((filename (gpb-r-mode-expand-filename buf)))
+    (let ((filename (gpb-r-expand-filename buf)))
       (cond
        ((file-exists-p filename)
         (setq buf (find-file-noselect filename)))
@@ -582,7 +582,7 @@ send the resulting string to `comint-simple-send'."
 ;; Utility functions
 
 (defun gpb-r-find-buffer (path &optional cycle)
-  (let* ((abspath (gpb-r-mode-expand-filename path)))
+  (let* ((abspath (gpb-r-expand-filename path)))
     (cond
      ((file-exists-p abspath)
       (find-file-noselect abspath))
@@ -696,8 +696,8 @@ Should be called from the interpreter buffer.  Return region file path."
 
     ;; Set the region file.
     (setq gpb-r-region-file (substring-no-properties
-                              (gpb-r-mode-expand-filename region-file)))
-    (when gpb-r-mode-debug
+                              (gpb-r-expand-filename region-file)))
+    (when gpb-r-debug
       (message "Region file: %S" gpb-r-region-file))))
 
 
@@ -729,15 +729,15 @@ Should be called from the interpreter buffer.  Return region file path."
 ;; Preoutput filter functions
 ;;
 
-(defvar gpb-r-mode-guid "75b30f72-85a0-483c-98ce-d24414394ff0")
-(defvar gpb-r-mode-prompt-regex (format "PROMPT:%s" gpb-r-mode-guid))
-(defvar gpb-r-mode-prompt-continue-regex (format "CONTINUE:%s" gpb-r-mode-guid))
+(defvar gpb-r-guid "75b30f72-85a0-483c-98ce-d24414394ff0")
+(defvar gpb-r-prompt-regex (format "PROMPT:%s" gpb-r-guid))
+(defvar gpb-r-prompt-continue-regex (format "CONTINUE:%s" gpb-r-guid))
 
-(defvar-local gpb-r-mode-async-calls nil
+(defvar-local gpb-r-async-calls nil
   "Defined in inferior R buffers.  List of callback functions.")
 
 
-(defun gpb-r-mode-preoutput-filter (string)
+(defun gpb-r-preoutput-filter (string)
   "Preprocess R process output.
 
 Accumulates output into a staging buffer so that it may be returned in
@@ -751,20 +751,20 @@ working directory at the time the output was generated.  Functions in
 'comint-output-filter-functions' can use this text property to properly
 expand relative paths in the R output.
 
-Also checks `gpb-r-mode-async-calls' to see if we are in the middle of a
-`gpb-r-mode-send-input'.  If so, we accumulate all the R command
+Also checks `gpb-r-async-calls' to see if we are in the middle of a
+`gpb-r-send-input'.  If so, we accumulate all the R command
 output until the next prompt.  We then pop the first function off
-`gpb-r-mode-async-calls' and pass it the contents of the buffer as a
+`gpb-r-async-calls' and pass it the contents of the buffer as a
 string.
 
 Called by `comint' in an R inferior process buffer."
   (save-match-data
     (save-excursion
-      (gpb-r-mode-preoutput-filter-1 (current-buffer) string))))
+      (gpb-r-preoutput-filter-1 (current-buffer) string))))
 
 
-(defun gpb-r-mode-preoutput-filter-1 (buf string)
-  "Implementation of `gpb-r-mode-preoutput-filter'
+(defun gpb-r-preoutput-filter-1 (buf string)
+  "Implementation of `gpb-r-preoutput-filter'
 
 BUF is an inferior R process buffer.  STRING contins output from the R
 process."
@@ -800,11 +800,11 @@ process."
               (put-text-property beg (match-beginning 0)
                                  'current-working-dir
                                  default-directory)
-              (setq default-directory (gpb-r-mode-expand-filename
+              (setq default-directory (gpb-r-expand-filename
                                        (string-trim (match-string 1))))
-              (when gpb-r-mode-debug
+              (when gpb-r-debug
                 (message "chdir to %S" default-directory))
-              (unless gpb-r-mode-debug
+              (unless gpb-r-debug
                 (delete-region (match-beginning 0) (match-end 0))))
             (unless (eobp)
               (put-text-property (point) (point-max)
@@ -817,10 +817,10 @@ process."
           (save-excursion
             (cond
              ;; There is an async call pending.
-             ((with-current-buffer buf gpb-r-mode-async-calls)
+             ((with-current-buffer buf gpb-r-async-calls)
               ;; If there is no prompt, we return nil.
               (cond
-               ((re-search-forward gpb-r-mode-prompt-regex nil t)
+               ((re-search-forward gpb-r-prompt-regex nil t)
                 ;; We have all of the output associated with an async
                 ;; command.
                 ;;
@@ -831,18 +831,18 @@ process."
                 (delete-region (match-beginning 0) (point-max))
                 (goto-char (point-min))
                 (let ((callback (with-current-buffer buf
-                                  (pop gpb-r-mode-async-calls))))
+                                  (pop gpb-r-async-calls))))
                   (funcall callback (buffer-substring (point-min) (point-max))))
                 ;; Now empty buffer and recurse to handle the rest of `string',
                 (erase-buffer)
-                (gpb-r-mode-preoutput-filter-1 buf string))
+                (gpb-r-preoutput-filter-1 buf string))
 
                (t "")))
 
              ;; There are no async calls pending.
              (t
               (let* ((regex (format "\\(%s\\)\\|\\(%s\\)"  ;; \\|\\(%s\\)"
-                                    gpb-r-mode-prompt-regex
+                                    gpb-r-prompt-regex
                                     "Browse\\[[0-9]+\\]>"
                                     ;; ;; TODO: remove this
                                     ;; "^> $"
@@ -854,7 +854,7 @@ process."
 
                 ;; Replace prompt hashes with standard prompts.
                 (save-excursion
-                  (while (re-search-forward gpb-r-mode-prompt-regex nil t)
+                  (while (re-search-forward gpb-r-prompt-regex nil t)
                     (replace-match "> ")))
 
                 (if ends-with-prompt
@@ -879,7 +879,7 @@ process."
 ;; Output filter functions
 ;;
 
-(defun gpb-r-mode-debug-filter-function (output)
+(defun gpb-r-debug-filter-function (output)
   "Filter function that tracks debug source locations"
   ;; This function is called with empty output at odd times that can lead
   ;; to misleading highlighting if you don't ignore it those calls.
@@ -919,7 +919,7 @@ process."
           (while (re-search-forward regex end t)
             (let* ((file (buffer-substring (match-beginning file-subexp)
                                            (match-end file-subexp)))
-                   (abspath (gpb-r-mode-expand-filename file file))
+                   (abspath (gpb-r-expand-filename file))
                    (line (ignore-errors
                            (string-to-number (buffer-substring
                                               (match-beginning line-subexp)
@@ -955,7 +955,7 @@ process."
 ;;
 
 
-(defun gpb-r-mode-expand-filename (name &optional dir)
+(defun gpb-r-expand-filename (name &optional dir)
   (let* ((dir (or dir
                   (get-text-property 0 'current-working-dir name)
                   default-directory))
@@ -973,7 +973,7 @@ process."
 ;;
 ;; In inferior R buffer:
 ;;
-;; (setq gpb-r-mode-lock nil)
+;; (setq gpb-r-lock nil)
 ;; (gpb-r-send-command "print(1:10)" "*R*" nil 'steal-lock)
 
 (defun gpb-r-hanging-command (&optional buf)
@@ -981,7 +981,6 @@ process."
   (interactive)
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
     (gpb-r-send-command "readline('Press <return> to continue')" buf)))
-
 
 
 (provide 'gpb-r-mode)
