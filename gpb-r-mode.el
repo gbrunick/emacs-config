@@ -196,7 +196,7 @@ At the moment, there can only be one active process")
 
   ;; Make filenames clickable buttons.
   (add-hook 'comint-output-filter-functions
-            #'gpb-r--add-links-filter nil t)
+            #'gpb-r--add-buttons-filter nil t)
 
   ;; We add the callback filter last as it may insert text in the buffer
   ;; that we want the other filter functions to pick up (e.g. file link
@@ -257,7 +257,7 @@ process into new buffer, send `cmd' to the R process, wait for
 the result, and return a buffer that contains the result."
   (interactive "sR Command: ")
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
-         (wrapped-cmd (format ".emacs_cmd({ %S })\n" cmd))
+         (wrapped-cmd (format ".gpb_r_mode$emacs_cmd({ %S })\n" cmd))
          (proc (or (get-buffer-process buf)
                    (error "No R process available")))
          (msg "Waiting on R process (C-G to cancel)..."))
@@ -277,7 +277,6 @@ the result, and return a buffer that contains the result."
           (unless steal-lock (error "gpb-r-mode-lock is not nil")))
         (setq gpb-r-mode-lock 'waiting)
         (push (lambda (txt)
-                (message "response: %S" txt)
                 (setq gpb-r-mode-lock txt))
               gpb-r-mode--async-calls)
 
@@ -588,13 +587,8 @@ send the resulting string to `comint-simple-send'."
 
 ;; Utility functions
 
-(defvar gpb-r--find-buffer--last-buf nil
-  "Implementation detail of `gpb-r--find-buffer'")
-
 (defun gpb-r--find-buffer (path &optional cycle)
-  (message "path: %S" path)
   (let* ((abspath (gpb-r-mode--expand-filename path)))
-    (message "abspath: %S" abspath)
     (cond
      ((file-exists-p abspath)
       (find-file-noselect abspath))
@@ -717,13 +711,13 @@ Should be called from the interpreter buffer."
   ;; functions.
   (setq-local comint-input-history-ignore "^.* # Emacs command$")
   (comint-read-input-ring)
-  (message "Read: %s" comint-input-ring-file-name))
+  (message "Read %s." comint-input-ring-file-name))
 
 
 (defun gpb-r-save-history ()
   (interactive)
   (comint-write-input-ring)
-  (message "Wrote: %s" comint-input-ring-file-name))
+  (message "Wrote %s." comint-input-ring-file-name))
 
 
 ;;
@@ -769,7 +763,6 @@ Called by `comint' in an R inferior process buffer."
 
 BUF is an inferior R process buffer.  STRING contins output from the R
 process."
-  (message "gpb-r-mode-preoutput-filter-1 %S %S" buf string)
   (with-current-buffer buf
     (cl-assert (derived-mode-p 'gpb-inferior-r-mode)))
 
@@ -818,24 +811,20 @@ process."
             (cond
              ;; There is an async call pending.
              ((with-current-buffer buf gpb-r-mode--async-calls)
-              (message "asyn calls: %S" gpb-r-mode-prompt-regex)
               ;; If there is no prompt, we return nil.
               (cond
                ((re-search-forward gpb-r-mode-prompt-regex nil t)
-                (message "prompt found")
                 ;; We have all of the output associated with an async
                 ;; command.
                 ;;
                 ;; Save everything after the prompt.
                 (setq string (buffer-substring (match-end 0) (point-max)))
-                (message "string %S" string)
                 ;; Erase everything except the R process output prior to the
                 ;; prompt we found above.
                 (delete-region (match-beginning 0) (point-max))
                 (goto-char (point-min))
                 (let ((callback (with-current-buffer buf
                                   (pop gpb-r-mode--async-calls))))
-                  (message "callback: %S" callback)
                   (funcall callback (buffer-substring (point-min) (point-max))))
                 ;; Now empty buffer and recurse to handle the rest of `string',
                 (erase-buffer)
@@ -852,9 +841,6 @@ process."
                                          (goto-char (point-max))
                                          (forward-line 0)
                                          (re-search-forward regex nil t))))
-
-                (message "regex %S" regex)
-                (message "ends-with-prompt: %S" ends-with-prompt)
 
                 ;; Replace prompt hashes with standard prompts.
                 (save-excursion
@@ -884,7 +870,7 @@ process."
 ;;
 
 (defun gpb-r-mode-debug-filter-function (output)
-  "Filter function that tracks debug output"
+  "Filter function that tracks debug source locations"
   ;; This function is called with empty output at odd times that can lead
   ;; to misleading highlighting if you don't ignore it those calls.
   (when (and output (> (length output) 0))
@@ -915,16 +901,20 @@ process."
           (message "Found region-file: %S" gpb-r--region-file))))))
 
 
-(defun gpb-r--add-links-filter (output)
+;;
+;; Turn filenames into buttons that jump to source.
+;;
+
+(defun gpb-r--add-buttons-filter (output)
   (when (and output (> (length output) 0))
     (save-match-data
       (save-excursion
         (let* ((proc (get-buffer-process (current-buffer))))
-          (gpb-r--add-links-filter-1 comint-last-output-start
+          (gpb-r--add-buttons-filter-1 comint-last-output-start
                                      (process-mark proc)))))))
 
 
-(defun gpb-r--add-links-filter-1 (beg end)
+(defun gpb-r--add-buttons-filter-1 (beg end)
   "Add buttons that allow one to jump to souce code locations."
   (interactive "r")
   (dolist (link-def gpb-r-file-link-definitions)
@@ -966,50 +956,7 @@ process."
 (defun gpb-r--follow-link (button)
   (let* ((abspath (button-get button 'abspath))
          (line (button-get button 'line)))
-   (message "gpb-r--follow-link %S %S" abspath line)
    (gpb-r-show-line abspath line)))
-
-
-(defun gpb-r--callback-filter-function (output)
-  "Looks for specific callback requests for the R code.
-
-All callback requests look like gpb-r-callback: [lisp sexp]
-followed by `gpb-r-end-of-output-marker'.  the sexp is evaluated
-in the process buffer with point set to the start of the line
-that contains the callback."
-  (error "Dont run")
-  (when (> (string-width output) 0)
-    (let ((proc (get-buffer-process (current-buffer)))
-          (marker (or (and (boundp 'gpb-r--callback-filter-function--marker)
-                           (markerp gpb-r--callback-filter-function--marker)
-                           gpb-r--callback-filter-function--marker)
-                      (copy-marker (point-min))))
-          (regex (format "^gpb-r-callback: \\(.*\\) %s\n"
-                         gpb-r-end-of-output-marker))
-          sexp)
-
-      (when comint-last-output-start
-        (set-marker marker (max comint-last-output-start marker)))
-
-      (gpb-log-forms 'gpb-r--callback-filter-function
-                     'comint-last-output-start
-                     'output 'marker 'regex)
-
-      (save-excursion
-        (goto-char marker)
-        (while (re-search-forward regex nil t)
-          (setq sexp (read (match-string-no-properties 1)))
-          (gpb-log-forms 'gpb-r--callback-filter-function 'sexp)
-          (save-excursion
-            (goto-char (match-beginning 0))
-            (delete-region (match-beginning 0) (match-end 0))
-            (eval sexp)))
-        (goto-char (process-mark proc))
-        (forward-line 0)
-        (move-marker marker (point)))
-
-      (setq-local gpb-r--callback-filter-function--marker marker))))
-
 
 
 ;;
@@ -1018,7 +965,6 @@ that contains the callback."
 
 
 (defun gpb-r-mode--expand-filename (name &optional dir)
-  (message "name: %S" name)
   (let* ((dir (or dir
                   (get-text-property 0 'current-working-dir name)
                   default-directory))

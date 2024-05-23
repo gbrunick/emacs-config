@@ -2,12 +2,6 @@
 # global namespace too much.
 .gpb_r_mode <- local({
 
-  # This should agree with `gpb-r-end-of-output-marker` in gpb-r-mode.el.
-  start_marker <- 'gpb-r-callback:'
-  end_marker <- 'END:75b30f72-85a0-483c-98ce-d24414394ff0'
-
-  quote_string <- function(txt) deparse(txt)
-
   get_completions <- function (position, currentLine) {
     utils:::.assignLinebuffer(currentLine)
     utils:::.assignEnd(nchar(currentLine))
@@ -51,7 +45,10 @@
     if (!is.null(wd)) {
       save_dir <- setwd(wd)
       cat(sprintf("chdir: %s", wd))
-      on.exit(setwd(save_dir))
+      on.exit({
+        setwd(save_dir)
+        cat(sprintf("chdir: %s", save_dir))
+      })
     }
 
     if (is.null(namespace)) {
@@ -70,16 +67,12 @@
 
   options(menu.graphics = FALSE,
           pager = "cat",
-          error = print_error_location)
+          error = print_error_location
+          prompt = "PROMPT:75b30f72-85a0-483c-98ce-d24414394ff0",
+          continue = "CONTINUE:75b30f72-85a0-483c-98ce-d24414394ff0")
 
   # This is the API exposed to grp-r-mode.el.
   list(get_completions = get_completions,
        eval_region_file = eval_region_file,
        emacs_cmd = emacs_cmd)
 })
-
-
-.emacs_cmd = .gpb_r_mode$emacs_cmd
-
-options(prompt = "PROMPT:75b30f72-85a0-483c-98ce-d24414394ff0",
-        continue = "CONTINUE:75b30f72-85a0-483c-98ce-d24414394ff0")
