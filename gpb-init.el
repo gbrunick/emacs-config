@@ -175,7 +175,6 @@
 (with-eval-after-load 'gpb-util
   (gpb-add-feedback kill-buffer (format "Killed %s" (current-buffer)))
   (gpb-add-feedback save-buffer (format "Saved %s" (current-buffer)))
-  (gpb-add-feedback eval-buffer (format "Evaluated %s" (current-buffer)))
   (gpb-add-feedback revert-buffer (format "Reverted %s" (current-buffer))))
 
 
@@ -183,7 +182,7 @@
 
 (define-key lisp-mode-shared-map "\t" 'completion-at-point)
 (define-key lisp-interaction-mode-map [(control return)] 'eval-print-last-sexp)
-(define-key emacs-lisp-mode-map "\C-c\C-c" 'eval-buffer)
+(define-key emacs-lisp-mode-map (kbd "C-c d") #'gpb-insert-message)
 
 ;; Completion in M-x execute-extended-command.
 (define-key read-expression-map "\t" 'completion-at-point)
