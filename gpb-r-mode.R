@@ -67,8 +67,8 @@
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location,
-          prompt = "PROMPT:75b30f72-85a0-483c-98ce-d24414394ff0",
-          continue = "CONTINUE:75b30f72-85a0-483c-98ce-d24414394ff0")
+          prompt = "PROMPT:75b30f72-85a0-483c-98ce-d24414394ff0\n",
+          continue = "CONTINUE:75b30f72-85a0-483c-98ce-d24414394ff0\n")
 
   # This is the API exposed to grp-r-mode.el.
   list(region_file = region_file,
@@ -78,4 +78,4 @@
 })
 
 # Emacs reads this output and sets `gpb-r-mode--region-file'.
-cat(sprintf("%s\n", normalizePath(.gpb_r_mode$region_file)))
+cat(sprintf("region-file: %s\n", normalizePath(.gpb_r_mode$region_file)))
