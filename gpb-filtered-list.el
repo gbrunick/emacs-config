@@ -38,6 +38,15 @@
     (define-key map "\C-p" 'gpb-fl--goto-previous-item)
     map))
 
+(when (and (boundp 'evil-mode) evil-mode)
+  (evil-define-key 'normal gpb-choice-buffer-mode-map
+    "\C-g" 'abort-recursive-edit
+    "q" 'abort-recursive-edit))
+
+(define-derived-mode gpb-choice-buffer-mode special-mode
+  "Choice"
+  "Major mode in the buffer displaying choices.")
+
 (defun gpb-fl--make-choice-buffer (items &optional bufname init)
   "Construct a new buffer to display `items'.
 
@@ -61,7 +70,7 @@ select.  A negative item counts back from the end of the list so
     (with-current-buffer  buf
       ;; ESS installs hooks on mode changes that search `default-directory'
       ;; for packages and we don't want to trigger these.
-      (use-local-map gpb-choice-buffer-mode-map)
+      (gpb-choice-buffer-mode)
       (read-only-mode 1)
       (setq-local default-directory nil)
       (setq-local gpb-fl--items items)
@@ -488,4 +497,3 @@ at most width."
 
 
 (provide 'gpb-filtered-list)
-
