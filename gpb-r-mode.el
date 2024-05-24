@@ -359,6 +359,8 @@ displayed."
 
 (defun gpb-r-get-proc-buffer ()
   "Get the currently active R process buffer"
+  ;; (message "gpb-r-get-proc-buffer: %S %S"
+  ;;          (current-buffer) gpb-r-active-process-buffer)
   (let ((proc1 (get-buffer-process (current-buffer)))
         (proc2 (get-buffer-process gpb-r-active-process-buffer)))
     (or
@@ -453,10 +455,10 @@ displayed."
   (let* ((buf (or buf (current-buffer)))
          (proc (get-buffer-process buf))
          (staging-buf (gpb-r-get-staging-buffer buf)))
-    (and comint-input-ring-file-name
-         (y-or-n-p (format "Write %s?" (expand-file-name
-                                        comint-input-ring-file-name)))
-         (gpb-r-save-history))
+    ;; (and comint-input-ring-file-name
+    ;;      (y-or-n-p (format "Write %s?" (expand-file-name
+    ;;                                     comint-input-ring-file-name)))
+    ;;      (gpb-r-save-history))
     (and staging-buf
          (buffer-live-p staging-buf)
          (progn (kill-buffer staging-buf)
@@ -623,10 +625,12 @@ We also check for the marker `gpb-r-output-marker'.  If we see this, we
 collect all output until the next `gpb-r-prompt' and pass it as a string to
 the next function we pop from `gpb-r-async-calls' instead of sending it to
 the inferior R buffer.  `gpb-r-send-command' uses this mechanism."
-  (save-match-data
-    (save-excursion
-      (gpb-r-preoutput-filter-1 (current-buffer) string))))
-
+  ;; (message "gpb-r-preoutput-filter in: %S" string)
+  (let ((string-out (save-match-data
+                      (save-excursion
+                        (gpb-r-preoutput-filter-1 (current-buffer) string)))))
+    ;; (message "gpb-r-preoutput-filter out: %S" string-out)
+    string-out))
 
 (defun gpb-r-preoutput-filter-1 (buf string)
   "Implementation of `gpb-r-preoutput-filter'
@@ -692,19 +696,19 @@ process."
         (cond
          ((save-excursion (goto-char (point-min))
                           (search-forward gpb-r-output-marker nil t))
-          ;; There is an async call pending.
-          (message "output marker")
-          ;; We can pick up process output from before the Emacs coammand
-          ;; here.
+          ;; There is an command pending, but there may be process output
+          ;; from before the command started.  We store any such output in
+          ;; `previous-string`.
           (let ((previous-string (buffer-substring (point-min)
                                                    (match-beginning 0)))
                 next-string
                 (output-start (match-end 0))
                 (output-end (search-forward gpb-r-prompt nil t)))
-            (message "output-region: %S %S" output-start output-end)
-            (when output-end
-              (message "output-region text: %S" (buffer-substring
-                                                 output-start output-end)))
+            (when gpb-r-debug
+              (message "output-region: %S %S" output-start output-end)
+              (when output-end
+                (message "output-region text: %S" (buffer-substring
+                                                   output-start output-end))))
 
             (cond
              (output-end
@@ -729,7 +733,6 @@ process."
 
          ;; There are no commands in process.
          (t
-          (message "No pending async")
           ;; Replace prompt hashes with standard prompts.
           (save-excursion
             (goto-char (point-min))
@@ -851,17 +854,15 @@ the result, and return a buffer that contains the result."
     (with-current-buffer buf
       (if callback
           (progn
-            (message "Using callback.")
             (setq gpb-r-async-calls (nconc gpb-r-async-calls (list callback)))
             (send-string proc wrapped-cmd))
 
         (setq gpb-r-send-command--response 'waiting
               callback (lambda (txt)
-                         (message "callback: %S" txt)
+                         ;; (message "callback: %S" txt)
                          (setq gpb-r-send-command--response txt))
               gpb-r-async-calls (nconc gpb-r-async-calls (list callback)))
 
-        (message "gpb-r-async-calls: %S" gpb-r-async-calls)
         ;; Provide some feedback if the command takes longer than a second.
         (setq timer (run-at-time 1 nil `(lambda () (message ,msg))))
 
@@ -882,7 +883,6 @@ the result, and return a buffer that contains the result."
 
               (let ((value gpb-r-send-command--response))
                 (setq gpb-r-send-command--response nil)
-                (message "value: %S" value)
                 value))
 
           ;; If the call hangs and the user has to `keyboard-quit' to get
@@ -909,7 +909,7 @@ the result, and return a buffer that contains the result."
 
 
 (defun gpb-r-show-docs-1 (buf txt)
-  (message "gpb-r-show-docs-1: %S %S" buf txt)
+  ;; (message "gpb-r-show-docs-1: %S %S" buf txt)
   (let ((inhibit-read-only t))
     (with-current-buffer buf
       (erase-buffer)
@@ -935,7 +935,7 @@ debugging state."
   "Source gpb-r-mode.R in the interpreter.
 
 Should be called from the interpreter buffer.  Returns the region file path."
-  (message "gpb-r-source-R-init-file: %S" (current-buffer))
+  ;; (message "gpb-r-source-R-init-file: %S" (current-buffer))
   (let* ((basename "gpb-r-mode.R")
          (local-init-script (locate-library "gpb-r-mode.R"))
          (remote-init-script (expand-file-name (concat "." basename)))
@@ -959,7 +959,7 @@ Should be called from the interpreter buffer.  Returns the region file path."
 
     (setq init-output (gpb-r-send-command (format "source(%S)\n" path))
           region-file (with-temp-buffer
-                        (message "gpb-r-source-R-init-file:\n%s\n" init-output)
+                        ;; (message "gpb-r-source-R-init-file:\n%s\n" init-output)
                         (insert init-output)
                         (goto-char (point-min))
                         (re-search-forward "^region-file: +\\(.*\\)$")
@@ -991,6 +991,19 @@ Should be called from the interpreter buffer.  Returns the region file path."
      (t
       (expand-file-name name dir)))))
 
+
+(defun gpb-r-string-limit (txt &optional n)
+  "Truncate string TXT to length at most N."
+  (let ((len (length txt))
+       (n (or n 120))
+        m)
+    (if (< (length txt) n)
+        txt
+      (cl-assert (>= n 2))
+      (setq m (/ n 2))
+      (concat (substring txt 0 m)
+             "..."
+             (substring txt (- len m) len)))))
 
 ;; Testing
 ;;
