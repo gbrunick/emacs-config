@@ -554,7 +554,9 @@ If ENSURE is non-nil, we create the buffer if it doesn't already exist."
          (existing-buf (get-buffer buf-name)))
     (cond
      (existing-buf existing-buf)
-     (ensure (get-buffer-create buf-name)))))
+     (ensure (let ((buf (get-buffer-create buf-name)))
+               (with-current-buffer buf (special-mode))
+               buf)))))
 
 
 (defun gpb-r-kill-all-inferior-buffers ()
@@ -598,7 +600,7 @@ If ENSURE is non-nil, we create the buffer if it doesn't already exist."
 (defvar gpb-r-output-marker (format "OUTPUT:%s\n" gpb-r-guid)
   "Used by `gpb-r-send-command' to mark the start of output.")
 
-(defvar-local gpb-r-async-calls nil
+(defvar-local gpb-r-pending-commands nil
   "Defined in inferior R buffers.  List of callback functions.")
 
 
@@ -623,13 +625,13 @@ expand relative paths in the R output.
 
 We also check for the marker `gpb-r-output-marker'.  If we see this, we
 collect all output until the next `gpb-r-prompt' and pass it as a string to
-the next function we pop from `gpb-r-async-calls' instead of sending it to
+the next function we pop from `gpb-r-pending-commands' instead of sending it to
 the inferior R buffer.  `gpb-r-send-command' uses this mechanism."
-  ;; (message "gpb-r-preoutput-filter in: %S" string)
+  (message "gpb-r-preoutput-filter in: %S" string)
   (let ((string-out (save-match-data
                       (save-excursion
                         (gpb-r-preoutput-filter-1 (current-buffer) string)))))
-    ;; (message "gpb-r-preoutput-filter out: %S" string-out)
+    (message "gpb-r-preoutput-filter out: %S" string-out)
     string-out))
 
 (defun gpb-r-preoutput-filter-1 (buf string)
@@ -651,10 +653,9 @@ process."
                          (gpb-r-get-staging-buffer buf 'ensure)))
           (inhibit-read-only t)
           ;; `beg' and `end' will lie on line breaks.
-          beg end previous-string)
+          beg end previous-output)
 
-      (when gpb-r-debug
-        (gpb-r-dump-buffer staging-buf "gpb-r-preoutput-filter before"))
+      (gpb-r-dump-buffer staging-buf "gpb-r-preoutput-filter before")
 
       (with-current-buffer staging-buf
         ;; We use `default-directory' to track the working directory of the
@@ -664,89 +665,95 @@ process."
         (setq beg (save-excursion (forward-line 0) (copy-marker (point))))
         (insert string)
         (setq end (save-excursion (forward-line 0) (copy-marker (point) t)))
-        (goto-char beg)
 
-        (when gpb-r-debug
-          (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter insert"))
-
-        ;; Add `current-working-dir' text properties that track
-        ;; changes to the R processes working directory.
-        (save-excursion
-          (while (re-search-forward "^chdir: +\\(.*\\)\n" nil t)
-            (put-text-property beg (match-beginning 0)
-                               'current-working-dir
-                               default-directory)
-            (setq default-directory (gpb-r-expand-filename
-                                     (string-trim (match-string 1))))
-            (when gpb-r-debug
-              (message "chdir to %S" default-directory))
-            (unless gpb-r-debug
-              (delete-region (match-beginning 0) (match-end 0))))
-          (unless (eobp)
-            (put-text-property (point) (point-max)
-                               'current-working-dir
-                               default-directory)))
+        ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter insert")
 
         ;; We only apply this to complete lines.
-        (comint-carriage-motion beg end)
+        (save-excursion (comint-carriage-motion beg end))
 
-        (when gpb-r-debug
-          (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter clean"))
+        ;; Add `current-working-dir' text properties that give to the
+        ;; R processes working directory at the time of output.
+        (goto-char beg)
+        (while (re-search-forward "^chdir: +\\(.*\\)\n" nil t)
+          (put-text-property beg (match-beginning 0)
+                             'current-working-dir
+                             default-directory)
+          (setq default-directory (gpb-r-expand-filename
+                                   (string-trim (match-string 1))))
+          ;; Delete the output marker
+          (delete-region (match-beginning 0) (match-end 0)))
 
-        (cond
-         ((save-excursion (goto-char (point-min))
-                          (search-forward gpb-r-output-marker nil t))
-          ;; There is an command pending, but there may be process output
-          ;; from before the command started.  We store any such output in
-          ;; `previous-string`.
-          (let ((previous-string (buffer-substring (point-min)
-                                                   (match-beginning 0)))
-                next-string
-                (output-start (match-end 0))
-                (output-end (search-forward gpb-r-prompt nil t)))
-            (when gpb-r-debug
-              (message "output-region: %S %S" output-start output-end)
-              (when output-end
-                (message "output-region text: %S" (buffer-substring
-                                                   output-start output-end))))
+        (unless (eobp)
+          (put-text-property (point) (point-max)
+                             'current-working-dir
+                             default-directory))
+        ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter clean"))
 
-            (cond
-             (output-end
-              ;; We have all of the output associated with an async
-              ;; command.
-              (let ((callback (with-current-buffer buf
-                                (pop gpb-r-async-calls))))
-                (funcall callback (buffer-substring output-start output-end)))
-              ;; Save everything after the prompt.
-              (setq next-string (buffer-substring (match-end 0) (point-max)))
-              ;; Now empty buffer and recurse to handle `next-string'.
+        (goto-char (point-min))
+        (let* ((command-output-start (search-forward gpb-r-output-marker nil t))
+               ;; When there is a command pending, there may be R process
+               ;; output from before the command started.  We store
+               ;; such output in `previous-output'.
+               (previous-output-end (and command-output-start
+                                         (match-beginning 0)))
+               ;; If we see a prompt after the start of a command, we know
+               ;; the command is complete.
+               (prompt-end (and command-output-start
+                                (search-forward gpb-r-prompt nil t)))
+               (command-output-end (and prompt-end
+                                        (match-beginning 0))))
+
+          (message "Markers: %S %S %S %S"
+                   command-output-start
+                   previous-output-end
+                   prompt-end
+                   command-output-end)
+
+          (cond
+           (prompt-end
+            (message "here 1")
+            ;; We have all of the output associated with the next command.
+            (let ((callback (with-current-buffer buf
+                              (pop gpb-r-pending-commands)))
+                  (previous-output (buffer-substring (point-min)
+                                                     previous-output-end))
+                  (command-output (buffer-substring command-output-start
+                                                    command-output-end))
+                  (next-output (buffer-substring prompt-end (point-max))))
+
+              (message "previous-output: %S" previous-output)
+              (message "command-output: %S" command-output)
+              (message "next-output: %S" next-output)
+
+              ;; Don't run `callback' immediately so we don't have to worry
+              ;; about it erroring out or changing state.
+              (run-at-time 0 nil callback command-output)
+
+              ;; `next-output' might contain another command response, so we
+              ;; need to recurse to handle that case.
               (erase-buffer)
-              (when gpb-r-debug
-                (message "previous-string: %S" previous-string)
-                (message "next-string: %S" next-string))
-              ;; `previous-string' doesn't contain command output.
-              (setq string (concat previous-string
-                                   (gpb-r-preoutput-filter-1 buf next-string))))
+              (setq string (concat previous-output
+                                   (gpb-r-preoutput-filter-1 buf next-output)))))
 
-             ;; There is a pending command that is not complete.
-             (t (setq string previous-string)))))
+           (command-output-start
+            (message "here 2")
+            ;; There is a pending command that is not complete.
+            (setq string (gpb-r-cut-region (point-min) previous-output-end)))
 
-         ;; There are no commands in process.
-         (t
-          ;; Replace prompt hashes with standard prompts.
-          (save-excursion
-            (goto-char (point-min))
-            (while (search-forward gpb-r-prompt nil t)
-              (replace-match "> ")))
+           (t
+            (message "here 3")
+            ;; Replace prompt hashes with standard prompts.
+            (save-excursion
+              (goto-char (point-min))
+              (while (search-forward gpb-r-prompt nil t)
+                (replace-match "> ")))
+            (setq string (gpb-r-cut-region (point-min) end)))))))
 
-          (setq string (buffer-substring beg end))
-          (delete-region beg end)))
+    (when gpb-r-debug
+      (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter after")
+      (message "gpb-r-preoutput-filter string out: %S\n%s" string string))
 
-        (when gpb-r-debug
-          (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter after")
-          (message "gpb-r-preoutput-filter string out: %S\n%s" string string))
-
-        string))))
+    string))
 
 
 ;;
@@ -828,14 +835,27 @@ process."
 ;; Sending commands to R
 ;;
 
-(defvar gpb-r-send-command--response nil)
+(defvar gpb-r-send-command--response nil
+  "Implementation detail of `gpb-r-send-command'.
+Used to pass R process output picked up in the filter function
+`gpb-r-preoutput-filter' back to `gpb-r-send-command'.")
+
 
 (defun gpb-r-send-command (cmd &optional buf callback)
   "Send CMD to R process in BUF the return the output as a string.
 
 If BUF is omitted, we use the current buffer.  We move the
 process into new buffer, send `cmd' to the R process, wait for
-the result, and return a buffer that contains the result."
+the result, and return a buffer that contains the result.
+
+Echoes `gpb-r-output-marker' from the R process.  This tells
+`gpb-r-preoutput-filter' to steal all the lines of output until the next
+`gpb-r-prompt' and send them to the first function in the list
+`gpb-r-pending-commands'.
+
+If CALLBACK is `nil', we use a callback function that saves the R output to
+`gpb-r-send-command--response'.  We then perform blocking reads from the R
+process until `gpb-r-send-command--response' is set."
   (interactive "sR Command: ")
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          ;; We send a string and parse it on the R side.
@@ -850,18 +870,20 @@ the result, and return a buffer that contains the result."
     ;; `wrapped-cmd'.
     (while (accept-process-output proc 0 nil t))
 
-    ;; `gpb-r-async-calls' is local to `buf'
+    ;; `gpb-r-pending-commands' is local to `buf'
     (with-current-buffer buf
       (if callback
           (progn
-            (setq gpb-r-async-calls (nconc gpb-r-async-calls (list callback)))
+            (setq gpb-r-pending-commands (nconc gpb-r-pending-commands
+                                                (list callback)))
             (send-string proc wrapped-cmd))
 
         (setq gpb-r-send-command--response 'waiting
               callback (lambda (txt)
                          ;; (message "callback: %S" txt)
                          (setq gpb-r-send-command--response txt))
-              gpb-r-async-calls (nconc gpb-r-async-calls (list callback)))
+              gpb-r-pending-commands (nconc gpb-r-pending-commands
+                                            (list callback)))
 
         ;; Provide some feedback if the command takes longer than a second.
         (setq timer (run-at-time 1 nil `(lambda () (message ,msg))))
@@ -872,7 +894,8 @@ the result, and return a buffer that contains the result."
             (progn
               ;; Accept output until the callback above it triggered.
               (while (eq gpb-r-send-command--response 'waiting)
-                (accept-process-output proc 1 nil t))
+                ;; Filters and timers run as we wait for more output.
+                (accept-process-output proc nil nil))
 
               (when gpb-r-debug
                 (message "gpb-r-send-command--response: %S"
@@ -892,32 +915,35 @@ the result, and return a buffer that contains the result."
            (error "`gpb-r-send-command' failed")))))))
 
 
+(defvar gpb-r-show-docs--history nil)
+
 (defun gpb-r-show-docs (object-name &optional buf)
   "Show help on OBJECT-NAME."
   (interactive (list (read-string "Show Docs: "
                                   (save-excursion
                                     (skip-chars-backward " (")
-                                    (symbol-name (symbol-at-point))))))
+                                    (let ((obj (symbol-name (symbol-at-point))))
+                                      (if (string= obj ">") (setq obj nil))
+                                      obj))
+                                  'gpb-r-show-docs--history)))
 
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (cmd (format "print(help(\"%s\", try.all.packages = FALSE))"
-                      object-name))
-         (help-buf (get-buffer-create (format "*R Help: %s" object-name))))
-
+                      object-name)))
     (gpb-r-send-command cmd buf `(lambda (txt)
-                                   (gpb-r-show-docs-1 ,help-buf txt)))))
+                                   (gpb-r-show-docs-1 ,object-name txt)))))
 
 
-(defun gpb-r-show-docs-1 (buf txt)
+(defun gpb-r-show-docs-1 (objname help-txt)
   ;; (message "gpb-r-show-docs-1: %S %S" buf txt)
-  (let ((inhibit-read-only t))
+  (let ((buf (get-buffer-create (format "*R Help: %s*" objname)))
+        (inhibit-read-only t))
     (with-current-buffer buf
       (erase-buffer)
       (special-mode)
-      (insert txt)
-      (goto-char (point-min))))
-  (display-buffer buf))
-
+      (insert help-txt)
+      (goto-char (point-min)))
+    (pop-to-buffer buf)))
 
 
 (defun gpb-r-sync-working-dir (&optional buf)
@@ -1004,6 +1030,15 @@ Should be called from the interpreter buffer.  Returns the region file path."
       (concat (substring txt 0 m)
              "..."
              (substring txt (- len m) len)))))
+
+(defun gpb-r-cut-region (&optional beg end)
+  "Delete and return region as a string."
+  (let ((beg (or beg (point-min)))
+        (end (or end (point-max))))
+  (prog1 (buffer-substring beg end)
+    (message "deleting region: %S" (buffer-substring beg end))
+    (delete-region beg end))))
+
 
 ;; Testing
 ;;
