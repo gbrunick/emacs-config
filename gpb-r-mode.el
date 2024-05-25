@@ -66,8 +66,8 @@ Each `gpb-inferior-r-mode' buffer uses a different region file.")
 
 (when (and (boundp 'evil-mode) evil-mode)
   (evil-define-key 'normal gpb-inferior-r-mode-map (kbd "TAB") 'forward-button)
-  (evil-define-key 'motion gpb-inferior-r-mode-map [(backtab)] 'backward-button)
-  (evil-define-key 'insert gpb-inferior-r-mode-map [?\t] 'completion-at-point))
+  (evil-define-key 'normal gpb-inferior-r-mode-map [(backtab)] 'backward-button))
+  ;; (evil-define-key 'insert gpb-inferior-r-mode-map [?\t] 'completion-at-point))
 
 
 (defgroup gpb-r-mode nil
@@ -230,6 +230,8 @@ At the moment, there can only be one active process")
    (forward-button -1 nil t t)
    (goto-char (point-min))))
 
+(defvar gpb-r-completion-at-point--cache nil)
+
 (defun gpb-r-completion-at-point ()
   (save-excursion
     (let* ((buf (current-buffer))
@@ -237,8 +239,20 @@ At the moment, there can only be one active process")
            (line (buffer-substring-no-properties (process-mark proc) (point)))
            (cmd (format ".gpb_r_mode$get_completions(%s, %S)"
                         (marker-position (process-mark proc)) line))
-           (response (gpb-r-send-command cmd buf)))
-      (read response))))
+           (cache-buf   (nth 0 gpb-r-completion-at-point--cache))
+           (cache-line  (nth 1 gpb-r-completion-at-point--cache))
+           (cache-value (nth 2 gpb-r-completion-at-point--cache))
+           response)
+      (if (and (eq buf cache-buf) (string-prefix-p cache-line line))
+          (progn
+            (message "Cache hit")
+            (list (nth 0 cache-value)
+                  (point)
+                  (nth 2 cache-value)))
+        (setq response (read (gpb-r-send-command cmd buf)))
+        ;; (message "response: %S" response)
+        (setq gpb-r-completion-at-point--cache `(,buf ,line ,response))
+        response))))
 
 
 (defun gpb-r-save-and-exec-command (arg)
