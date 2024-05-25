@@ -245,12 +245,10 @@ At the moment, there can only be one active process")
            response)
       (if (and (eq buf cache-buf) (string-prefix-p cache-line line))
           (progn
-            (message "Cache hit")
             (list (nth 0 cache-value)
                   (point)
                   (nth 2 cache-value)))
         (setq response (read (gpb-r-send-command cmd buf)))
-        ;; (message "response: %S" response)
         (setq gpb-r-completion-at-point--cache `(,buf ,line ,response))
         response))))
 
@@ -708,8 +706,7 @@ process."
         ;; present.
         (goto-char end)
         (when (re-search-forward prompt-regex nil t)
-          (setq end (copy-marker (match-end 0) t))
-          (message "Included final prompt"))
+          (setq end (copy-marker (match-end 0) t)))
 
         (goto-char (point-min))
         (let* ((command-output-start (search-forward gpb-r-output-marker nil t))
