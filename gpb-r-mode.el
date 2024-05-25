@@ -858,6 +858,7 @@ If CALLBACK is `nil', we use a callback function that saves the R output to
 process until `gpb-r-send-command--response' is set."
   (interactive "sR Command: ")
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
+         (staging-buf (and buf (gpb-r-get-staging-buffer buf 'ensure)))
          ;; We send a string and parse it on the R side.
          (wrapped-cmd (format "cat(%S); eval(parse(text = %S))\n"
                               gpb-r-output-marker cmd))
@@ -886,7 +887,11 @@ process until `gpb-r-send-command--response' is set."
                                             (list callback)))
 
         ;; Provide some feedback if the command takes longer than a second.
-        (setq timer (run-at-time 1 nil `(lambda () (message ,msg))))
+        (setq timer (run-at-time 1 nil
+                                 `(lambda ()
+                                    (message ,msg)
+                                    (pop-to-buffer ,staging-buf)
+                                    (redisplay))))
 
         ;; Send the string and wait for a response.
         (send-string proc wrapped-cmd)
@@ -911,7 +916,7 @@ process until `gpb-r-send-command--response' is set."
           ;; If the call hangs and the user has to `keyboard-quit' to get
           ;; control of Emacs, show the staging buffer to help debug.
           ('quit
-           (pop-to-buffer (gpb-r-get-staging-buffer buf))
+           (pop-to-buffer staging-buf)
            (error "`gpb-r-send-command' failed")))))))
 
 
