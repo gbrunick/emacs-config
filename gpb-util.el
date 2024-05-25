@@ -101,16 +101,16 @@ first row in the  window and then scroll backwards by pages."
 
 
 ;; Make some commands preserve an active mark.
-;; 
+;;
 ;; We apply to `undo' and `redo' so it is easier repeat
 
 (defun gpb-preserve-mark (symbol)
-  "Prevent the function attached to SYMBOL from deactivating the mark" 
-  (advice-add symbol :after 'gpb-set-deactivate-mark-nil)) 
+  "Prevent the function attached to SYMBOL from deactivating the mark"
+  (advice-add symbol :after 'gpb-set-deactivate-mark-nil))
 
 (defun gpb-set-deactivate-mark-nil (&rest r)
   (setq deactivate-mark nil))
-               
+
 
 ;;
 ;; Make some multi-character commands repeatable by their last keystroke.
@@ -157,7 +157,7 @@ dynamically generated advice function."
   (declare (indent defun))
   (let ((advice-symbol (intern (format "gpb-%s-feedback-advice" command))))
     `(progn
-       ;; Define an advice function with a dynamically generated name. 
+       ;; Define an advice function with a dynamically generated name.
        (defun ,advice-symbol (&rest args)
          "Dynamically generated advice function.  See `gpb-add-feedback'."
          (when (called-interactively-p) (message "%s" ,msg)))
@@ -178,5 +178,17 @@ dynamically generated advice function."
 ;;                          '(gpb-add-feedback revert-buffer
 ;;                             (format "Reverted %s" (current-buffer)))))))
 
+
+(defun gpb-insert-message ()
+  (interactive)
+  (let ((obj (substring-no-properties (current-kill 0)))
+        beg new-pt)
+    (forward-line 0)
+    (setq beg (point))
+    (insert (format "(message \"%s" obj))
+    (setq new-pt (copy-marker (point)))
+    (insert (format ": %%S\" %s)\n" obj))
+    (indent-region beg (point))
+    (goto-char new-pt)))
 
 (provide 'gpb-util)
