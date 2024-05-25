@@ -323,19 +323,26 @@ Rmarkdown render expression."
 (defvar gpb-r-show-line--overlay nil
   "Current highlighting overlay used in `gpb-r-show-line")
 
-(defun gpb-r-show-line (buf line-number &optional pop-to face)
-  "Show line `line' in `buf' in some other window.
+(defun gpb-r-show-line (place line-number &optional pop-to face)
+  "Show line LINE in PLACE in some other window.
 
-If `pop-to' is non-nil, switch to the buffer in which the line is
+PLACE is either a filename or a buffer name wrapped in square braces like
+\"[*temp*]\".  If `pop-to' is non-nil, switch to the buffer in which the line is
 displayed."
   ;; If given a filename, convert that to a buffer.
-  (when (stringp buf)
-    (let ((filename (gpb-r-expand-filename buf)))
-      (cond
-       ((file-exists-p filename)
-        (setq buf (find-file-noselect filename)))
-       (t
-        (error (format "Invalid file: %S" filename))))))
+  (setq buf (or
+             (and (stringp place)
+                  (or
+                   ;; A line in a buffer that may not have a file.
+                   (and (string-match "\\[\\([^][]+\\)\\]" place)
+                        (get-buffer (match-string 1 place)))
+
+                   (let ((filename (gpb-r-expand-filename place)))
+                     (and (file-exists-p filename)
+                          (find-file-noselect filename)))
+                   (t
+                    (error (format "Invalid file: %S" place)))))
+             place))
 
   (when (and buf (buffer-live-p buf))
     (let* ((window (display-buffer buf 'other-window))
@@ -519,14 +526,6 @@ send the resulting string to `comint-simple-send'."
 
 
 ;; Utility functions
-
-(defun gpb-r-find-buffer (path &optional cycle)
-  (let* ((abspath (gpb-r-expand-filename path)))
-    (cond
-     ((file-exists-p abspath)
-      (find-file-noselect abspath))
-     (t
-      (error "Invalid path: %S" abspath)))))
 
 
 (defun gpb-r-create-function-header ()
@@ -783,9 +782,8 @@ process."
           ;; We grab the match substrings first as the later functions
           ;; might reset the match data.
           (let* ((filename (match-string 1))
-                 (line-number (string-to-number (match-string-no-properties 2)))
-                 (buf (gpb-r-find-buffer filename)))
-            (gpb-r-show-line buf line-number)))))))
+                 (line-number (string-to-number (match-string-no-properties 2))))
+            (gpb-r-show-line filename line-number)))))))
 
 
 (defun gpb-r-add-buttons-filter (output)
@@ -811,7 +809,6 @@ process."
           (while (re-search-forward regex end t)
             (let* ((file (buffer-substring (match-beginning file-subexp)
                                            (match-end file-subexp)))
-                   (abspath (gpb-r-expand-filename file))
                    (line (ignore-errors
                            (string-to-number (buffer-substring
                                               (match-beginning line-subexp)
@@ -827,19 +824,18 @@ process."
 
               (make-text-button beg end
                'file file
-               'abspath abspath
                'line line
                'action #'gpb-r-follow-link
                ;; Abbreviate the name in the buffer, but show the full path
                ;; in the echo area when you tab to the button.
                ;; 'display (format "%s#%s" (file-name-nondirectory file) line)
-               'help-echo (format "%s#%s" abspath line)))))))))
+               'help-echo (format "%s#%s" file line)))))))))
 
 
 (defun gpb-r-follow-link (button)
-  (let* ((abspath (button-get button 'abspath))
+  (let* ((file (button-get button 'file))
          (line (button-get button 'line)))
-   (gpb-r-show-line abspath line)))
+    (gpb-r-show-line file line)))
 
 
 ;;
