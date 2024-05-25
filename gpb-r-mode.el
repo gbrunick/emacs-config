@@ -627,11 +627,11 @@ We also check for the marker `gpb-r-output-marker'.  If we see this, we
 collect all output until the next `gpb-r-prompt' and pass it as a string to
 the next function we pop from `gpb-r-pending-commands' instead of sending it to
 the inferior R buffer.  `gpb-r-send-command' uses this mechanism."
-  (message "gpb-r-preoutput-filter in: %S" string)
+  ;; (message "gpb-r-preoutput-filter in: %S" string)
   (let ((string-out (save-match-data
                       (save-excursion
                         (gpb-r-preoutput-filter-1 (current-buffer) string)))))
-    (message "gpb-r-preoutput-filter out: %S" string-out)
+    ;; (message "gpb-r-preoutput-filter out: %S" string-out)
     string-out))
 
 (defun gpb-r-preoutput-filter-1 (buf string)
@@ -655,7 +655,7 @@ process."
           ;; `beg' and `end' will lie on line breaks.
           beg end previous-output)
 
-      (gpb-r-dump-buffer staging-buf "gpb-r-preoutput-filter before")
+      ;; (gpb-r-dump-buffer staging-buf "gpb-r-preoutput-filter before")
 
       (with-current-buffer staging-buf
         ;; We use `default-directory' to track the working directory of the
@@ -703,15 +703,8 @@ process."
                (command-output-end (and prompt-end
                                         (match-beginning 0))))
 
-          (message "Markers: %S %S %S %S"
-                   command-output-start
-                   previous-output-end
-                   prompt-end
-                   command-output-end)
-
           (cond
            (prompt-end
-            (message "here 1")
             ;; We have all of the output associated with the next command.
             (let ((callback (with-current-buffer buf
                               (pop gpb-r-pending-commands)))
@@ -720,10 +713,6 @@ process."
                   (command-output (buffer-substring command-output-start
                                                     command-output-end))
                   (next-output (buffer-substring prompt-end (point-max))))
-
-              (message "previous-output: %S" previous-output)
-              (message "command-output: %S" command-output)
-              (message "next-output: %S" next-output)
 
               ;; Don't run `callback' immediately so we don't have to worry
               ;; about it erroring out or changing state.
@@ -736,12 +725,10 @@ process."
                                    (gpb-r-preoutput-filter-1 buf next-output)))))
 
            (command-output-start
-            (message "here 2")
             ;; There is a pending command that is not complete.
             (setq string (gpb-r-cut-region (point-min) previous-output-end)))
 
            (t
-            (message "here 3")
             ;; Replace prompt hashes with standard prompts.
             (save-excursion
               (goto-char (point-min))
@@ -1041,7 +1028,7 @@ Should be called from the interpreter buffer.  Returns the region file path."
   (let ((beg (or beg (point-min)))
         (end (or end (point-max))))
   (prog1 (buffer-substring beg end)
-    (message "deleting region: %S" (buffer-substring beg end))
+    ;; (message "deleting region: %S" (buffer-substring beg end))
     (delete-region beg end))))
 
 
