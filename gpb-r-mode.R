@@ -67,8 +67,7 @@
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location,
-          prompt = "PROMPT:75b30f72-85a0-483c-98ce-d24414394ff0\n",
-          continue = "CONTINUE:75b30f72-85a0-483c-98ce-d24414394ff0\n")
+          prompt = "PROMPT:75b30f72-85a0-483c-98ce-d24414394ff0")
 
   # This is the API exposed to grp-r-mode.el.
   list(region_file = region_file,

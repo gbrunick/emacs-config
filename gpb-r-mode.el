@@ -595,8 +595,7 @@ If ENSURE is non-nil, we create the buffer if it doesn't already exist."
 ;;
 
 (defvar gpb-r-guid "75b30f72-85a0-483c-98ce-d24414394ff0")
-(defvar gpb-r-prompt (format "PROMPT:%s\n" gpb-r-guid))
-(defvar gpb-r-prompt-continue (format "CONTINUE:%s\n" gpb-r-guid))
+(defvar gpb-r-prompt (format "PROMPT:%s" gpb-r-guid))
 (defvar gpb-r-output-marker (format "OUTPUT:%s\n" gpb-r-guid)
   "Used by `gpb-r-send-command' to mark the start of output.")
 
@@ -652,6 +651,8 @@ process."
                          ;; `default-directory' from `buf'.
                          (gpb-r-get-staging-buffer buf 'ensure)))
           (inhibit-read-only t)
+          (prompt-regex (format "\\(%s\\)\\|\\(%s\\)"
+                                gpb-r-prompt "Browse[[0-9]+]> "))
           ;; `beg' and `end' will lie on line breaks.
           beg end previous-output)
 
@@ -664,7 +665,8 @@ process."
         (goto-char (point-max))
         (setq beg (save-excursion (forward-line 0) (copy-marker (point))))
         (insert string)
-        (setq end (save-excursion (forward-line 0) (copy-marker (point) t)))
+        (setq end (save-excursion (forward-line 0)
+                                  (copy-marker (point) t)))
 
         ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter insert")
 
@@ -689,6 +691,13 @@ process."
                              default-directory))
         ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter clean"))
 
+        ;; Include a final prompt on an incomplete line in the output if
+        ;; present.
+        (goto-char end)
+        (when (re-search-forward prompt-regex nil t)
+          (setq end (copy-marker (match-end 0) t))
+          (message "Included final prompt"))
+
         (goto-char (point-min))
         (let* ((command-output-start (search-forward gpb-r-output-marker nil t))
                ;; When there is a command pending, there may be R process
@@ -699,7 +708,7 @@ process."
                ;; If we see a prompt after the start of a command, we know
                ;; the command is complete.
                (prompt-end (and command-output-start
-                                (search-forward gpb-r-prompt nil t)))
+                                (re-search-forward prompt-regex nil t)))
                (command-output-end (and prompt-end
                                         (match-beginning 0))))
 
@@ -732,8 +741,9 @@ process."
             ;; Replace prompt hashes with standard prompts.
             (save-excursion
               (goto-char (point-min))
-              (while (search-forward gpb-r-prompt nil t)
+              (while (search-forward gpb-r-prompt end t)
                 (replace-match "> ")))
+
             (setq string (gpb-r-cut-region (point-min) end)))))))
 
     (when gpb-r-debug
