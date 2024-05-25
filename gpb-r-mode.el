@@ -897,7 +897,7 @@ process until `gpb-r-send-command--response' is set."
               ;; Accept output until the callback above it triggered.
               (while (eq gpb-r-send-command--response 'waiting)
                 ;; Filters and timers run as we wait for more output.
-                (accept-process-output proc nil nil))
+                (accept-process-output proc 1 nil))
 
               (when gpb-r-debug
                 (message "gpb-r-send-command--response: %S"
