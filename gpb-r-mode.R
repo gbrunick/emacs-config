@@ -2,7 +2,7 @@
 # global namespace too much.
 .gpb_r_mode <- local({
 
-  get_completions <- function (position, currentLine) {
+  get_completions <- function (currentLine) {
     utils:::.assignLinebuffer(currentLine)
     utils:::.assignEnd(nchar(currentLine))
     utils:::.guessTokenFromLine()
@@ -11,10 +11,10 @@
     # Quote the strings..
     completions <- vapply(utils:::.retrieveCompletions(), deparse, "")
     completions <- paste(completions, collapse = " ")
-
-    string <- position + utils:::.CompletionEnv$start
-    end <- position + utils:::.CompletionEnv$end
-    elisp <- sprintf("\n(%s %s (%s))\n\n", string, end, completions)
+    elisp <- sprintf("\n(%s %s (%s))\n\n",
+                     utils:::.CompletionEnv$start,
+                     utils:::.CompletionEnv$end,
+                     completions)
     cat(elisp)
   }
 

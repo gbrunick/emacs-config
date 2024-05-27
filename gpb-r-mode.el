@@ -230,29 +230,6 @@ At the moment, there can only be one active process")
    (forward-button -1 nil t t)
    (goto-char (point-min))))
 
-(defvar gpb-r-completion-at-point--cache nil)
-
-(defun gpb-r-completion-at-point ()
-  (save-excursion
-    (let* ((buf (current-buffer))
-           (proc (get-buffer-process buf))
-           (line (buffer-substring-no-properties (process-mark proc) (point)))
-           (cmd (format ".gpb_r_mode$get_completions(%s, %S)"
-                        (marker-position (process-mark proc)) line))
-           (cache-buf   (nth 0 gpb-r-completion-at-point--cache))
-           (cache-line  (nth 1 gpb-r-completion-at-point--cache))
-           (cache-value (nth 2 gpb-r-completion-at-point--cache))
-           response)
-      (if (and (eq buf cache-buf) (string-prefix-p cache-line line))
-          (progn
-            (list (nth 0 cache-value)
-                  (point)
-                  (nth 2 cache-value)))
-        (setq response (read (gpb-r-send-command cmd buf)))
-        (setq gpb-r-completion-at-point--cache `(,buf ,line ,response))
-        response))))
-
-
 (defun gpb-r-save-and-exec-command (arg)
   "Save the current buffer and then source, reload, or render it.
 
@@ -924,17 +901,15 @@ process until `gpb-r-send-command--response' is set."
            (error "`gpb-r-send-command' failed")))))))
 
 
-(defvar gpb-r-show-docs--history nil)
-
 (defun gpb-r-show-docs (object-name &optional buf)
   "Show help on OBJECT-NAME."
-  (interactive (list (read-string "Show Docs: "
-                                  (save-excursion
-                                    (skip-chars-backward " (")
-                                    (let ((obj (symbol-name (symbol-at-point))))
-                                      (if (string= obj ">") (setq obj nil))
-                                      obj))
-                                  'gpb-r-show-docs--history)))
+  (interactive (list (gpb-r-read-r-object
+                      "Show Docs: "
+                      (save-excursion
+                        (skip-chars-backward " (")
+                        (let ((obj (symbol-name (symbol-at-point))))
+                          (if (string= obj ">") (setq obj nil))
+                          obj)))))
 
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (cmd (format "print(help(\"%s\", try.all.packages = FALSE))"
@@ -1008,10 +983,67 @@ Should be called from the interpreter buffer.  Returns the region file path."
 
     region-file))
 
+
+;;
+;; Completion
+;;
+
+(defvar gpb-r-get-completions--cache nil
+  "A plist with keys :buf :line :beg :end :completions")
+
+(defun gpb-r-get-completions (line &optional buf)
+  "Returns a plist with keys :buf :line :beg :end :completions."
+  (save-excursion
+    (let* ((buf (or buf (gpb-r-get-proc-buffer)))
+           (proc (get-buffer-process buf))
+           (cmd (format ".gpb_r_mode$get_completions(%S)" line))
+           (cache-buf  (plist-get gpb-r-get-completions--cache 'buf))
+           (cache-line (plist-get gpb-r-get-completions--cache 'line))
+           response)
+      ;; Only call R if we need to update the cache value.
+      (unless (and (> (length line) 0)
+                   (> (length cache-line) 0)
+                   (eq buf cache-buf)
+                   (string-prefix-p cache-line line))
+        (setq response (read (gpb-r-send-command cmd buf)))
+        ;; (message "response: %S" response)
+        (setq gpb-r-get-completions--cache `( :buf ,buf
+                                              :line ,line
+                                              :beg ,(nth 0 response)
+                                              :end ,(nth 1 response)
+                                              :completions ,(nth 2 response))))
+     gpb-r-get-completions--cache)))
+
+(defun gpb-r-completion-at-point ()
+  (save-excursion
+    (let* ((buf (gpb-r-get-proc-buffer))
+           (proc (get-buffer-process buf))
+           (line (buffer-substring-no-properties (process-mark proc) (point)))
+           (completion-info (gpb-r-get-completions line buf)))
+      ;; (message "completion-info: %S" completion-info)
+      (list (+ (process-mark proc) (plist-get completion-info :beg))
+            (+ (process-mark proc) (plist-get completion-info :end))
+            (plist-get completion-info :completions)))))
+
+(defun gpb-r-minibuffer-complete (line)
+  (let ((completion-info (gpb-r-get-completions line)))
+   (plist-get completion-info :completions)))
+
+(defvar gpb-r-read-r-object--history nil)
+
+(defun gpb-r-read-r-object (prompt &optional initial-input)
+  (interactive)
+  (completing-read prompt
+                   (completion-table-dynamic #'gpb-r-minibuffer-complete t)
+                   nil
+                   nil
+                   initial-input
+                   'gpb-r-read-r-object--history))
+
+
 ;;
 ;; Utility Functions
 ;;
-
 
 (defun gpb-r-expand-filename (name &optional dir)
   (let* ((dir (or dir
