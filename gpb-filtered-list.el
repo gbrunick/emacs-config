@@ -38,7 +38,7 @@
     (define-key map "\C-p" 'gpb-fl--goto-previous-item)
     map))
 
-(when (and (boundp 'evil-mode) evil-mode)
+(with-eval-after-load 'evil
   (evil-define-key 'normal gpb-choice-buffer-mode-map
     "\C-g" 'abort-recursive-edit
     "q" 'abort-recursive-edit))
