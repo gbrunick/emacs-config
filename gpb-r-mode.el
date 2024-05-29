@@ -500,7 +500,6 @@ send the resulting string to `comint-simple-send'."
       (save-excursion
         ;; Give R a chance to get the terminal up to date before we send
         ;; the string.
-        (accept-process-output proc 0 nil t)
         (comint-goto-process-mark)
         (insert (string-trim cmd))
         (comint-send-input)))
@@ -866,10 +865,6 @@ care about the result, pass `ignore' as CALLBACK."
                    (error "No R process available")))
          (msg "Waiting on R process (C-G to cancel)...")
          timer response)
-
-    ;; Try to pull any pending output from the proces before we send
-    ;; `wrapped-cmd'.
-    (while (accept-process-output proc 0 nil t))
 
     ;; `gpb-r-pending-commands' is local to `buf'
     (with-current-buffer buf
