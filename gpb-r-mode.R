@@ -75,6 +75,14 @@
     base::source(file, ..., chdir = chdir)
   }
 
+  # Show full paths in `traceback'
+  traceback <- function(...) {
+    basename <- normalizePath
+    f <- base::traceback
+    environment(f) <- environment()
+    f(...)
+  }
+
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location,
@@ -85,8 +93,9 @@
        get_completions = get_completions,
        eval_region_file = eval_region_file,
        sync_working_dir = sync_working_dir,
-       # Advised versions of common directory changing commands.
-       source = source)
+       # Advised versions of core R functions.
+       source = source,
+       traceback = traceback)
 })
 
 # Emacs reads this output and sets `gpb-r-mode--region-file'.
