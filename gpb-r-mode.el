@@ -711,8 +711,9 @@ process."
                   (next-output (buffer-substring prompt-end (point-max))))
 
               ;; Don't run `callback' immediately so we don't have to worry
-              ;; about it erroring out or changing state.
-              (run-at-time 0 nil callback command-output)
+              ;; about it erroring out or changing state in the filter
+              ;; function.
+              (run-at-time 0 nil callback buf command-output)
 
               ;; `next-output' might contain another command response, so we
               ;; need to recurse to handle that case.
@@ -819,7 +820,8 @@ process."
 (defvar gpb-r-send-command--response nil
   "Implementation detail of `gpb-r-send-command'.
 Used to pass R process output picked up in the filter function
-`gpb-r-preoutput-filter' back to `gpb-r-send-command'.")
+`gpb-r-preoutput-filter' back to `gpb-r-send-command' during a blocking
+call to `gpb-r-send-command'.")
 
 
 (defun gpb-r-send-command (cmd &optional buf callback)
@@ -834,9 +836,12 @@ Echoes `gpb-r-output-marker' from the R process.  This tells
 `gpb-r-prompt' and send them to the first function in the list
 `gpb-r-pending-commands'.
 
-If CALLBACK is `nil', we use a callback function that saves the R output to
-`gpb-r-send-command--response'.  We then perform blocking reads from the R
-process until `gpb-r-send-command--response' is set."
+If CALLBACK is `nil', this function blocks until we have a response from R.
+
+Otherwise, CALLBACK is called once with two arguments: the buffer
+containing the inferior R process and a string containing the command
+output.  This usage is preferred to blocking when possible.  If you don't
+care about the result, pass `ignore' as CALLBACK."
   (interactive "sR Command: ")
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (staging-buf (and buf (gpb-r-get-staging-buffer buf 'ensure)))
@@ -856,12 +861,13 @@ process until `gpb-r-send-command--response' is set."
     (with-current-buffer buf
       (if callback
           (progn
+            ;; Add `callback' to the back of the list.
             (setq gpb-r-pending-commands (nconc gpb-r-pending-commands
                                                 (list callback)))
             (send-string proc wrapped-cmd))
 
         (setq gpb-r-send-command--response 'waiting
-              callback (lambda (txt)
+              callback (lambda (buf txt)
                          ;; (message "callback: %S" txt)
                          (setq gpb-r-send-command--response txt))
               gpb-r-pending-commands (nconc gpb-r-pending-commands
@@ -878,7 +884,7 @@ process until `gpb-r-send-command--response' is set."
         (send-string proc wrapped-cmd)
         (condition-case error-var
             (progn
-              ;; Accept output until the callback above it triggered.
+              ;; Accept output until the callback above is triggered.
               (while (eq gpb-r-send-command--response 'waiting)
                 ;; Filters and timers run as we wait for more output.
                 (accept-process-output proc 1 nil))
@@ -914,7 +920,7 @@ process until `gpb-r-send-command--response' is set."
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (cmd (format "print(help(\"%s\", try.all.packages = FALSE))"
                       object-name)))
-    (gpb-r-send-command cmd buf `(lambda (txt)
+    (gpb-r-send-command cmd buf `(lambda (buf txt)
                                    (gpb-r-show-docs-1 ,object-name txt)))))
 
 
@@ -938,7 +944,7 @@ function is safe to call when the R process in the browser
 debugging state."
   (interactive)
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
-    (gpb-r-send-command ".gpb_r_mode$sync_working_dir()" buf)))
+    (gpb-r-send-command ".gpb_r_mode$sync_working_dir()" buf 'ignore)))
 
 
 (defun gpb-r-source-R-init-file ()
@@ -1085,11 +1091,10 @@ Should be called from the interpreter buffer.  Returns the region file path."
 ;;
 ;; In inferior R buffer:
 ;;
-;; (setq gpb-r-send-command--lock nil)
 ;; (gpb-r-send-command "print(1:10)" "*R*" nil)
 
 (defun gpb-r-test-command (&optional buf)
-  "A command that hangs for testing."
+  "A simple command testing."
   (interactive)
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
     (gpb-r-send-command "print(1:10)\n" buf)))
