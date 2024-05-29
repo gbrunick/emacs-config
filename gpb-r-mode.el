@@ -113,7 +113,8 @@ and HYPERLINK are integers giving match indices in REGEXP."
   :group 'gpb-r-mode)
 
 (defcustom gpb-r-preinput-filter-functions
-  '(gpb-r-region-eval-preinput-filter)
+  '(gpb-r-region-eval-preinput-filter
+    gpb-r-remap-chdir-functions-preinput-filter)
   "A list of functions that modify R process input.
 
 These functions are called after the input is added to the input
@@ -315,8 +316,11 @@ displayed."
                    (let ((filename (gpb-r-expand-filename place)))
                      (and (file-exists-p filename)
                           (find-file-noselect filename)))
-                   (t
-                    (error (format "Invalid file: %S" place)))))
+                   (find-file-noselect (read-file-name
+                                        (format "Find %s: "
+                                                (file-name-nondirectory filename))
+                                        (get-text-property
+                                         0 'current-working-dir filename)))))
              place))
 
   (when (and buf (buffer-live-p buf))
@@ -444,6 +448,15 @@ displayed."
   line)
 
 
+(defun gpb-r-remap-chdir-functions-preinput-filter (line)
+  "Input filter that remaps functions that change the working dir."
+  (let ((pairs '(("^source(" ".gpb_r_mode$source("))))
+   (dolist (from-to pairs)
+     (setq line (replace-regexp-in-string (car from-to) (cadr from-to)
+                                          line)))
+   line))
+
+
 ;; Shut down gracefully
 
 (defun gpb-r-kill-buffer-hook (&optional buf)
@@ -469,8 +482,8 @@ displayed."
 Apply each function in `gpb-r-preinput-filter-functions' and then
 send the resulting string to `comint-simple-send'."
   (dolist (f gpb-r-preinput-filter-functions)
-    (setq input (funcall f input))
-  (comint-simple-send proc input)))
+    (setq input (funcall f input)))
+  (comint-simple-send proc input))
 
 
 ;; Shortcuts for commands
@@ -670,6 +683,7 @@ process."
                              default-directory)
           (setq default-directory (gpb-r-expand-filename
                                    (string-trim (match-string 1))))
+          (message "%s Working directory: %s" buf default-directory)
           ;; Delete the output marker
           (delete-region (match-beginning 0) (match-end 0)))
 

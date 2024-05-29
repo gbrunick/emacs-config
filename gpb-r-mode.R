@@ -64,6 +64,17 @@
     invisible(NULL)
   }
 
+  # Wrappers around functions that change the working directory.
+  source <- function(file, ..., chdir = FALSE) {
+    if (chdir) {
+     wd1 <- normalizePath(dirname(file))
+     cat(sprintf("chdir: %s\n", wd1))
+     wd2 <- normalizePath(getwd())
+     on.exit(cat(sprintf("chdir: %s\n", wd2)))
+    }
+    base::source(file, ..., chdir = chdir)
+  }
+
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location,
@@ -73,7 +84,9 @@
   list(region_file = region_file,
        get_completions = get_completions,
        eval_region_file = eval_region_file,
-       sync_working_dir = sync_working_dir)
+       sync_working_dir = sync_working_dir,
+       # Advised versions of common directory changing commands.
+       source = source)
 })
 
 # Emacs reads this output and sets `gpb-r-mode--region-file'.
