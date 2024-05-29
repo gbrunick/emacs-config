@@ -201,8 +201,8 @@ At the moment, there can only be one active process")
 
   (gpb-r-read-history)
 
-  ;; Initialize R and read the region file.
-  (setq gpb-r-region-file (gpb-r-source-R-init-file)))
+  ;; Initialize Emacs/R connection.
+  (gpb-r-source-R-init-file))
 
 
 (defun gpb-r-set-active-process ()
@@ -937,22 +937,19 @@ care about the result, pass `ignore' as CALLBACK."
 
 
 (defun gpb-r-sync-working-dir (&optional buf)
-  "Get the TRAMP-qualified working directory of the current R process.
-
-Also updates `default-directory' in the process buffer.  This
-function is safe to call when the R process in the browser
-debugging state."
+  "Ensure that `default-director' reflects the R working directory."
   (interactive)
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
     (gpb-r-send-command ".gpb_r_mode$sync_working_dir()" buf 'ignore)))
 
 
-(defun gpb-r-source-R-init-file ()
+(defun gpb-r-source-R-init-file (&optional buf)
   "Source gpb-r-mode.R in the interpreter.
 
 Should be called from the interpreter buffer.  Returns the region file path."
   ;; (message "gpb-r-source-R-init-file: %S" (current-buffer))
-  (let* ((basename "gpb-r-mode.R")
+  (let* ((buf (or buf (current-buffer)))
+         (basename "gpb-r-mode.R")
          (local-init-script (locate-library "gpb-r-mode.R"))
          (remote-init-script (expand-file-name (concat "." basename)))
          path init-output region-file)
@@ -973,22 +970,32 @@ Should be called from the interpreter buffer.  Returns the region file path."
      (t
       (setq path (concat "." local-init-script))))
 
-    (setq init-output (gpb-r-send-command (format "source(%S)\n" path))
-          region-file (with-temp-buffer
-                        ;; (message "gpb-r-source-R-init-file:\n%s\n" init-output)
-                        (insert init-output)
-                        (goto-char (point-min))
-                        (re-search-forward "^region-file: +\\(.*\\)$")
-                        (match-string 1)))
+    (gpb-r-send-command (format "source(%S)\n" path) buf
+                        #'gpb-r-source-R-init-file-1)))
 
+
+(defun gpb-r-source-R-init-file-1 (buf output)
+  (let ((region-file (with-temp-buffer
+                       ;; (message "gpb-r-source-R-init-file:\n%s\n" init-output)
+                       (insert output)
+                       (goto-char (point-min))
+                       (re-search-forward "^region-file: +\\(.*\\)$")
+                       (match-string 1))))
+
+    ;; `gpb-r-preoutput-filter' adds a text property `current-working-dir'
+    ;; to `output'.  `gpb-r-expand-filename' uses this and
+    ;; `default-directory' to get an absolute path.  At which point, we can
+    ;; drop the text properties.
     (setq region-file (substring-no-properties
                        (gpb-r-expand-filename region-file)))
 
     (when gpb-r-debug
       (message "Region file: %S" region-file))
 
-    region-file))
+    (with-current-buffer buf
+      (setq-local gpb-r-region-file region-file))
 
+    region-file))
 
 ;;
 ;; Completion
