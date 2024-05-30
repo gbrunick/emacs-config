@@ -191,4 +191,15 @@ dynamically generated advice function."
     (indent-region beg (point))
     (goto-char new-pt)))
 
+
+(defun gpb-comint-delete-last-output ()
+  (interactive)
+  (let ((inhibit-read-only t))
+    (save-excursion
+      (comint-previous-prompt 1)
+      (delete-region (point)
+                     (progn
+                       (comint-next-prompt 1)
+                       (point))))))
+
 (provide 'gpb-util)

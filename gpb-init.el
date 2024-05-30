@@ -191,8 +191,10 @@
 
 ;; Evil config
 (require 'gpb-evil)
-(require 'gpb-util)
 (require 'gpb-r-mode)
+
+(require 'gpb-util)
+(define-key comint-mode-map (kbd "C-c d") 'gpb-comint-delete-last-output)
 
 (require 'gpb-grep)
 (global-set-key "\C-cg" 'gpb-grep)
