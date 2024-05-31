@@ -4,8 +4,13 @@
 (require 'cl-lib)
 (require 'subr-x)
 (require 'evil)
-(require 'ess-r-mode)
 (require 'gpb-logging)
+
+;; We need to set these before we load ESS.
+(setq-default ess-indent-offset 2
+              ess-indent-with-fancy-comments nil)
+
+(require 'ess-r-mode)
 
 (defvar gpb-r-debug nil
   "When t, we takes steps to make things easier to debug.")
@@ -145,21 +150,18 @@ At the moment, there can only be one active process")
   (xref-etags-mode 1)
   (auto-fill-mode 1)
 
-  ;; (setq-local indent-line-function #'gpb-r-indent-line)
+  (ess-set-style 'DEFAULT)
+
   (setq-local completion-at-point-functions
               '(tags-completion-at-point-function dabbrev-capf))
   (setq-local eldoc-documentation-functions nil)
   (setq-local ess-idle-timer-functions nil)
 
-  ;; Configure "!" command.  See gpb-evil.el.
-  (gpb-define-eval-code-operator #'gpb-r-eval-region)
-
   (remove-hook 'xref-backend-functions #'ess-r-xref-backend 'local)
   (remove-hook 'project-find-functions #'ess-r-project 'local)
 
-  ;; Not sure exactly what is required here.
-  (setq ess-indent-offset 2
-        ess-indent-with-fancy-comments nil))
+  ;; Configure "!" command.  See gpb-evil.el.
+  (gpb-define-eval-code-operator #'gpb-r-eval-region))
 
 
 (define-derived-mode gpb-inferior-r-mode comint-mode "Inferior R Mode"
