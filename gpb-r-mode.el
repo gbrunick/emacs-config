@@ -667,13 +667,16 @@ process."
         (goto-char (point-max))
         (setq beg (save-excursion (forward-line 0) (copy-marker (point))))
         (insert string)
+        ;; Include a final prompt on an incomplete line in the output if
+        ;; present.
         (setq end (save-excursion (forward-line 0)
+                                  (re-search-forward prompt-regex nil t)
                                   (copy-marker (point) t)))
 
         ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter insert")
 
-        ;; We only apply this to complete lines.
         (save-excursion (comint-carriage-motion beg end))
+        (save-excursion (ansi-color-apply-on-region beg end))
 
         ;; Add `current-working-dir' text properties that give to the
         ;; R processes working directory at the time of output.
@@ -693,12 +696,6 @@ process."
                              'current-working-dir
                              default-directory))
         ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter clean"))
-
-        ;; Include a final prompt on an incomplete line in the output if
-        ;; present.
-        (goto-char end)
-        (when (re-search-forward prompt-regex nil t)
-          (setq end (copy-marker (match-end 0) t)))
 
         (goto-char (point-min))
         (let* ((command-output-start (search-forward gpb-r-output-marker nil t))
