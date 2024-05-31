@@ -26,7 +26,6 @@
       evil-kill-on-visual-paste nil)
 
 (evil-select-search-module 'evil-select-search-mode 'evil-search)
-(evil-set-undo-system 'undo-redo)
 
 ;; Normal state
 (evil-define-key 'normal 'global "\C-b" 'switch-to-buffer)

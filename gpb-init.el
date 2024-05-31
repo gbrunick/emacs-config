@@ -195,6 +195,9 @@
 
 (require 'gpb-util)
 (define-key comint-mode-map (kbd "C-c d") 'gpb-comint-delete-last-output)
+(gpb-make-repeatable #'comint-previous-prompt
+                     #'comint-next-prompt)
+
 
 (require 'gpb-grep)
 (global-set-key "\C-cg" 'gpb-grep)

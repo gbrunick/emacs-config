@@ -141,11 +141,9 @@ At the moment, there can only be one active process")
 
 (defun gpb-ess-r-mode-hook ()
   "Hook function that overrides most of `ess-r-mode'"
-  ;; Allow movement within camel-case identifiers.
   (subword-mode 1)
-
-  ;; Use etags rather than ESS's custom xref implementation.
   (xref-etags-mode 1)
+  (auto-fill-mode 1)
 
   ;; (setq-local indent-line-function #'gpb-r-indent-line)
   (setq-local completion-at-point-functions
