@@ -920,17 +920,10 @@ care about the result, pass `ignore' as CALLBACK."
 
 (defun gpb-r-show-docs (object-name &optional buf)
   "Show help on OBJECT-NAME."
-  (interactive (list (gpb-r-read-r-object
-                      "Show Docs: "
-                      (save-excursion
-                        (skip-chars-backward " (")
-                        (let ((obj (symbol-name (symbol-at-point))))
-                          (if (string= obj ">") (setq obj nil))
-                          obj)))))
-
+  (interactive
+   (list (gpb-r-read-r-object "Show Docs: " (gpb-r-object-at-point))))
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
-         (cmd (format "print(help(\"%s\", try.all.packages = FALSE))"
-                      object-name)))
+         (cmd (format "?%s" object-name)))
     (gpb-r-send-command cmd buf `(lambda (buf txt)
                                    (gpb-r-show-docs-1 ,object-name txt)))))
 
@@ -1103,6 +1096,15 @@ Should be called from the interpreter buffer.  Returns the region file path."
   (prog1 (buffer-substring beg end)
     ;; (message "deleting region: %S" (buffer-substring beg end))
     (delete-region beg end))))
+
+(defun gpb-r-object-at-point ()
+  (interactive)
+  (let ((table (copy-syntax-table (syntax-table))))
+    (modify-syntax-entry ?: "_" table)
+    (with-syntax-table table
+      (save-excursion
+        (skip-syntax-forward "_")
+        (thing-at-point 'symbol)))))
 
 
 ;; Testing
