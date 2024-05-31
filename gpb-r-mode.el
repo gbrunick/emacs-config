@@ -451,7 +451,8 @@ displayed."
 (defun gpb-r-remap-functions-preinput-filter (line)
   "Input filter that remaps some functions to advised versions."
   (let ((pairs '(("^traceback(" ".gpb_r_mode$traceback(")
-                 ("^source(" ".gpb_r_mode$source("))))
+                 ("^source(" ".gpb_r_mode$source(")
+                 ("^rmarkdown::render(" ".gpb_r_mode$render("))))
    (dolist (from-to pairs)
      (setq line (replace-regexp-in-string (car from-to) (cadr from-to)
                                           line)))

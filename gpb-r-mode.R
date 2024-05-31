@@ -77,10 +77,22 @@
 
   # Show full paths in `traceback'
   traceback <- function(...) {
-    basename <- normalizePath
+    basename <- function(path) {
+      if (file.exists(path)) base::normalize(path)
+      else base::basename(path)
+    }
     f <- base::traceback
     environment(f) <- environment()
     f(...)
+  }
+
+  # Wrappers around functions that change the working directory.
+  render <- function(input, ..., envir = parent.frame()) {
+    wd1 <- normalizePath(dirname(input))
+    cat(sprintf("chdir: %s\n", wd1))
+    wd2 <- normalizePath(getwd())
+    on.exit(cat(sprintf("chdir: %s\n", wd2)))
+    rmarkdown::render(input, ..., envir = envir)
   }
 
   options(menu.graphics = FALSE,
@@ -95,7 +107,8 @@
        sync_working_dir = sync_working_dir,
        # Advised versions of core R functions.
        source = source,
-       traceback = traceback)
+       traceback = traceback,
+       render = render)
 })
 
 # Emacs reads this output and sets `gpb-r-mode--region-file'.
