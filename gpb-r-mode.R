@@ -18,16 +18,19 @@
     cat(elisp)
   }
 
-  print_error_location <- function() {
-    srcref <- getSrcref(tail(sys.calls(), 1)[[1]])
-    if (is.null(srcref) && length(sys.calls()) > 1) {
-      srcref <- getSrcref(tail(sys.calls(), 2)[[1]])
-    }
-    if (!is.null(srcref)) {
-      file <- file.path(getSrcDirectory(srcref), getSrcFilename(srcref))
-      line <- getSrcLocation(srcref)
-      cat(sprintf("Error at %s#%s\n", file, line))
-    }
+  # Print a traceback on error.
+  error_callback <- function() {
+    calls <- rev(sys.calls())
+
+    # It is a stange quirk of R that the call to this function
+    # becomes the top call on the stack, but retains
+    # srcref info corresponding to the error location.  We recover that
+    # info now so we can show it in the traceback.
+    firstSrcref <- getSrcref(calls[[1]])
+    calls[[1]] <- parse(text = as.character(firstSrcref))[[1]]
+    attr(calls[[1]], "srcref") <- firstSrcref
+
+    traceback_wrapper(calls)
   }
 
   # Emacs writes to this file for region evaluation.
@@ -35,7 +38,9 @@
   writeLines("init", region_file)
 
   sync_working_dir <- function() {
-    emit_chdir(getwd())
+    dir <- getwd()
+    emit_chdir(dir)
+    cat(sprintf("Working dir: %s", dir))
   }
 
   #' Evaluate an region from Emacs
@@ -74,61 +79,68 @@
   guid <- "7b530f72-85a0-483c-98ce-d24414394ff0"
 
   emit_chdir <- function(dir) {
-    if (file.exits(dir)) {
-      dir <- normalizePath(dir)
+    if (file.exists(dir)) {
+      dir <- base::normalizePath(dir)
     }
-    cat(sprintf("%s:CHDIR:%s\n", guid, wd1))
+    cat(sprintf("%s:CHDIR:%s\n", guid, dir))
   }
+
+  # Wrappers around some standard functions
+
+  source_wrapper <- function(file, ..., chdir = FALSE) {
+    if (file.exists(file)) {
+      file <- base::normalizePath(file)
+    }
+    if (chdir) {
+      wd <- base::normalizePath(getwd())
+      emit_chdir(dirname(file))
+      on.exit(emit_chdir(wd))
+    }
+    base::source(file, ..., chdir = chdir)
+  }
+
+  traceback_wrapper <- function(x = NULL, ...) {
+    basename <- function(path) {
+      if (file.exists(path)) base::normalizePath(path)
+      else base::basename(path)
+    }
+    f <- base::traceback
+    environment(f) <- environment()
+    f(x, ...)
+  }
+
+  render_wrapper <- function(input, ..., envir = parent.frame()) {
+    if (input.exists(input)) {
+      input <- base::normalizePath(input)
+    }
+    wd <- base::normalizePath(getwd())
+    emit_chdir(dirname(input))
+    on.exit(emit_chdir(wd))
+    rmarkdown::render(input, ..., envir = envir)
+  }
+
+  # Emacs reads this output and sets `gpb-r-mode--region-file'.
+  cat(sprintf("region-file: %s\n", base::normalizePath(region_file)))
 
   options(menu.graphics = FALSE,
           pager = "cat",
-          error = print_error_location,
+          error = error_callback,
           prompt = sprintf("%s:PROMPT", guid))
 
-  # This is the API exposed to grp-r-mode.el.
-  list(region_file = region_file,
-       get_completions = get_completions,
-       eval_region_file = eval_region_file,
-       sync_working_dir = sync_working_dir,
-       emit_chdir = emit_chdir)
+  list(
+    # This is the API exposed to grp-r-mode.el.
+    get_completions = get_completions,
+    eval_region_file = eval_region_file,
+    sync_working_dir = sync_working_dir,
+
+    # And these are used below.
+    source_wrapper = source_wrapper,
+    traceback_wrapper = traceback_wrapper,
+    render_wrapper = render_wrapper)
 })
 
-# Emacs reads this output and sets `gpb-r-mode--region-file'.
-cat(sprintf("region-file: %s\n", normalizePath(.gpb_r_mode$region_file)))
-
-#
-# Wrappers around some functions to help track changes to the working
-# directory and use full paths when possible.
-#
-
-source <- function(file, ..., chdir = FALSE) {
-  if (file.exists(file)) {
-   file <- normalizePath(file)
-  }
-  if (chdir) {
-    wd <- normalizePath(getwd())
-    .gpb_r_mode$emit_chdir(dirname(file))
-    on.exit(.gpb_r_mode$emit_chdir(wd))
-  }
-  base::source(file, ..., chdir = chdir)
-}
-
-traceback <- function(...) {
-  basename <- function(path) {
-    if (file.exists(path)) base::normalizePath(path)
-    else base::basename(path)
-  }
-  f <- base::traceback
-  environment(f) <- environment()
-  f(...)
-}
-
-render <- function(input, ..., envir = parent.frame()) {
-  if (input.exists(input)) {
-   input <- normalizePath(input)
-  }
-  wd <- normalizePath(getwd())
-  .gpb_r_mode$emit_chdir(dirname(input))
-  on.exit(.gpb_r_mode$emit_chdir(wd))
-  rmarkdown::render(input, ..., envir = envir)
-}
+# We wrap some standard functions to make them output more more path
+# information when they are called.
+source    <- .gpb_r_mode$source_wrapper
+traceback <- .gpb_r_mode$traceback_wrapper
+render    <- .gpb_r_mode$render_wrapper
