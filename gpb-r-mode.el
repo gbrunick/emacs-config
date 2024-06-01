@@ -305,7 +305,7 @@ displayed."
              (and (stringp place)
                   (or
                    ;; A line in a buffer that may not have a file.
-                   (and (string-match "\\[\\(.+\\)\\]" place)
+                   (and (string-match "^\\[\\(.+\\)\\]$" place)
                         (get-buffer (match-string 1 place)))
 
                    (let ((filename (gpb-r-expand-filename place)))
