@@ -115,7 +115,7 @@ source <- function(file, ..., chdir = FALSE) {
 
 traceback <- function(...) {
   basename <- function(path) {
-    if (file.exists(path)) base::normalize(path)
+    if (file.exists(path)) base::normalizePath(path)
     else base::basename(path)
   }
   f <- base::traceback
