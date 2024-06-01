@@ -35,7 +35,7 @@
   writeLines("init", region_file)
 
   sync_working_dir <- function() {
-    chdir(getwd())
+    emit_chdir(getwd())
   }
 
   #' Evaluate an region from Emacs
@@ -57,8 +57,8 @@
 
     if (!is.null(wd)) {
       save_dir <- setwd(wd)
-      chdir(wd)
-      on.exit(chdir(save_dir))
+      emit_chdir(wd)
+      on.exit(emit_chdir(save_dir))
     }
 
     if (is.null(namespace)) {
@@ -73,7 +73,7 @@
   # Should agree with `gpb-r-guid'."_75b30f72-85a0-483c-98ce-d24414394ff0"
   guid <- "7b530f72-85a0-483c-98ce-d24414394ff0"
 
-  chdir <- function(dir) {
+  emit_chdir <- function(dir) {
     if (file.exits(dir)) {
       dir <- normalizePath(dir)
     }
@@ -89,7 +89,8 @@
   list(region_file = region_file,
        get_completions = get_completions,
        eval_region_file = eval_region_file,
-       sync_working_dir = sync_working_dir)
+       sync_working_dir = sync_working_dir,
+       emit_chdir = emit_chdir)
 })
 
 # Emacs reads this output and sets `gpb-r-mode--region-file'.
@@ -106,8 +107,8 @@ source <- function(file, ..., chdir = FALSE) {
   }
   if (chdir) {
     wd <- normalizePath(getwd())
-    chdir(dirname(file))
-    on.exit(chdir(wd))
+    .gpb_r_mode$emit_chdir(dirname(file))
+    on.exit(.gpb_r_mode$emit_chdir(wd))
   }
   base::source(file, ..., chdir = chdir)
 }
@@ -127,7 +128,7 @@ render <- function(input, ..., envir = parent.frame()) {
    input <- normalizePath(input)
   }
   wd <- normalizePath(getwd())
-  chdir(dirname(input))
-  on.exit(chdir(wd))
+  .gpb_r_mode$emit_chdir(dirname(input))
+  on.exit(.gpb_r_mode$emit_chdir(wd))
   rmarkdown::render(input, ..., envir = envir)
 }
