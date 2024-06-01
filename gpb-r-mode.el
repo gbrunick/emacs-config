@@ -1011,7 +1011,15 @@ long as it takes."
   "Ensure that `default-director' reflects the R working directory."
   (interactive)
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
-    (gpb-r-send-command ".gpb_r_mode$sync_working_dir()" buf 'ignore)))
+    (gpb-r-send-command ".gpb_r_mode$sync_working_dir()"
+                        buf 'gpb-r-sync-working-dir-1)))
+
+(defun gpb-r-sync-working-dir-1 (buf txt)
+  (with-temp-buffer
+    (insert txt)
+    (goto-char (point-min))
+    (re-search-forward "\\(Working dir:.*\\)\n")
+    (message "%s" (match-string 1))))
 
 
 (defun gpb-r-source-R-init-file (&optional buf)

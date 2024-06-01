@@ -40,7 +40,7 @@
   sync_working_dir <- function() {
     dir <- getwd()
     emit_chdir(dir)
-    cat(sprintf("Working dir: %s", dir))
+    cat(sprintf("Working dir: %s\n", dir))
   }
 
   #' Evaluate an region from Emacs
