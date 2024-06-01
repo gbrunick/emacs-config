@@ -857,10 +857,10 @@ process."
                    (end (match-end link-subexp)))
 
               ;; Hide the file directory to save space.
-              ;; (goto-char (match-end link-subexp))
-              ;; (when (re-search-backward "/" beg t)
-              ;;   (put-text-property beg (match-end 0) 'display "")
-              ;;   (setq beg (match-end 0)))
+              (goto-char (match-end link-subexp))
+              (when (re-search-backward "/" beg t)
+                (put-text-property beg (match-end 0) 'display "")
+                (setq beg (match-end 0)))
 
               (make-text-button beg end
                'file file
