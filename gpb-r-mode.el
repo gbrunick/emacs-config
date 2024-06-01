@@ -689,7 +689,7 @@ process."
           (inhibit-read-only t)
           beg previous-output)
 
-      ;; (gpb-r-dump-buffer staging-buf "gpb-r-preoutput-filter before")
+      ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter before")
 
       (with-current-buffer staging-buf
         ;; We use `default-directory' to track the working directory of the
@@ -702,7 +702,7 @@ process."
         (save-excursion (comint-carriage-motion beg (point-max)))
         (save-excursion (ansi-color-apply-on-region beg (point-max)))
 
-        ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter insert")
+        ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter insert")
 
         ;; Add `current-working-dir' text properties that give the R
         ;; processes working directory at the time of output.
@@ -721,7 +721,7 @@ process."
           (put-text-property (point) (point-max)
                              'current-working-dir
                              default-directory))
-        ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter clean"))
+        ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter clean"))
         (goto-char (point-min))
         (if (search-forward gpb-r-flush-marker nil t)
             ;; FLUSH command overrides everything else.
@@ -800,7 +800,7 @@ process."
               (setq string (gpb-r-cut-region (point-min) (point)))))))))
 
     (when gpb-r-debug
-      (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter after")
+      (gpb-r-dump-buffer "gpb-r-preoutput-filter after")
       (message "gpb-r-preoutput-filter string out: %S\n%s" string string))
 
     string))
@@ -1230,10 +1230,10 @@ Should be called from the interpreter buffer.  Returns the region file path."
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
     (gpb-r-send-command "readline('Press <return> to continue: ')" buf)))
 
-(defun gpb-r-dump-buffer (buf &optional label)
+(defun gpb-r-dump-buffer (&optional label)
   (save-restriction
     (widen)
-    (let* ((buf (get-buffer buf))
+    (let* ((buf (current-buffer))
            (label (if label (format " at %s" label) ""))
            (contents (with-current-buffer buf
                        (buffer-substring (point-min) (point-max)))))
