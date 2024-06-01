@@ -63,6 +63,7 @@ Each `gpb-inferior-r-mode' buffer uses a different region file.")
     (define-key map "\C-c\C-d" 'gpb-r-show-docs)
     (define-key map "\C-s" 'gpb-r-save-history)
     (define-key map "\C-c\C-r" 'gpb-r-read-history)
+    (define-key map "\C-c\C-f" 'gpb-r-toggle-auto-follow)
     (define-key map [remap forward-button] 'gpb-r-forward-button)
     (define-key map [remap backward-button] 'gpb-r-backward-button)
     ;; (define-key map "\C-c\C-v" 'gpb-ess:show-help)
@@ -207,6 +208,19 @@ At the moment, there can only be one active process")
   (message "Active R process buffer: %S" gpb-r-active-process-buffer))
 
 
+(defvar-local gpb-r-auto-follow nil
+  "If non-nil, we automatically trigger buttons when we tab to them")
+
+(defun gpb-r-toggle-auto-follow ()
+  (interactive)
+  (cond
+   (gpb-r-auto-follow
+    (setq gpb-r-auto-follow nil)
+    (message "Disabled auto-follow mode"))
+   (t
+    (setq gpb-r-auto-follow t)
+    (message "Enabled auto-follow mode"))))
+
 (defun gpb-r-tab-command ()
   (interactive)
   (setq this-command (if (comint-after-pmark-p)
@@ -216,15 +230,19 @@ At the moment, there can only be one active process")
 
 (defun gpb-r-forward-button ()
   (interactive)
-  (or
-   (forward-button 1 nil t t)
-   (goto-char (point-max))))
+  (cond
+   ((forward-button 1 nil t t)
+    (when gpb-r-auto-follow (push-button)))
+   (t
+    (goto-char (point-max)))))
 
 (defun gpb-r-backward-button ()
   (interactive)
-  (or
-   (forward-button -1 nil t t)
-   (goto-char (point-min))))
+  (cond
+   ((forward-button -1 nil t t)
+    (when gpb-r-auto-follow (push-button)))
+   (t
+    (goto-char (point-min)))))
 
 (defvar-local gpb-r-save-and-exec-command--command nil
   "The R command `gpb-r-save-and-exec-command' should use.")
