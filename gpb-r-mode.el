@@ -930,7 +930,7 @@ care about the result, pass `ignore' as CALLBACK."
 (defun gpb-r-show-docs (object-name &optional buf)
   "Show help on OBJECT-NAME."
   (interactive
-   (list (gpb-r-read-r-object "Show Docs: " (gpb-r-object-at-point))))
+   (list (gpb-r-read-object "Show Docs: " (gpb-r-object-at-point))))
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (cmd (format "?%s" object-name)))
     (gpb-r-send-command cmd buf `(lambda (buf txt)
@@ -1052,19 +1052,42 @@ Should be called from the interpreter buffer.  Returns the region file path."
             (plist-get completion-info :completions)))))
 
 (defun gpb-r-minibuffer-complete (line)
-  (let ((completion-info (gpb-r-get-completions line)))
-   (plist-get completion-info :completions)))
+  (let* ((completion-info (gpb-r-get-completions line))
+         (prefix (substring line 0 (plist-get completion-info :beg)))
+         (completions (plist-get completion-info :completions)))
+    ;;      (inhibit-message t))
+    ;; (message "completion-info: %S" completion-info)
+    ;; (message "completions: %S" completions)
+    (mapcar (lambda (suffix) (concat prefix suffix)) completions)))
 
-(defvar gpb-r-read-r-object--history nil)
+(defvar gpb-r-read-object--history nil)
 
-(defun gpb-r-read-r-object (prompt &optional initial-input)
+(defun gpb-r-read-object (prompt &optional initial-input)
   (interactive)
-  (completing-read prompt
-                   (completion-table-dynamic #'gpb-r-minibuffer-complete t)
-                   nil
-                   nil
-                   initial-input
-                   'gpb-r-read-r-object--history))
+  (let ((keymap (copy-keymap minibuffer-local-completion-map)))
+    (define-key keymap (kbd "SPC") 'self-insert-command)
+    (let ((minibuffer-local-completion-map keymap))
+      (completing-read prompt
+                       (completion-table-dynamic #'gpb-r-minibuffer-complete t)
+                       nil
+                       nil
+                       initial-input
+                       'gpb-r-read-object--history))))
+
+(defun gpb-r-read-expression (prompt &optional initial-input)
+  "Like `gpb-r-read-object' but allows spaces"
+  (interactive)
+  (let ((keymap (copy-keymap minibuffer-local-completion-map)))
+    (define-key keymap (kbd "SPC") 'self-insert-command)
+    (let ((minibuffer-local-completion-map keymap))
+      (completing-read prompt
+                       (completion-table-dynamic #'gpb-r-minibuffer-complete t)
+                       nil
+                       nil
+                       initial-input
+                       'gpb-r-read-object--history))))
+
+
 
 
 ;;
