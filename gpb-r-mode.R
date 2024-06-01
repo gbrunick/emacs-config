@@ -30,7 +30,7 @@
     calls[[1]] <- parse(text = as.character(firstSrcref))[[1]]
     attr(calls[[1]], "srcref") <- firstSrcref
 
-    traceback_wrapper(calls)
+    traceback_wrapper(rev(calls))
   }
 
   # Emacs writes to this file for region evaluation.
