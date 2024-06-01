@@ -226,6 +226,9 @@ At the moment, there can only be one active process")
    (forward-button -1 nil t t)
    (goto-char (point-min))))
 
+(defvar-local gpb-r-save-and-exec-command--command nil
+  "The R command `gpb-r-save-and-exec-command' should use.")
+
 (defun gpb-r-save-and-exec-command (arg)
   "Save the current buffer and then source, reload, or render it.
 
@@ -236,51 +239,22 @@ Rmarkdown render expression."
                        (error "Buffer is not visiting a file")))
          (localname (file-local-name filename))
          (r-proc-buf (or (gpb-r-get-proc-buffer)
-                         (error "No R process is associated with buffer")))
-         ;; Get the name of the directory that contains filename.
-         (dir (ignore-errors (directory-file-name
-                              (file-name-directory localname))))
-         cmd)
+                         (error "No R process is associated with buffer"))))
 
     (save-buffer)
 
-    (cond
-     ;; If this command does not have an argument and the buffer local
-     ;; variable `gpb-r-exec-cmd' is set from a previous call, use that.
-     ((and (null arg) (boundp 'gpb-r-exec-cmd))
-      (setq cmd gpb-r-exec-cmd))
+    ;; If this command does not have an argument and the buffer local
+    ;; variable `gpb-r-save-and-exec-command--command' is set from a
+    ;; previous call, we use that.
+    (if (and (null arg) gpb-r-save-and-exec-command--command)
+        (setq cmd gpb-r-save-and-exec-command--command)
 
-     ;; We have an R markdown document, render it.
-     ((string-suffix-p ".Rmd" localname t)
-      (setq cmd (read-string "Render command: "
-                             (format "rmarkdown::render('%s')" localname))))
+      ;; Otherwise we query the user with a reasonable default.
+      (setq cmd (gpb-r-read-expression
+                 "R command: " (gpb-r-suggest-exec-cmd localname arg))))
 
-     ;; If we are in a package, save any modified source files in the
-     ;; package and reload the package.
-     ((string-equal (ignore-errors (file-name-base dir)) "R")
-      (let* ((pkg-dir (ignore-errors (directory-file-name
-                                      (file-name-directory dir)))))
-        (setq cmd (read-string "Load command: "
-                               (format "pkgload::load_all('%s')"
-                                       (file-local-name pkg-dir))))))
-
-     ;; If we are in a test file, source the file but evaluate in the
-     ;; current package namespace with the current directory as the working
-     ;; directory.
-     ;; ((string-equal (ignore-errors (file-name-base dir)) "testthat")
-     ;;  (let* ((cmd (format "cat(pkgload::pkg_name('%s'), fill = TRUE)\n"
-     ;;                      (file-local-name (buffer-file-name))))
-     ;;         (package-name (ess-string-command cmd nil 1)))
-     ;;    (gpb:ess-eval-region (point-min) (point-max) package-name dir)))
-
-     ;; Otherwise, source the file.
-     (t
-      (setq cmd (read-string "Load command: "
-                             (format "source('%s')" localname)))))
-
-
-    ;; Save the command in the buffer so you can easily reuse it.
-    (setq-local gpb-r-exec-cmd cmd)
+    ;; Save the command in the buffer so you can reuse it.
+    (setq-local gpb-r-save-and-exec-command--command cmd)
 
     (with-current-buffer r-proc-buf
       (goto-char (point-max))
@@ -289,6 +263,32 @@ Rmarkdown render expression."
       (comint-send-input))
 
     (display-buffer r-proc-buf)))
+
+
+(defun gpb-r-suggest-exec-cmd (localname &optional arg)
+  ;; The `-file' suffix means no trailing slash.
+  (let* ((dir (file-name-directory localname))
+         (dir-file (ignore-errors (directory-file-name dir)))
+         (parent (ignore-errors (file-name-directory dir-file)))
+         (parent-file (ignore-errors (directory-file-name parent))))
+
+    (cond
+     ;; We render an R markdown document.
+     ((string-suffix-p ".Rmd" localname t)
+      (let ((extra (if arg ", params = list()" "")))
+        (format "render('%s'%s)" localname extra)))
+
+     ;; If we are in a package, load the package.
+     ;; Get the name of the directory that contains filename.
+     ((and parent-file
+           (string-equal (ignore-errors (file-name-base dir-file)) "R"))
+      (format "pkgload::load_all('%s')" parent-file))
+
+     ;; Otherwise, source the file.
+     (t
+      (let ((extra-args (if arg ", chdir = TRUE" "")))
+        (format "source('%s'%s)" localname extra-args))))))
+
 
 
 (defvar gpb-r-show-line--overlay nil
