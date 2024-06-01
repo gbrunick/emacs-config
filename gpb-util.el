@@ -200,6 +200,8 @@ dynamically generated advice function."
       (delete-region (point)
                      (progn
                        (comint-next-prompt 1)
-                       (point))))))
+                       (point))))
+    (when (called-interactively-p)
+      (recenter -1))))
 
 (provide 'gpb-util)
