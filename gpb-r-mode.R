@@ -35,24 +35,30 @@
   writeLines("init", region_file)
 
   sync_working_dir <- function() {
-    wd <- normalizePath(getwd())
-    cat(sprintf("chdir: %s\n", wd))
-    cat(sprintf("Current Working Dir: %s\n", wd))
+    chdir(getwd())
   }
 
+  #' Evaluate an region from Emacs
+  #'
+  #' @param buffer_name String
+  #' @param wd Optional working directory
+  #' @param namespace Optional R namespace. See `asNamespace`
+  #'
+  #' @return
+  #'
+  #' @export
+  #'
   eval_region_file <- function(buffer_name, wd = NULL, namespace = NULL) {
     lines <- readLines(region_file)
+    # Filenames that begin and end with braces are buffer names.
     src <- srcfilecopy(sprintf("[%s]", buffer_name), lines,
                        timestamp = Sys.time(), isFile = FALSE)
     expr <- parse(text = lines, srcfile = src)
 
     if (!is.null(wd)) {
       save_dir <- setwd(wd)
-      cat(sprintf("chdir: %s", wd))
-      on.exit({
-        setwd(save_dir)
-        cat(sprintf("chdir: %s", save_dir))
-      })
+      chdir(wd)
+      on.exit(chdir(save_dir))
     }
 
     if (is.null(namespace)) {
@@ -64,52 +70,64 @@
     invisible(NULL)
   }
 
-  # Wrappers around functions that change the working directory.
-  source <- function(file, ..., chdir = FALSE) {
-    if (chdir) {
-     wd1 <- normalizePath(dirname(file))
-     cat(sprintf("chdir: %s\n", wd1))
-     wd2 <- normalizePath(getwd())
-     on.exit(cat(sprintf("chdir: %s\n", wd2)))
-    }
-    base::source(file, ..., chdir = chdir)
-  }
+  # Should agree with `gpb-r-guid'."_75b30f72-85a0-483c-98ce-d24414394ff0"
+  guid <- "7b530f72-85a0-483c-98ce-d24414394ff0"
 
-  # Show full paths in `traceback'
-  traceback <- function(...) {
-    basename <- function(path) {
-      if (file.exists(path)) base::normalize(path)
-      else base::basename(path)
+  chdir <- function(dir) {
+    if (file.exits(dir)) {
+      dir <- normalizePath(dir)
     }
-    f <- base::traceback
-    environment(f) <- environment()
-    f(...)
-  }
-
-  # Wrappers around functions that change the working directory.
-  render <- function(input, ..., envir = parent.frame()) {
-    wd1 <- normalizePath(dirname(input))
-    cat(sprintf("chdir: %s\n", wd1))
-    wd2 <- normalizePath(getwd())
-    on.exit(cat(sprintf("chdir: %s\n", wd2)))
-    rmarkdown::render(input, ..., envir = envir)
+    cat(sprintf("%s:CHDIR:%s\n", guid, wd1))
   }
 
   options(menu.graphics = FALSE,
           pager = "cat",
           error = print_error_location,
-          prompt = "PROMPT:75b30f72-85a0-483c-98ce-d24414394ff0")
+          prompt = sprintf("%s:PROMPT", guid))
 
   # This is the API exposed to grp-r-mode.el.
   list(region_file = region_file,
        get_completions = get_completions,
        eval_region_file = eval_region_file,
-       sync_working_dir = sync_working_dir,
-       # Advised versions of core R functions.
-       source = source,
-       traceback = traceback,
-       render = render)
+       sync_working_dir = sync_working_dir)
 })
 
 # Emacs reads this output and sets `gpb-r-mode--region-file'.
 cat(sprintf("region-file: %s\n", normalizePath(.gpb_r_mode$region_file)))
+
+#
+# Wrappers around some functions to help track changes to the working
+# directory and use full paths when possible.
+#
+
+source <- function(file, ..., chdir = FALSE) {
+  if (file.exists(file)) {
+   file <- normalizePath(file)
+  }
+  if (chdir) {
+    wd <- normalizePath(getwd())
+    chdir(dirname(file))
+    on.exit(chdir(wd))
+  }
+  base::source(file, ..., chdir = chdir)
+}
+
+traceback <- function(...) {
+  basename <- function(path) {
+    if (file.exists(path)) base::normalize(path)
+    else base::basename(path)
+  }
+  f <- base::traceback
+  environment(f) <- environment()
+  f(...)
+}
+
+render <- function(input, ..., envir = parent.frame()) {
+  if (input.exists(input)) {
+   input <- normalizePath(input)
+  }
+  wd <- normalizePath(getwd())
+  chdir(dirname(input))
+  on.exit(chdir(wd))
+  rmarkdown::render(input, ..., envir = envir)
+}

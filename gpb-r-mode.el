@@ -127,10 +127,6 @@ ring and immediately before the input is sent to the inferior R
 process.  The current use case is to interpret 'magic' commands
 that are imbedded in R comments")
 
-(defvar gpb-r-end-of-output-marker
-  "END:75b30f72-85a0-483c-98ce-d24414394ff0"
-  "Arbitrary string used to denote the end of R output.")
-
 (defvar gpb-r-active-process-buffer nil
   "The currently active R process.
 
@@ -596,13 +592,29 @@ If ENSURE is non-nil, we create the buffer if it doesn't already exist."
 ;; Preoutput filter functions
 ;;
 
-(defvar gpb-r-guid "75b30f72-85a0-483c-98ce-d24414394ff0")
-(defvar gpb-r-prompt (format "PROMPT:%s" gpb-r-guid))
-(defvar gpb-r-output-marker (format "OUTPUT:%s\n" gpb-r-guid)
+(defvar gpb-r-guid "7b530f72-85a0-483c-98ce-d24414394ff0"
+  "A string that is unlikely to appear at the start of a line of output.")
+
+(defvar gpb-r-prompt (format "%s:PROMPT" gpb-r-guid))
+
+(defvar gpb-r-output-marker (format "%s:OUTPUT\n" gpb-r-guid)
   "Used by `gpb-r-send-command' to mark the start of output.")
 
 (defvar-local gpb-r-pending-commands nil
   "Defined in inferior R buffers.  List of callback functions.")
+
+
+(defun gpb-r-might-be-looking-at-guid-p (&optional pos buf)
+  "Could the partial line starting at POS in BUF match `gpb-r-guid'?"
+  (let* ((pos (or pos (point)))
+         (buf (or buf (current-buffer)))
+         (line (buffer-substring-no-properties
+                pos (min (+ pos (length gpb-r-guid))
+                         (point-max)))))
+    (string-prefix-p line gpb-r-guid
+                     (with-current-buffer buf
+                       (save-excursion
+                         (goto-char pos))))))
 
 
 (defun gpb-r-preoutput-filter (string)
@@ -612,10 +624,6 @@ Called by `comint' in an R inferior process buffer.  STRING gives new
 output from the R process.  This function is called before output is
 inserted in the `comint' buffer, so we can use it to intercept output
 before it gets to the R process buffer.
-
-Accumulates output into a staging buffer so that it may be returned in
-chunks that contain complete lines.  As a result, all
-`comint-output-filter-functions' receive only complete lines.
 
 Looks for messages we send from R that indicate when the working directory
 has changed in the R process (e.g., when knitting an R markdown document)
@@ -640,6 +648,7 @@ the inferior R buffer.  `gpb-r-send-command' uses this mechanism."
 
 BUF is an inferior R process buffer.  STRING contins output from the R
 process."
+  (setq buf (get-buffer buf))
   (when gpb-r-debug
     (message "gpb-r-preoutput-filter-1 string in %S\n%s" string string))
   (with-current-buffer buf
@@ -655,8 +664,9 @@ process."
           (inhibit-read-only t)
           (prompt-regex (format "\\(%s\\)\\|\\(%s\\)"
                                 gpb-r-prompt "Browse[[0-9]+]> "))
-          ;; `beg' and `end' will lie on line breaks.
-          beg end previous-output)
+          (chdir-regex (format "^%s:CHDIR:\\(.*\\)\n" gpb-r-guid))
+          ;; `beg' and `end' will lie+ on line breaks.
+          beg previous-output)
 
       ;; (gpb-r-dump-buffer staging-buf "gpb-r-preoutput-filter before")
 
@@ -667,28 +677,23 @@ process."
         (goto-char (point-max))
         (setq beg (save-excursion (forward-line 0) (copy-marker (point))))
         (insert string)
-        ;; Include a final prompt on an incomplete line in the output if
-        ;; present.
-        (setq end (save-excursion (forward-line 0)
-                                  (re-search-forward prompt-regex nil t)
-                                  (copy-marker (point) t)))
+
+        (save-excursion (comint-carriage-motion beg (point-max)))
+        (save-excursion (ansi-color-apply-on-region beg (point-max)))
 
         ;; (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter insert")
 
-        (save-excursion (comint-carriage-motion beg end))
-        (save-excursion (ansi-color-apply-on-region beg end))
-
-        ;; Add `current-working-dir' text properties that give to the
-        ;; R processes working directory at the time of output.
+        ;; Add `current-working-dir' text properties that give the R
+        ;; processes working directory at the time of output.
         (goto-char beg)
-        (while (re-search-forward "^chdir: +\\(.*\\)\n" nil t)
+        (while (re-search-forward chdir-regex nil t)
           (put-text-property beg (match-beginning 0)
                              'current-working-dir
                              default-directory)
           (setq default-directory (gpb-r-expand-filename
                                    (string-trim (match-string 1))))
           (message "%s Working directory: %s" buf default-directory)
-          ;; Delete the output marker
+          ;; Delete the CHDIR marker
           (delete-region (match-beginning 0) (match-end 0)))
 
         (unless (eobp)
@@ -741,10 +746,17 @@ process."
             ;; Replace prompt hashes with standard prompts.
             (save-excursion
               (goto-char (point-min))
-              (while (search-forward gpb-r-prompt end t)
+              (while (search-forward gpb-r-prompt nil t)
                 (replace-match "> ")))
 
-            (setq string (gpb-r-cut-region (point-min) end)))))))
+            ;; We only return the final line once we know it doesn't match
+            ;; `gpb-r-guid'.
+            (goto-char (point-max))
+            (forward-line 0)
+            (unless (gpb-r-might-be-looking-at-guid-p)
+             (goto-char (point-max)))
+
+            (setq string (gpb-r-cut-region (point-min) (point))))))))
 
     (when gpb-r-debug
       (gpb-r-dump-buffer (current-buffer) "gpb-r-preoutput-filter after")
