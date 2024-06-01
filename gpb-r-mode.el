@@ -436,9 +436,7 @@ displayed."
             (goto-char (point-max))
             (insert "\n\n"))
 
-          ;; Only write to the message buffer to avoid flicker
-          (let ((inhibit-message t)) (message "Wrote %s" region-filename))
-
+          (gpb-r-message "Wrote %s" region-filename)
           (setq line (format ".gpb_r_mode$eval_region_file(%S)" srcbuf))))))
   line)
 
@@ -1115,9 +1113,8 @@ Should be called from the interpreter buffer.  Returns the region file path."
   (let* ((completion-info (gpb-r-get-completions line))
          (prefix (substring line 0 (plist-get completion-info :beg)))
          (completions (plist-get completion-info :completions)))
-    ;;      (inhibit-message t))
-    ;; (message "completion-info: %S" completion-info)
-    ;; (message "completions: %S" completions)
+    ;; (gpb-r-message "completion-info: %S" completion-info)
+    ;; (gpb-r-message "completions: %S" completions)
     (mapcar (lambda (suffix) (concat prefix suffix)) completions)))
 
 (defvar gpb-r-read-object--history nil)
