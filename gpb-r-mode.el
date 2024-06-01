@@ -374,11 +374,20 @@ displayed."
   "Get the currently active R process buffer"
   ;; (message "gpb-r-get-proc-buffer: %S %S"
   ;;          (current-buffer) gpb-r-active-process-buffer)
-  (let ((proc1 (get-buffer-process (current-buffer)))
-        (proc2 (get-buffer-process gpb-r-active-process-buffer)))
-    (or
-     (and (process-live-p proc1) (current-buffer))
-     (and (process-live-p proc2) gpb-r-active-process-buffer))))
+  (cond
+   ((derived-mode-p #'gpb-inferior-r-mode)
+    (current-buffer))
+
+   ((and gpb-r-active-process-buffer
+         (buffer-live-p gpb-r-active-process-buffer)
+         (process-live-p (get-buffer-process gpb-r-active-process-buffer)))
+    gpb-r-active-process-buffer)
+
+   (t
+    (let* ((choices (mapcar #'buffer-name (gpb-r-all-live-interpreters)))
+           (buf (completing-read "R buffer: " choices)))
+      (setq gpb-r-active-process-buffer buf)
+      buf))))
 
 
 (defun gpb-r-insert-browser ()
@@ -1226,6 +1235,13 @@ Should be called from the interpreter buffer.  Returns the region file path."
   (let ((inhibit-message t))
     (apply 'message format-string args)))
 
+(defun gpb-r-all-live-interpreters ()
+  (cl-remove-if-not (lambda (buf)
+                      (with-current-buffer buf
+                        (and
+                         (derived-mode-p #'gpb-inferior-r-mode)
+                         (process-live-p (get-buffer-process buf)))))
+                    (buffer-list)))
 
 ;; Testing
 ;;
