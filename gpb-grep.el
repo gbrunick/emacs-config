@@ -5,12 +5,13 @@
 ;;
 
 
-(defcustom gpb-grep-exclude-dirs nil 
+(defcustom gpb-grep-exclude-dirs
+  '("\\.git")
   "A list of globs.  Matching directories are excluded by `gpb-grep'."
   :type '(repeat string))
 
 (defcustom gpb-grep-exclude-files
-  '("TAGS" "*~" "#*#") 
+  '("TAGS" "*~" "#*#")
   "List of globs.  Maching filenames are exclude by `gpb-grep'."
   :type '(repeat string))
 
@@ -31,7 +32,7 @@
                       (mapconcat (lambda (x)
                                    (format "%s=\"%s\" " argname x))
                                  globs
-                                 "")))  
+                                 "")))
          (exclude-dirs (funcall make-args "--exclude-dir" gpb-grep-exclude-dirs))
          (exclude-files (funcall make-args "--exclude" gpb-grep-exclude-files))
          (cmd (cl-case (window-system)
