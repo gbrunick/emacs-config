@@ -339,7 +339,8 @@ displayed."
   (when (and buf (buffer-live-p buf))
     (let* ((window (display-buffer buf 'other-window))
            (vertical-margin (and window (/ (window-height window) 4)))
-           (face (or face 'next-error)))
+           (face (or face 'next-error))
+           (inhibit-message t))
       (with-current-buffer buf
         ;; Force the window to scroll a bit.
         (goto-line (- line-number vertical-margin))
@@ -367,7 +368,9 @@ displayed."
         (overlay-put gpb-r-show-line--overlay 'window window)
         (run-at-time 0.25 nil (lambda ()
                                 (delete-overlay gpb-r-show-line--overlay)))))
-    (when pop-to (select-window window))))
+    (when pop-to (select-window window)))
+
+  (message "%s#%s" place line))
 
 
 (defun gpb-r-get-proc-buffer ()
@@ -899,8 +902,9 @@ process."
                'help-echo (format "%s#%s" file line)))))))))
 
 
-(defun gpb-r-follow-link (button)
-  (let* ((file (button-get button 'file))
+(defun gpb-r-follow-link (&optional button)
+  (let* ((button (or button (button-at (point))))
+         (file (button-get button 'file))
          (line (button-get button 'line)))
     (gpb-r-show-line file line)))
 
