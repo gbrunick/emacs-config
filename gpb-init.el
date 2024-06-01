@@ -174,9 +174,7 @@
 
 (with-eval-after-load 'gpb-util
   (gpb-add-feedback kill-buffer (format "Killed %s" (current-buffer)))
-  (gpb-add-feedback save-buffer (format "Saved %s" (current-buffer)))
   (gpb-add-feedback revert-buffer (format "Reverted %s" (current-buffer))))
-
 
 ;; LISP modes
 
