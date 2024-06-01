@@ -548,9 +548,16 @@ If ENSURE is non-nil, we create the buffer if it doesn't already exist."
 (defun gpb-r-kill-all-inferior-buffers ()
   "Kill all inferior R process buffers."
   (interactive)
-  (dolist (buf gpb-r-all-inferior-buffers)
-    (and buf (buffer-live-p buf) (kill-buffer buf)))
-  (setq gpb-r-all-inferior-buffers nil))
+  (if (null gpb-r-all-inferior-buffers)
+      (message "There are no inferior R buffers")
+    (let* ((buffers (reverse gpb-r-all-inferior-buffers))
+           (msg (format "Killed %s" (mapconcat #'buffer-name buffers ", ")))
+           ;; Don't query; just kill.
+           kill-buffer-query-functions)
+      (dolist (buf buffers)
+        (and buf (buffer-live-p buf) (kill-buffer buf)))
+      (setq gpb-r-all-inferior-buffers nil)
+      (message "%S" msg))))
 
 (defun gpb-r-read-history ()
   "Read .Rhistory into comint input ring."
@@ -567,7 +574,7 @@ If ENSURE is non-nil, we create the buffer if it doesn't already exist."
   ;; functions.
   (setq-local comint-input-history-ignore "^.* # Emacs command$")
   (comint-read-input-ring)
-  (message "Read %s." comint-input-ring-file-name))
+  (message "Loaded %s." comint-input-ring-file-name))
 
 
 (defun gpb-r-save-history ()
@@ -1136,14 +1143,17 @@ Should be called from the interpreter buffer.  Returns the region file path."
 (defun gpb-r-test-command (&optional buf)
   "A simple command testing."
   (interactive)
-  (let* ((buf (or buf (gpb-r-get-proc-buffer))))
-    (gpb-r-send-command "print(1:10)\n" buf)))
+  (let* ((buf (or buf (gpb-r-get-proc-buffer)))
+         (response (string-trim
+                    (substring-no-properties
+                     (gpb-r-send-command "print(1:10)\n" buf nil 10)))))
+    (message "Response: %S" response)))
 
 (defun gpb-r-hanging-command (&optional buf)
   "A command that hangs for testing."
   (interactive)
   (let* ((buf (or buf (gpb-r-get-proc-buffer))))
-    (gpb-r-send-command "readline('Press <return> to continue')" buf)))
+    (gpb-r-send-command "readline('Press <return> to continue: ')" buf)))
 
 (defun gpb-r-dump-buffer (buf &optional label)
   (save-restriction
@@ -1152,7 +1162,7 @@ Should be called from the interpreter buffer.  Returns the region file path."
            (label (if label (format " at %s" label) ""))
            (contents (with-current-buffer buf
                        (buffer-substring (point-min) (point-max)))))
-      (message "Contents of %S%s: %S\n%s" buf label contents contents))))
+      (gpb-r-message "Contents of %S%s: %S\n%s" buf label contents contents))))
 
 
 (provide 'gpb-r-mode)
