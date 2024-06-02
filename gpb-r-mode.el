@@ -769,7 +769,8 @@ process."
                             gpb-r-command-timeout-timer nil)))
 
           (goto-char (point-min))
-          (let* ((command-output-start (re-search-forward gpb-r-output-regex nil t))
+          (let* ((command-output-start (re-search-forward
+                                        gpb-r-output-regex nil t))
                  ;; When there is a command pending, there may be R process
                  ;; output from before the command started.  We store
                  ;; such output in `previous-output'.
@@ -796,7 +797,7 @@ process."
                 ;; Don't run `callback' immediately so we don't have to worry
                 ;; about it erroring out or changing state in the filter
                 ;; function.
-                (run-at-time 0 nil callback buf command-output)
+                (run-at-time 0 nil callback buf command-output t)
 
                 (with-current-buffer buf
                   (when gpb-r-command-timeout-timer
@@ -810,8 +811,11 @@ process."
                                      (gpb-r-preoutput-filter-1 buf next-output)))))
 
              (command-output-start
-              ;; There is a pending command that is not complete.
-              (setq string (gpb-r-cut-region (point-min) previous-output-end)))
+              (let ((command-output (buffer-substring command-output-start
+                                                      command-output-end)))
+                ;; There is a pending command that is not complete.
+                (run-at-time 0 nil callback buf command-output nil)
+                (setq string (gpb-r-cut-region (point-min) previous-output-end))))
 
              (t
               ;; Replace prompt hashes with standard prompts.
@@ -1022,8 +1026,9 @@ long as it takes."
    (list (gpb-r-read-object "Show Docs: " (gpb-r-object-at-point))))
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (cmd (format "?%s" object-name)))
-    (gpb-r-send-command cmd buf `(lambda (buf txt)
-                                   (gpb-r-show-docs-1 ,object-name txt)))))
+    (gpb-r-send-command cmd buf `(lambda (buf txt complete)
+                                   (when complete
+                                     (gpb-r-show-docs-1 ,object-name txt))))))
 
 
 (defun gpb-r-show-docs-1 (objname help-txt)
@@ -1045,12 +1050,13 @@ long as it takes."
     (gpb-r-send-command ".gpb_r_mode$sync_working_dir()"
                         buf 'gpb-r-sync-working-dir-1)))
 
-(defun gpb-r-sync-working-dir-1 (buf txt)
-  (with-temp-buffer
-    (insert txt)
-    (goto-char (point-min))
-    (re-search-forward "\\(Working dir:.*\\)\n")
-    (message "%s" (match-string 1))))
+(defun gpb-r-sync-working-dir-1 (buf txt complete)
+  (when complete
+    (with-temp-buffer
+      (insert txt)
+      (goto-char (point-min))
+      (re-search-forward "\\(Working dir:.*\\)\n")
+      (message "%s" (match-string 1)))))
 
 
 (defun gpb-r-source-R-init-file (&optional buf)
@@ -1087,25 +1093,26 @@ Should be called from the interpreter buffer.  Returns the region file path."
                         #'gpb-r-source-R-init-file-1 'wait)))
 
 
-(defun gpb-r-source-R-init-file-1 (buf output)
-  (let ((region-file (with-temp-buffer
-                       ;; (message "gpb-r-source-R-init-file:\n%s\n" init-output)
-                       (insert output)
-                       (goto-char (point-min))
-                       (re-search-forward "^region-file: +\\(.*\\)$")
-                       (match-string 1))))
+(defun gpb-r-source-R-init-file-1 (buf output complete)
+  (when complete
+    (let ((region-file (with-temp-buffer
+                         ;; (message "gpb-r-source-R-init-file:\n%s\n" init-output)
+                         (insert output)
+                         (goto-char (point-min))
+                         (re-search-forward "^region-file: +\\(.*\\)$")
+                         (match-string 1))))
 
-    ;; `gpb-r-preoutput-filter' adds a text property `current-working-dir'
-    ;; to `output'.  `gpb-r-expand-filename' uses this and
-    ;; `default-directory' to get an absolute path.  At which point, we can
-    ;; drop the text properties.
-    (setq region-file (substring-no-properties
-                       (gpb-r-expand-filename region-file)))
-    (gpb-r-message "R region file is %s" region-file)
-    (with-current-buffer buf
-      (setq-local gpb-r-region-file region-file))
+      ;; `gpb-r-preoutput-filter' adds a text property `current-working-dir'
+      ;; to `output'.  `gpb-r-expand-filename' uses this and
+      ;; `default-directory' to get an absolute path.  At which point, we can
+      ;; drop the text properties.
+      (setq region-file (substring-no-properties
+                         (gpb-r-expand-filename region-file)))
+      (gpb-r-message "R region file is %s" region-file)
+      (with-current-buffer buf
+        (setq-local gpb-r-region-file region-file))
 
-    region-file))
+      region-file)))
 
 ;;
 ;; Completion
