@@ -166,6 +166,8 @@ At the moment, there can only be one active process")
 \\{gpb-inferior-r-mode-map}"
   (push (current-buffer) gpb-r-all-inferior-buffers)
 
+  (subword-mode 1)
+
   ;; Try to shutdown gracefully when the buffer is killed.
   (add-hook 'kill-buffer-hook #'gpb-r-kill-buffer-hook nil t)
 
