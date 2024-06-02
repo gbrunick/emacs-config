@@ -179,7 +179,7 @@ This function will be called by the operator ! in programming modes.")
   (funcall gpb-eval-code-function beg end))
 
 (defun gpb-define-eval-code-operator (f &optional key)
-  (let ((key (or key "!")))
+  (let ((key (or key (kbd "C-c e"))))
     (setq-local gpb-eval-code-function f)
     (evil-define-key 'normal 'local key #'gpb-eval-code-operator)
     (evil-define-key 'visual 'local key #'gpb-eval-code-operator)))
