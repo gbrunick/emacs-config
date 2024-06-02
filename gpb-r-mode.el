@@ -564,7 +564,8 @@ send the resulting string to `comint-simple-send'."
 (defun gpb-r-get-staging-buffer (process-buffer &optional ensure)
   "Get the staging buffer associated with PROCESS-BUFFER.
 If ENSURE is non-nil, we create the buffer if it doesn't already exist."
-  (let* ((buf-name (concat (buffer-name process-buffer) " [staging]"))
+  (let* ((buf-name (concat (buffer-name (get-buffer process-buffer))
+                           " [staging]"))
          (existing-buf (get-buffer buf-name)))
     (cond
      (existing-buf existing-buf)
@@ -631,7 +632,7 @@ This may not be at the start of the line.")
   "Used by `gpb-r-cancel-commands' to flush the staging buffer.")
 
 (defvar-local gpb-r-pending-commands nil
-  "Defined in inferior R buffers.  List of callback functions.")
+  "Defined in inferior R buffers.  List of (list callback args) pairs.")
 
 (defvar gpb-r-command-timeout 1
   "Default R command timeout in seconds for `gpb-r-send-command'")
@@ -743,7 +744,8 @@ process."
                              default-directory)
           (setq default-directory (gpb-r-expand-filename
                                    (string-trim (match-string 1))))
-          (message "%s Working directory: %s" buf default-directory)
+          (gpb-r-message "Working dir in %s changed to %s"
+                         buf default-directory)
           ;; Delete the CHDIR marker
           (delete-region (match-beginning 0) (match-end 0)))
 
@@ -786,18 +788,20 @@ process."
             (cond
              (prompt-end
               ;; We have all of the output associated with the next command.
-              (let ((callback (with-current-buffer buf
-                                (pop gpb-r-pending-commands)))
-                    (previous-output (buffer-substring (point-min)
-                                                       previous-output-end))
-                    (command-output (buffer-substring command-output-start
-                                                      command-output-end))
-                    (next-output (buffer-substring prompt-end (point-max))))
+              (let* ((callback-args (with-current-buffer buf
+                                      (pop gpb-r-pending-commands)))
+                     (callback (car callback-args))
+                     (args (cadr callback-args))
+                     (previous-output (buffer-substring (point-min)
+                                                        previous-output-end))
+                     (command-output (buffer-substring command-output-start
+                                                       command-output-end))
+                     (next-output (buffer-substring prompt-end (point-max))))
 
                 ;; Don't run `callback' immediately so we don't have to worry
                 ;; about it erroring out or changing state in the filter
                 ;; function.
-                (run-at-time 0 nil callback buf command-output t)
+                (apply #'run-at-time 0 nil callback buf command-output t args)
 
                 (with-current-buffer buf
                   (when gpb-r-command-timeout-timer
@@ -811,10 +815,14 @@ process."
                                      (gpb-r-preoutput-filter-1 buf next-output)))))
 
              (command-output-start
-              (let ((command-output (buffer-substring command-output-start
-                                                      command-output-end)))
+              (let* ((callback-args (with-current-buffer buf
+                                      (car gpb-r-pending-commands)))
+                     (callback (car callback-args))
+                     (args (cadr callback-args))
+                     (command-output (buffer-substring command-output-start
+                                                       (point-max))))
                 ;; There is a pending command that is not complete.
-                (run-at-time 0 nil callback buf command-output nil)
+                (apply #'run-at-time 0 nil callback buf command-output nil args)
                 (setq string (gpb-r-cut-region (point-min) previous-output-end))))
 
              (t
@@ -924,7 +932,7 @@ Used to pass R process output picked up in the filter function
 call to `gpb-r-send-command'.")
 
 
-(defun gpb-r-send-command (cmd &optional buf callback timeout)
+(defun gpb-r-send-command (cmd &optional buf callback timeout &rest args)
   "Send CMD to R process in BUF the return the output as a string.
 
 If BUF is omitted, we use the current buffer.  We move the
@@ -982,15 +990,17 @@ long as it takes."
           (progn
             ;; Add `callback' to the back of the list.
             (setq gpb-r-pending-commands (nconc gpb-r-pending-commands
-                                                (list callback)))
+                                                (list (list callback args))))
             (send-string proc wrapped-cmd))
 
+        (and args (error "ARGS requires CALLBACK"))
         (setq gpb-r-send-command--response 'waiting
-              callback (lambda (buf txt)
-                         ;; (message "callback: %S" txt)
-                         (setq gpb-r-send-command--response txt))
+              callback (lambda (buf txt complete)
+                         (when complete
+                           ;; (message "callback: %S" txt)
+                           (setq gpb-r-send-command--response txt)))
               gpb-r-pending-commands (nconc gpb-r-pending-commands
-                                            (list callback)))
+                                            (list (list callback nil))))
 
         ;; Send the string and wait for a response.
         (send-string proc wrapped-cmd)
@@ -1026,21 +1036,47 @@ long as it takes."
    (list (gpb-r-read-object "Show Docs: " (gpb-r-object-at-point))))
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (cmd (format "?%s" object-name)))
-    (gpb-r-send-command cmd buf `(lambda (buf txt complete)
-                                   (when complete
-                                     (gpb-r-show-docs-1 ,object-name txt))))))
+    (gpb-r-send-command cmd buf #'gpb-r-show-docs-1 nil object-name)))
 
-
-(defun gpb-r-show-docs-1 (objname help-txt)
+(defun gpb-r-show-docs-1 (buf txt complete objname)
   ;; (message "gpb-r-show-docs-1: %S %S" buf txt)
-  (let ((buf (get-buffer-create (format "*R Help: %s*" objname)))
-        (inhibit-read-only t))
-    (with-current-buffer buf
-      (erase-buffer)
-      (special-mode)
-      (insert help-txt)
-      (goto-char (point-min)))
-    (pop-to-buffer buf)))
+  (cond
+   (complete
+    (let ((buf (get-buffer-create (format "*R Help: %s*" objname)))
+          (inhibit-read-only t))
+      (with-current-buffer buf
+        (erase-buffer)
+        (special-mode)
+        (insert txt)
+        (goto-char (point-min))
+        (save-excursion
+          (when (re-search-forward "^Selection: " nil t)
+           (delete-region (point-min) (match-end 0)))))
+      (pop-to-buffer buf)))
+
+   ;; Output is not complete, but we might be stuck waiting for user input.
+   (t
+    (when (string-match-p "Selection: \\'" txt)
+      (with-temp-buffer
+        (insert txt)
+        (goto-char (point-min))
+        (rename-buffer "*Choose one*")
+        (save-excursion
+          (re-search-forward "^Selection: ")
+          (delete-region (match-beginning 0) (match-end 0)))
+
+        ;; Show the choices in the current window.
+        (set-window-buffer (selected-window) (current-buffer))
+
+        ;; Cancel the timeout timer.
+        (with-current-buffer buf
+          (when gpb-r-command-timeout-timer
+            (cancel-timer gpb-r-command-timeout-timer)
+            (setq-local gpb-r-command-timeout-timer nil)))
+
+        (let ((proc (get-buffer-process buf))
+              (number (read-number "Selection: " 1)))
+          (process-send-string proc (format "%i\n" number))))))))
 
 
 (defun gpb-r-sync-working-dir (&optional buf)
