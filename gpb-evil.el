@@ -188,4 +188,20 @@ This function will be called by the operator ! in programming modes.")
           (lambda () (gpb-define-eval-code-operator #'eval-region)))
 
 
+(evil-define-operator gpb-replace-operator (beg end register)
+  "Evaluate code hunk in range BEG END"
+  :repeat nil
+  :keep-visual nil
+  ;; :line 'block
+  (interactive "<r><x>")
+  (message "gpb-replace-operator: %S %S %S" beg end
+           (and register (char-to-string register)))
+  (delete-region beg end)
+  (save-excursion
+    (goto-char beg)
+    (insert (evil-get-register (or register ?\")))))
+
+(evil-define-key 'normal 'global (kbd "C-r") #'gpb-replace-operator)
+(evil-define-key 'visual 'global (kbd "C-r") #'gpb-replace-operator)
+
 (provide 'gpb-evil)
