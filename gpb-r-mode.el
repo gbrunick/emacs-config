@@ -372,7 +372,7 @@ displayed."
                                 (delete-overlay gpb-r-show-line--overlay)))))
     (when pop-to (select-window window)))
 
-  (message "%s#%s" place line))
+  (message "%s#%s" place line-number))
 
 
 (defun gpb-r-get-proc-buffer ()
@@ -867,7 +867,8 @@ process."
           ;; might reset the match data.
           (let* ((filename (match-string 1))
                  (line-number (string-to-number (match-string-no-properties 2))))
-            (gpb-r-show-line filename line-number)))))))
+            ;; Don't call `gpb-r-show-line' in the filter.
+            (run-at-time 0 nil #'gpb-r-show-line filename line-number)))))))
 
 
 (defun gpb-r-add-buttons-filter (output)
@@ -875,8 +876,11 @@ process."
     (save-match-data
       (save-excursion
         (let* ((proc (get-buffer-process (current-buffer))))
-          (gpb-r-add-buttons-filter-1 comint-last-output-start
-                                     (process-mark proc)))))))
+          (unless (with-local-quit
+                    (gpb-r-add-buttons-filter-1 comint-last-output-start
+                                                (process-mark proc))
+                    t)
+            (message "Local quit in gpb-r-add-buttons-filter.")))))))
 
 
 (defun gpb-r-add-buttons-filter-1 (beg end)
@@ -891,29 +895,33 @@ process."
         (save-match-data
           (goto-char beg)
           (while (re-search-forward regex end t)
-            (let* ((file (buffer-substring (match-beginning file-subexp)
-                                           (match-end file-subexp)))
-                   (line (ignore-errors
-                           (string-to-number (buffer-substring
-                                              (match-beginning line-subexp)
-                                              (match-end line-subexp)))))
-                   (beg (match-beginning link-subexp))
-                   (end (match-end link-subexp)))
+            ;; We need to ensure we always move strictly forward or we
+            ;; could get stuck in an infinite loop.
+            (save-excursion
+              (let* ((file (buffer-substring (match-beginning file-subexp)
+                                             (match-end file-subexp)))
+                     (line (ignore-errors
+                             (string-to-number (buffer-substring
+                                                (match-beginning line-subexp)
+                                                (match-end line-subexp)))))
+                     (beg (match-beginning link-subexp))
+                     (end (match-end link-subexp)))
 
-              ;; Hide the file directory to save space.
-              (goto-char (match-end link-subexp))
-              (when (re-search-backward "/" beg t)
-                (put-text-property beg (match-end 0) 'display "")
-                (setq beg (match-end 0)))
+                ;; Hide the file directory to save space.
+                (goto-char (match-end link-subexp))
+                (when (re-search-backward "/" beg t)
+                  (put-text-property beg (match-end 0) 'display "")
+                  (setq beg (match-end 0)))
 
-              (make-text-button beg end
-               'file file
-               'line line
-               'action #'gpb-r-follow-link
-               ;; Abbreviate the name in the buffer, but show the full path
-               ;; in the echo area when you tab to the button.
-               ;; 'display (format "%s#%s" (file-name-nondirectory file) line)
-               'help-echo (format "%s#%s" file line)))))))))
+                (make-text-button
+                 beg end
+                 'file file
+                 'line line
+                 'action #'gpb-r-follow-link
+                 ;; Abbreviate the name in the buffer, but show the full path
+                 ;; in the echo area when you tab to the button.
+                 ;; 'display (format "%s#%s" (file-name-nondirectory file) line)
+                 'help-echo (format "%s#%s" file line))))))))))
 
 
 (defun gpb-r-follow-link (&optional button)

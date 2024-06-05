@@ -20,20 +20,17 @@
 
   # Print a traceback on error.
   error_callback <- function() {
-    calls <- rev(sys.calls())
+    calls <- .traceback(1)
 
-    if (length(calls) > 1) {
-      # It is a stange quirk of R that the call to this function
-      # becomes the top call on the stack, but retains
-      # srcref info corresponding to the error location.  We recover that
-      # info now so we can show it in the traceback.
-      firstSrcref <- getSrcref(calls[[1]])
-      if (!is.null(firstSrcref)) {
-        calls[[1]] <- parse(text = as.character(firstSrcref))[[1]]
-        attr(calls[[1]], "srcref") <- firstSrcref
+    # We prefer srcref line info when it is available.
+    for (i in seq_along(call)) {
+      srcref <- getSrcref(calls[[i]])
+      if (!is.nul(srcref)) {
+        calls[[i]] <- as.character(srcref)
+        attr(calls[[i]], "srcref") <- srcref
       }
-      traceback_wrapper(rev(calls))
     }
+    traceback_wrapper(rev(calls))
   }
 
   # Emacs writes to this file for region evaluation.
@@ -113,7 +110,7 @@
   }
 
   render_wrapper <- function(input, ..., envir = parent.frame()) {
-    if (input.exists(input)) {
+    if (file.exists(input)) {
       input <- base::normalizePath(input)
     }
     wd <- base::normalizePath(getwd())
