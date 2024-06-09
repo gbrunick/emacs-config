@@ -110,6 +110,11 @@
               ediff-auto-refine 'on
               ediff-ignore-similar-regions t)
 
+;; Turn on auto fill in some modes
+(add-hook 'text-mode-hook 'turn-on-auto-fill)
+(add-hook 'prog-mode-hook 'turn-on-auto-fill)
+
+
 ;; Never kill scratch or messages
 (defun gpb-kill-buffer-query-function ()
   (let ((buffer (current-buffer)))
