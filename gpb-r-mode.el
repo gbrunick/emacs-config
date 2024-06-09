@@ -420,7 +420,8 @@ displayed."
 
    (t
     (let* ((choices (mapcar #'buffer-name (gpb-r-all-live-interpreters)))
-           (buf (completing-read "R buffer: " choices)))
+           (buf-name (buf (completing-read "R buffer: " choices)))
+           (buf (get-buffer buf-name)))
       (setq gpb-r-active-process-buffer buf)
       buf))))
 
@@ -833,7 +834,9 @@ process."
                 ;; Don't run `callback' immediately so we don't have to worry
                 ;; about it erroring out or changing state in the filter
                 ;; function.
-                (apply #'run-at-time 0 nil callback buf command-output t args)
+                (if callback
+                    (apply #'run-at-time 0 nil callback buf command-output t args)
+                 (message "Error: callback is nil in `gpb-r-preoutput-filter-1'"))
 
                 (with-current-buffer buf
                   (when gpb-r-command-timeout-timer
@@ -910,7 +913,7 @@ process."
                     (gpb-r-add-buttons-filter-1 comint-last-output-start
                                                 (process-mark proc))
                     t)
-            (message "Local quit in gpb-r-add-buttons-filter.")))))))
+            (message "Local quit in `gpb-r-add-buttons-filter'.")))))))
 
 
 (defun gpb-r-add-buttons-filter-1 (beg end)
