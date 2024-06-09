@@ -139,6 +139,17 @@
 (remove-hook 'tramp-cleanup-connection-hook 'tramp-recentf-cleanup)
 (remove-hook 'tramp-cleanup-all-connections-hook 'tramp-recentf-cleanup-all)
 
+;; Use bash rather than sh on remote shells.
+
+(connection-local-set-profile-variables
+ 'remote-bash
+  '((shell-file-name . "/bin/bash")
+    (shell-command-switch . "-c")))
+
+(setq connection-local-criteria-alist
+      '(((:application tramp)
+         tramp-connection-local-default-system-profile remote-bash)))
+
 ;; Make `shell' in a remote buffer use bash instead of sh.
 ;; (setq explicit-shell-file-name "/bin/bash")
 
