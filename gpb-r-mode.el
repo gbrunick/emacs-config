@@ -186,22 +186,52 @@ At the moment, there can only be one active process")
         (special-mode)))
     (push staging-buffer gpb-r-all-inferior-buffers))
 
-  (add-hook 'comint-preoutput-filter-functions
-            #'gpb-r-preoutput-filter nil t)
-
-  ;; Looks for debug breakpoints and jump to the corresponding buffer
-  ;; location.
-  (add-hook 'comint-output-filter-functions
-            #'gpb-r-debug-filter-function nil t)
-
-  ;; Make filenames clickable buttons.
-  (add-hook 'comint-output-filter-functions
-            #'gpb-r-add-buttons-filter nil t)
-
   (gpb-r-read-history)
 
-  ;; Initialize Emacs/R connection.
-  (gpb-r-source-R-init-file))
+  ;; We don't try to send anything to the R process until is has echoed
+  ;; this first prompt.  This mainly for aesthetics; in some cases the
+  ;; terminal will echo the input we send to R before R starts up.
+  (add-hook 'comint-output-filter-functions
+            #'gpb-r-wait-for-r-filter nil t))
+
+
+(defun gpb-r-wait-for-r-filter (&rest args)
+  "Implementation detail of `gpb-inferior-r-mode'
+Waits for the first prompt from R and then completes the initialization of
+  the buffer."
+  (save-excursion
+    (save-match-data
+      (goto-char (point-max))
+      (forward-line 0)
+      (when (search-forward "> " nil t)
+        (message "Found R prompt")
+
+        ;; Remove this function.
+        (remove-hook 'comint-output-filter-functions
+                     #'gpb-r-wait-for-r-filter t)
+
+        ;; Finish initializing buffer.
+        (run-at-time 0 nil #'gpb-inferior-r-mode-1 (current-buffer))))))
+
+
+(defun gpb-inferior-r-mode-1 (&optional buf)
+  (let ((buf (or buf (current-buffer))))
+    (with-current-buffer buf
+      ;; Low level command processing.
+      (add-hook 'comint-preoutput-filter-functions
+                #'gpb-r-preoutput-filter nil t)
+
+      ;; Looks for debug breakpoints and jump to the corresponding buffer
+      ;; location.
+      (add-hook 'comint-output-filter-functions
+                #'gpb-r-debug-filter-function nil t)
+
+      ;; Make filenames clickable buttons.
+      (add-hook 'comint-output-filter-functions
+                #'gpb-r-add-buttons-filter nil t)
+
+      ;; Initialize Emacs/R connection.
+      (gpb-r-source-R-init-file))))
 
 
 (defun gpb-r-set-active-process ()
@@ -1235,8 +1265,6 @@ Should be called from the interpreter buffer.  Returns the region file path."
                        nil
                        initial-input
                        'gpb-r-read-object--history))))
-
-
 
 
 ;;
