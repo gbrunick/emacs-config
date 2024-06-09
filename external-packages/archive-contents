@@ -1,5 +1,6 @@
 (1
  (annalist . [(20240501 1201) ((emacs (24 4)) (cl-lib (0 5))) "Record and display information such as keybindings" tar])
+ (auctex . [(14 0 5) ((emacs (27 1))) "Integrated environment for *TeX*" tar])
  (elpa-mirror . [(20240413 1426) ((emacs (27 1))) "Create local package repository from installed packages" tar])
  (ess . [(20240429 621) ((emacs (25 1))) "Emacs Speaks Statistics" tar])
  (evil . [(1 15 0) nil "extensible vi layer" tar])

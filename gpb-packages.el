@@ -5,8 +5,8 @@
 ;; controlled file external-packages/selected-packages.txt.
 ;;
 ;; Run `gpb-ensure-packages-installed' in your init file to ensure that
-;; exactly the packages listed in `selected-packages' are installed from
-;; the tar files in external-packages/.
+;; exactly the packages listed in the file selected-packages.txt are
+;; installed from the tar files in external-packages/.
 ;;
 ;; To upgrade or install new packages, use `list-packages' in the usual
 ;; way, run `gpb-update-local-elpa' to update the local package archive and
@@ -46,9 +46,16 @@
 With a prefix argument, we recreate the mirror directory."
   (interactive "P")
   (elpamr-create-mirror-for-installed gpb-local-elpa arg)
-  (with-temp-buffer
-    (insert (pp-to-string (cl-sort package-selected-packages #'string<)))
-    (write-file gpb-selected-packages-file)))
+  (let ((packages (cl-sort package-selected-packages #'string<))
+        (prefix "("))
+    (with-temp-buffer
+      ;; We write one package per line in a form that `read' will parse as
+      ;; a list of symbols.
+      (dolist (pkg packages)
+        (insert (format "%s%s" prefix pkg))
+        (setq prefix "\n "))
+      (insert ")\n")
+      (write-file gpb-selected-packages-file))))
 
 
 (provide 'gpb-packages)

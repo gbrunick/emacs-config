@@ -1,1 +1,9 @@
-(elpa-mirror ess evil evil-collection evil-goggles evil-surround poly-R wgrep)
+(auctex
+ elpa-mirror
+ ess
+ evil
+ evil-collection
+ evil-goggles
+ evil-surround
+ poly-R
+ wgrep)

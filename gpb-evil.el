@@ -185,8 +185,17 @@ This function will be called by the operator ! in programming modes.")
     (evil-define-key 'visual 'local key #'gpb-eval-code-operator)))
 
 (add-hook 'emacs-lisp-mode-hook
-          (lambda () (gpb-define-eval-code-operator #'eval-region)))
-
+          (lambda ()
+            ;; For reasons I don't understand, the call to
+            ;; `evil-define-key' fails when Emacs is installing packages
+            ;; because `evil-normal-state-local-map' and
+            ;; `evil-visual-state-local-map' are nil rather than an empty
+            ;; keymaps.
+            (when (and (boundp 'evil-normal-state-local-map)
+                       evil-normal-state-local-map
+                       (boundp 'evil-visual-state-local-map)
+                       evil-normal-state-local-map)
+              (gpb-define-eval-code-operator #'eval-region))))
 
 (evil-define-operator gpb-replace-operator (beg end register)
   "Evaluate code hunk in range BEG END"
