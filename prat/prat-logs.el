@@ -145,7 +145,7 @@
     (setq buf (get-buffer-create (format "*ls-tree: %s*" hash)))
 
     (setq buf (prat-shell-command (mapconcat 'identity cmd " ")
-                                     (format "*ls-tree: %s*" hash)))
+                                  (format "*ls-tree: %s*" hash)))
     (with-current-buffer buf
       (goto-char (point-min))
       (prat-show-commit-files-mode)

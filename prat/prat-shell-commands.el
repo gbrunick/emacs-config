@@ -212,6 +212,7 @@ shell in which these environment variables have been set."
       (insert (format "> %s\n\n" cmd))
       (save-excursion (insert "..."))
       (setq-local output-marker (copy-marker (point) t))
+      (put 'output-marker 'permanent-local t)
       (goto-char (point-min))
       (prat-async-shell-command cmd dir #'prat-shell-command-1 env-vars))
     (pop-to-buffer buf)
@@ -225,7 +226,7 @@ shell in which these environment variables have been set."
     ;; Delete the ellipsis
     (delete-region output-marker (point-max))
     ;; (save-excursion (goto-char output-marker) (insert "Done.\n"))
-    (setq mode-line-process ":complete"))
+    (setq-local mode-line-process ":complete"))
 
    (t
     (let ((new-output (with-current-buffer buf
@@ -309,10 +310,11 @@ caller is responsible for returning the buffer by calling
         (cond
          ;; Windows
          ((prat-use-cmd-exe-p dir)
-          (setq proc (start-file-process "cmd-server" buf "cmd")))
+          (setq proc (start-file-process (buffer-name buf) buf "cmd")))
          ;; Linux
          (t
-          (setq proc (start-file-process "bash-server" buf "bash" "--noediting"
+          (setq proc (start-file-process (buffer-name buf) buf
+                                         "bash" "--noediting"
                                          "--noprofile" "--norc"))
           ;; No prompts; it just makes the output more non-deterministic.
           (process-send-string proc "PS1=\n")
@@ -396,4 +398,3 @@ otherwise."
 
 
 (provide 'prat-shell-commands)
-
