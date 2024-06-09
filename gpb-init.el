@@ -42,6 +42,7 @@
 ;; (global-set-key "\C-f" 'isearch-forward)
 (global-set-key "\C-w" 'bury-buffer)
 (global-set-key "\C-s" 'save-buffer)
+(global-set-key "\C-cn" 'gpb-new-document)
 ;; (global-set-key "\C-v" 'yank)
 ;; (global-set-key "\M-v" 'yank-pop)
 (global-set-key "\C-g" 'gpb-keyboard-quit)

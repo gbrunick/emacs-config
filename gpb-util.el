@@ -204,4 +204,61 @@ dynamically generated advice function."
     (when (called-interactively-p)
       (recenter -1))))
 
+
+(defvar gpb-new-doc-mode-map
+  (let ((keymap (make-sparse-keymap)))
+    (define-key keymap "\t" 'forward-button)
+    (define-key keymap (kbd "<backtab>") 'backward-button)
+    (define-key keymap "q" 'quit-window)
+    (set-keymap-parent keymap special-mode-map)
+    keymap))
+
+(with-eval-after-load 'evil
+  (evil-define-key 'normal gpb-new-doc-mode-map
+    "\t" 'forward-button
+    (kbd "<backtab>") 'backward-button
+    "q" 'quit-window))
+
+(define-derived-mode gpb-new-doc-mode special-mode
+  "New Document"
+  "Major mode for a buffer used to create a new buffer.")
+
+(defun gpb-new-document ()
+  (interactive)
+  (let ((keymap (make-sparse-keymap))
+        (indent "  ")
+        (dir default-directory)
+        (menu-buffer-name "*new document*")
+        (inhibit-read-only t))
+    (cl-flet ((make-new-buffer-button
+                (lambda (desc mode)
+                 (insert indent)
+                 (let ((buf-name (format "*New %s*" desc)))
+                   (insert-button
+                    desc 'action `(lambda (button)
+                                    (let ((new-buf (generate-new-buffer ,buf-name)))
+                                      (with-current-buffer new-buf
+                                        (,mode)
+                                        (setq-local default-directory ,dir))
+                                      (switch-to-buffer new-buf)
+                                      (kill-buffer ,menu-buffer-name))))
+                   (insert (format " create buffer in %s\n\n"
+                                   (symbol-name mode)))))))
+
+      (with-current-buffer (get-buffer-create menu-buffer-name)
+        (erase-buffer)
+        (gpb-new-doc-mode)
+        (insert "Create new buffer:\n\n")
+
+        (make-new-buffer-button "Text Buffer" 'text-mode)
+        (when (boundp 'ess-version)
+          (make-new-buffer-button "R Buffer" 'R-mode))
+        (make-new-buffer-button "Python Buffer" 'python-mode)
+        (make-new-buffer-button "LaTeX Buffer" 'LaTeX-mode)
+        (make-new-buffer-button "Emacs Lisp Buffer" 'emacs-lisp-mode)
+
+        (beginning-of-buffer)
+        (forward-button 1))
+      (switch-to-buffer menu-buffer-name))))
+
 (provide 'gpb-util)
