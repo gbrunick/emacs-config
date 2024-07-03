@@ -80,8 +80,7 @@
 
 ;; Make some commands repeatable with one keypress.
 (with-eval-after-load 'gpb-util
-  (gpb-make-repeatable #'evil-execute-macro
-                       #'evil-forward-section-begin
+  (gpb-make-repeatable #'evil-forward-section-begin
                        #'evil-backward-section-begin
                        #'evil-collection-unimpaired-insert-newline-above
                        #'evil-collection-unimpaired-insert-newline-below))
