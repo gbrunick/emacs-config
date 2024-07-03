@@ -83,7 +83,9 @@
       ;; Show the point in the mode line
       mode-line-position '(20 (:eval (format "(%%l,%%3c) %5d" (point))))
       ;; Show a continuation marker in `visual-line-mode'.
-      visual-line-fringe-indicators '(nil right-curly-arrow))
+      visual-line-fringe-indicators '(nil right-curly-arrow)
+      ;; Don't fontify sub/superscripts in AucTex
+      font-latex-fontify-script nil)
 
 
 (setq-default indent-tabs-mode nil
