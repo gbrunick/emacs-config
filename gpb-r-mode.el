@@ -551,7 +551,7 @@ send the resulting string to `comint-simple-send'."
         (insert (string-trim cmd))
         (comint-send-input)))
 
-    (when pop (pop-to-buffer procbuf))
+    (when pop (display-buffer procbuf))
     (with-current-buffer procbuf (goto-char (point-max)))))
 
 (defun gpb-r-send-traceback (&optional buf)
