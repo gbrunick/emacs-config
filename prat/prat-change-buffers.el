@@ -116,7 +116,7 @@
   (let ((cmd (format "git diff --stat --patch %s %s %s --"
                      "--histogram --find-renames" hash1 hash2))
         (buf (get-buffer-create (format "*%s...%s*" hash1 hash2))))
-    (prat-show-changes cmd desc buf 'prat-hunk-view-mode repo-dir)))
+    (prat-show-changes cmd nil buf 'prat-hunk-view-mode repo-dir)))
 
 
 (defun prat-show-changes (cmd desc buf major-mode &optional repo-dir)
