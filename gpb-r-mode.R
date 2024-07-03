@@ -25,7 +25,7 @@
     # We prefer srcref line info when it is available.
     for (i in seq_along(call)) {
       srcref <- getSrcref(calls[[i]])
-      if (!is.nul(srcref)) {
+      if (!is.null(srcref)) {
         calls[[i]] <- as.character(srcref)
         attr(calls[[i]], "srcref") <- srcref
       }
