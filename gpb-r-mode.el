@@ -420,7 +420,9 @@ displayed."
 
    (t
     (let* ((choices (mapcar #'buffer-name (gpb-r-all-live-interpreters)))
-           (buf-name (buf (completing-read "R buffer: " choices)))
+           (buf-name (buf (completing-read "R buffer: " choices nil t
+                                           (when (= (length choices) 1)
+                                             (car choices)))))
            (buf (get-buffer buf-name)))
       (setq gpb-r-active-process-buffer buf)
       buf))))
