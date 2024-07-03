@@ -58,7 +58,6 @@
       delete-trailing-lines             t
       use-file-dialog                   nil
       print-escape-newlines             t
-      mark-even-if-inactive             nil
       select-enable-clipboard           t
       inhibit-startup-screen            t
       icon-title-format                 "Emacs"
@@ -207,6 +206,7 @@
 ;; Evil config
 (require 'gpb-evil)
 (require 'gpb-r-mode)
+(evil-define-key 'normal ess-r-mode-map "gr" 'revert-buffer)
 
 (require 'gpb-util)
 (define-key comint-mode-map (kbd "C-c d") 'gpb-comint-delete-last-output)

@@ -10,6 +10,9 @@
 (require 'evil-goggles)
 (require 'evil-surround)
 
+;; Must be set before the goggles mode is enabled.
+(setq evil-goggles-enable-record-macro nil)
+
 (evil-mode 1)
 (evil-goggles-mode 1)
 (global-evil-surround-mode 1)
@@ -23,7 +26,8 @@
       evil-visual-state-cursor 'hollow
       evil-emacs-state-cursor 'bar
       evil-shift-width 2
-      evil-kill-on-visual-paste nil)
+      evil-kill-on-visual-paste nil
+      evil-ex-search-persistent-highlight nil)
 
 (evil-select-search-module 'evil-select-search-mode 'evil-search)
 
@@ -63,6 +67,8 @@
 ;; Press \ twice to stay in emacs state.  Then C-g to leave.
 (evil-define-key 'emacs 'global "\\" 'evil-emacs-state)
 (evil-define-key 'emacs 'global "\C-g" 'evil-normal-state)
+
+(evil-define-key 'replace 'global "\C-g" 'evil-normal-state)
 
 ;; Never start in insert or emacs state.
 (setq evil-insert-state-modes nil
