@@ -757,7 +757,7 @@ process."
                                 gpb-r-prompt "Browse[[0-9]+]> "))
           (chdir-regex (format "^%s:CHDIR:\\(.*\\)\n" gpb-r-guid))
           (inhibit-read-only t)
-          beg previous-output)
+          beg previous-output first-line-contains-cr)
 
       ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter before")
 
@@ -769,7 +769,23 @@ process."
         (setq beg (save-excursion (forward-line 0) (copy-marker (point))))
         (insert string)
 
-        (save-excursion (comint-carriage-motion beg (point-max)))
+        ;; Is there a carraige return in the first line?
+        (setq first-line-contains-cr (save-excursion
+                                       (goto-char (point-min))
+                                       (search-forward "\r"
+                                                       (save-excursion
+                                                         (end-of-line)
+                                                         (point))
+                                                       t)))
+
+        (save-excursion (comint-carriage-motion (point-min) (point-max)))
+
+        ;; Preserve an initial carraige return as it may be used to
+        ;; overwrite output that is already in the buffer.
+        (when first-line-contains-cr
+          (goto-char (point-min))
+          (insert "\r"))
+
         (save-excursion (ansi-color-apply-on-region beg (point-max)))
 
         ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter insert")
