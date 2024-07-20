@@ -12,9 +12,6 @@
 
 (require 'ess-r-mode)
 
-(defvar gpb-r-debug nil
-  "When t, we takes steps to make things easier to debug.")
-
 (defvar-local gpb-r-region-file nil
   "File used to pass code snippets to the R process.
 Each `gpb-inferior-r-mode' buffer uses a different region file.")
@@ -741,8 +738,7 @@ the inferior R buffer.  `gpb-r-send-command' uses this mechanism."
 BUF is an inferior R process buffer.  STRING contins output from the R
 process."
   (setq buf (get-buffer buf))
-  (when gpb-r-debug
-    (message "gpb-r-preoutput-filter-1 string in %S\n%s" string string))
+  ;; (message "gpb-r-preoutput-filter-1 string in %S\n%s" string string)
   (with-current-buffer buf
     (cl-assert (derived-mode-p 'gpb-inferior-r-mode)))
 
@@ -898,9 +894,8 @@ process."
 
               (setq string (gpb-r-cut-region (point-min) (point)))))))))
 
-    (when gpb-r-debug
-      (gpb-r-dump-buffer "gpb-r-preoutput-filter after")
-      (message "gpb-r-preoutput-filter string out: %S\n%s" string string))
+    ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter after")
+    ;; (message "gpb-r-preoutput-filter string out: %S\n%s" string string)
 
     string))
 
@@ -1077,9 +1072,8 @@ long as it takes."
                 (with-local-quit
                   (accept-process-output proc)))
 
-              (when gpb-r-debug
-                (message "gpb-r-send-command--response: %S"
-                         gpb-r-send-command--response))
+              ;; (message "gpb-r-send-command--response: %S"
+              ;;          gpb-r-send-command--response)
 
               ;; Cancel the timer if it is still pending.
               (when gpb-r-command-timeout-timer
