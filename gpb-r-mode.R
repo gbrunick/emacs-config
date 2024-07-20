@@ -20,7 +20,7 @@
 
   # Print a traceback on error.
   error_callback <- function() {
-    calls <- .traceback(1)
+    calls <- .traceback(2)
 
     # We prefer srcref line info when it is available.
     for (i in seq_along(call)) {
