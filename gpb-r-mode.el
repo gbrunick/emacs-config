@@ -1097,6 +1097,8 @@ long as it takes."
         (erase-buffer)
         (special-mode)
         (insert txt)
+        (comint-carriage-motion (point-min) (point-max))
+        (ansi-color-apply-on-region (point-min) (point-max))
         (goto-char (point-min))
         (save-excursion
           (when (re-search-forward "^Selection: " nil t)
