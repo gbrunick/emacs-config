@@ -173,8 +173,8 @@
 ;; (setq explicit-shell-file-name "/bin/bash")
 
 ;; Some kind of styling
-(eval-after-load 'poly-markdown
-  '(oset poly-markdown-root-innermode :adjust-face 25))
+(with-eval-after-load 'poly-markdown
+  (oset poly-markdown-root-innermode :adjust-face 25))
 
 ;; My filtered lists
 (require 'gpb-filtered-list)
