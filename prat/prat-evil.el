@@ -21,16 +21,6 @@
     (kbd "RET") 'prat-show-commit-graph--show-commit
     "!" 'prat-shell-command)
 
-  (evil-define-key 'normal prat-hunk-selection-mode-map
-    "\t" 'prat-forward-command
-    [(backtab)] 'prat-backward-command
-    "p" 'prat-backward-command
-    "P" 'prat-backward-file-command
-    "n" 'prat-forward-command
-    "N" 'prat-forward-file-command
-    (kbd "RET") 'prat-goto-line
-    "gr" 'revert-buffer)
-
   (evil-define-key 'normal prat-hunk-view-mode-map
     "\t" 'prat-forward-command
     [(backtab)] 'prat-backward-command
@@ -40,6 +30,13 @@
     "N" 'prat-forward-file-command
     (kbd "RET") 'prat-goto-line
     "gr" 'revert-buffer)
+
+  (evil-define-key 'normal prat-hunk-selection-mode-map
+    "m" 'prat-mark-hunk-command
+    "M" 'prat-mark-file-command
+    "r" 'prat-mark-as-rename
+    "u" 'prat-unmark-hunk-command
+    "U" 'prat-unmark-file-command)
 
   (evil-define-key 'normal prat-show-commit-files-mode-map
     (kbd "RET") 'prat-show-commit-graph--show-file-version)
