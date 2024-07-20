@@ -34,8 +34,7 @@
   }
 
   # Emacs writes to this file for region evaluation.
-  region_file <- tempfile("region-", fileext = ".R")
-  writeLines("init", region_file)
+  region_file <- file.path(tempdir(), "emacs-region.R")
 
   sync_working_dir <- function() {
     dir <- getwd()
@@ -118,9 +117,6 @@
     on.exit(emit_chdir(wd))
     rmarkdown::render(input, ..., envir = envir)
   }
-
-  # Emacs reads this output and sets `gpb-r-mode--region-file'.
-  cat(sprintf("region-file: %s\n", base::normalizePath(region_file)))
 
   options(menu.graphics = FALSE,
           pager = "cat",

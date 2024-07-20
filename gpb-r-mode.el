@@ -12,10 +12,6 @@
 
 (require 'ess-r-mode)
 
-(defvar-local gpb-r-region-file nil
-  "File used to pass code snippets to the R process.
-Each `gpb-inferior-r-mode' buffer uses a different region file.")
-
 ;; We use ESS for R source code files, but try to stop it from doing things
 ;; in the background.  This seems to improve my Emacs stability.
 (setq ess-r-mode-hook nil
@@ -175,60 +171,94 @@ At the moment, there can only be one active process")
 
   (set-syntax-table gpb-inferior-r-mode--syntax-table)
 
-  ;; Set up the helper buffer.
+  ;; Initialize the helper buffer.
   (let ((staging-buffer (gpb-r-get-staging-buffer (current-buffer) 'ensure)))
     (with-current-buffer staging-buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (special-mode)))
+        (special-mode))
+      (setq-local gpb-r-found-tmpdir nil))
     (push staging-buffer gpb-r-all-inferior-buffers))
 
   (gpb-r-read-history)
 
-  ;; We don't try to send anything to the R process until is has echoed
-  ;; this first prompt.  This mainly for aesthetics; in some cases the
-  ;; terminal will echo the input we send to R before R starts up.
+  ;; We don't send anything to the R process until it has echoed its first
+  ;; prompt.
   (add-hook 'comint-output-filter-functions
-            #'gpb-r-wait-for-r-filter nil t))
+            #'gpb-inferior-r-mode-2 nil t))
 
 
-(defun gpb-r-wait-for-r-filter (&rest args)
+(defun gpb-inferior-r-mode-2 (&rest args)
   "Implementation detail of `gpb-inferior-r-mode'
-Waits for the first prompt from R and then completes the initialization of
-  the buffer."
+Waits for the first prompt from R."
   (save-excursion
     (save-match-data
       (goto-char (point-max))
       (forward-line 0)
       (when (search-forward "> " nil t)
-        (message "Found R prompt")
+        (gpb-r-message "Found R prompt")
 
         ;; Remove this function.
         (remove-hook 'comint-output-filter-functions
-                     #'gpb-r-wait-for-r-filter t)
+                     #'gpb-inferior-r-mode-2 t)
 
-        ;; Finish initializing buffer.
-        (run-at-time 0 nil #'gpb-inferior-r-mode-1 (current-buffer))))))
+        ;; Low level command processing.
+        (add-hook 'comint-preoutput-filter-functions
+                  #'gpb-r-preoutput-filter nil t)
+
+        ;; Look for debug breakpoints and show the corresponding buffer
+        ;; location.
+        (add-hook 'comint-output-filter-functions
+                  #'gpb-r-debug-filter-function nil t)
+
+        ;; Make filenames clickable buttons.
+        (add-hook 'comint-output-filter-functions
+                  #'gpb-r-add-buttons-filter nil t)
+
+        ;; The preoutput filter `gpb-r-preoutput-filter' will pick up this
+        ;; output and pass it on to `gpb-inferior-r-mode-3'
+        (send-string
+         (get-buffer-process (current-buffer))
+         (format "cat(sprintf('%s%%s\\n', tempdir()))\n"
+                 gpb-r-tmpdir-marker))))))
 
 
-(defun gpb-inferior-r-mode-1 (&optional buf)
-  (let ((buf (or buf (current-buffer))))
+(defun gpb-inferior-r-mode-3 (buf r-tmp-dir)
+  "Complete the initialization of the R process in buffer BUF.
+
+Ensures that the R process sources the init file gpr-r-mode.R.  If the R
+process is remote, we first copy this file to `r-tmp-dir' on the remote
+system."
+  (save-match-data
+    ;; (gpb-r-message "gpb-inferior-r-mode-3: %S %S" buf r-tmp-dir)
     (with-current-buffer buf
-      ;; Low level command processing.
-      (add-hook 'comint-preoutput-filter-functions
-                #'gpb-r-preoutput-filter nil t)
+      (setq gpb-r-proc-tmp-dir (file-name-as-directory
+                                (concat (file-remote-p default-directory)
+                                        r-tmp-dir))
+            gpb-r-region-file (concat gpb-r-proc-tmp-dir "emacs-region.R"))
 
-      ;; Looks for debug breakpoints and jump to the corresponding buffer
-      ;; location.
-      (add-hook 'comint-output-filter-functions
-                #'gpb-r-debug-filter-function nil t)
+      (let* ((local-init-script (locate-library "gpb-r-mode.R"))
+             (remote-init-script (expand-file-name "copy-of-gpb-r-mode.R"
+                                                   gpb-r-proc-tmp-dir))
+             r-local-path cmd)
 
-      ;; Make filenames clickable buttons.
-      (add-hook 'comint-output-filter-functions
-                #'gpb-r-add-buttons-filter nil t)
+        (cond
+         ;; If we are running R on a remote machine over TRAMP, we write our R
+         ;; init script into the remote temp dir.
+         ((file-remote-p gpb-r-proc-tmp-dir)
+          (let ((coding-system-for-write 'us-ascii-unix))
+            (with-temp-file remote-init-script
+              (insert-file-contents local-init-script)))
+          (setq r-local-path (file-local-name remote-init-script)))
 
-      ;; Initialize Emacs/R connection.
-      (gpb-r-source-R-init-file))))
+         ;; Otherwise, we can just source the file directly.
+         (t
+          (setq r-local-path local-init-script)))
+
+        ;; Now source `local-path'
+        (setq cmd (format "source(%S)\n" r-local-path))
+        (gpb-r-message "R Init command: %s" (string-trim cmd))
+        (gpb-r-send-command cmd buf nil 'wait)))))
 
 
 (defun gpb-r-set-active-process ()
@@ -651,11 +681,22 @@ If ENSURE is non-nil, we create the buffer if it doesn't already exist."
 ;;
 ;; Preoutput filter functions
 ;;
+;;
+;; There are various low-level output markers that allow the R process to
+;; communicate with Emacs.  These all start with `gpb-r-guid'.  We strip
+;; these from the output and handle them in out preoutput filter.
+;;
 
 (defvar gpb-r-guid "7b530f72-85a0-483c-98ce-d24414394ff0"
   "A string that is unlikely to appear at the start of a line of output.")
 
 (defvar gpb-r-prompt (format "%s:PROMPT" gpb-r-guid))
+
+(defvar gpb-r-tmpdir-marker (format "%s:R_TEMP_DIR:" gpb-r-guid)
+  "Used by `gpb-inferior-r-mode-2' to get R's temp directory.")
+
+(defvar gpb-r-chdir-marker (format "%s:CHDIR:" gpb-r-guid)
+  "Used by R to notify Emacs of changes in the R working directory.")
 
 (defvar gpb-r-output-marker (format "%s:OUTPUT:" gpb-r-guid)
   "Used by `gpb-r-send-command' to mark the start of output.")
@@ -670,7 +711,7 @@ This may not be at the start of the line.")
 (defvar-local gpb-r-pending-commands nil
   "Defined in inferior R buffers.  List of (list callback args) pairs.")
 
-(defvar gpb-r-command-timeout 1
+(defvar gpb-r-command-timeout 2
   "Default R command timeout in seconds for `gpb-r-send-command'")
 
 (defvar-local gpb-r-command-timeout-timer nil
@@ -681,6 +722,20 @@ cancelled by `gpb-r-send-command' when we see the next prompt.  If triggered,
 it shows a warning that the command seems to be blocking.
 
 Each inferior R process has its own timer.")
+
+(defvar-local gpb-r-proc-tmp-dir nil
+  "Defined in each R inferior process buffer.
+The remote R process's temp directory. Includes a TRAMP prefix for remote
+files.")
+
+(defvar-local gpb-r-region-file nil
+  "Defined in each R inferior process buffer.
+File used to pass code snippets to the R process. Each R process uses a
+different region file. Includes a TRAMP prefix for remote files.")
+
+(defvar-local gpb-r-found-tmpdir nil
+  "Defined in each staging buffer.
+Set to t when we see the R process echo `tempdir()`")
 
 
 (defun gpb-r-might-be-looking-at-guid-p (&optional pos buf)
@@ -749,11 +804,13 @@ process."
                          ;; If we create the buffer, we want it to pick up
                          ;; `default-directory' from `buf'.
                          (gpb-r-get-staging-buffer buf 'ensure)))
+          (tmpdir-regex (format "%s\\(.*\\)\n>? *" gpb-r-tmpdir-marker))
           (prompt-regex (format "\\(%s\\)\\|\\(%s\\)"
                                 gpb-r-prompt "Browse[[0-9]+]> "))
-          (chdir-regex (format "^%s:CHDIR:\\(.*\\)\n" gpb-r-guid))
+          (chdir-regex (format "%s\\(.*\\)\n" gpb-r-chdir-marker))
+          (output-regex (format "%s\\(.*\\)\n" gpb-r-output-marker))
           (inhibit-read-only t)
-          beg previous-output first-line-contains-cr)
+          beg previous-output first-line-contains-cr r-tmp-dir)
 
       ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter before")
 
@@ -762,30 +819,45 @@ process."
         ;; inferior R process.
         (cl-assert default-directory)
         (goto-char (point-max))
-        (setq beg (save-excursion (forward-line 0) (copy-marker (point))))
+        (setq beg (copy-marker (pos-bol)))
         (insert string)
 
         ;; Is there a carraige return in the first line?
         (setq first-line-contains-cr (save-excursion
                                        (goto-char (point-min))
-                                       (search-forward "\r"
-                                                       (save-excursion
-                                                         (end-of-line)
-                                                         (point))
-                                                       t)))
+                                       (search-forward "\r" (pos-eol) t)))
 
+        ;; Process terminal control characters
         (save-excursion (comint-carriage-motion (point-min) (point-max)))
+        (save-excursion (ansi-color-apply-on-region beg (point-max)))
 
-        ;; Preserve an initial carraige return as it may be used to
-        ;; overwrite output that is already in the buffer.
+        ;; If there was a carraige return on the first line, we should
+        ;; overwrite the current output line in the R inferior process
+        ;; buffer so we insert an initial carraige return.
         (when first-line-contains-cr
           (goto-char (point-min))
           (insert "\r"))
 
-        (save-excursion (ansi-color-apply-on-region beg (point-max)))
-
         ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter insert")
 
+        ;; Look for `gpb-r-tmpdir-marker'
+        ;;
+        ;; We request `tempdir()` from the R process and pass it to
+        ;; `gpb-inferior-r-mode-3'.
+        (goto-char beg)
+        (while (re-search-forward tmpdir-regex nil t)
+          ;; Sometimes the R process writes the R_TEMP_DIR output twice.
+          ;; Maybe this is related to terminal echo settings?  We only want
+          ;; to call `gpb-inferior-r-mode-3' once.
+          (unless gpb-r-found-tmpdir
+            (run-at-time 0.1 nil #'gpb-inferior-r-mode-3 buf (match-string 1))
+            (setq-local gpb-r-found-tmpdir t))
+
+          ;; Remove the match from the buffer.
+          (delete-region (match-beginning 0) (match-end 0)))
+
+        ;; Look for `gpb-r-chdir-marker'
+        ;;
         ;; Add `current-working-dir' text properties that give the R
         ;; processes working directory at the time of output.
         (goto-char beg)
@@ -804,10 +876,13 @@ process."
           (put-text-property (point) (point-max)
                              'current-working-dir
                              default-directory))
+
         ;; (gpb-r-dump-buffer "gpb-r-preoutput-filter clean"))
+
+        ;; If we see a flush command, we stop waiting on the current
+        ;; command and dump all pending output to the R inferior buffer.
         (goto-char (point-min))
         (if (search-forward gpb-r-flush-marker nil t)
-            ;; FLUSH command overrides everything else.
             (progn
               ;; Delete the FLUSH command.
               (delete-region (match-beginning 0) (match-end 0))
@@ -815,7 +890,7 @@ process."
               (save-excursion
                 (goto-char (point-min))
                 (while (search-forward gpb-r-output-marker nil t)
-                  (replace-match "# Timeout during background command:\n")))
+                  (replace-match "# Timeout during background command: ")))
               (setq string (gpb-r-cut-region (point-min) (point-max)))
               (with-current-buffer buf
                 (setq-local gpb-r-pending-commands nil
@@ -1154,62 +1229,6 @@ long as it takes."
       (goto-char (point-min))
       (re-search-forward "\\(Working dir:.*\\)\n")
       (message "%s" (match-string 1)))))
-
-
-(defun gpb-r-source-R-init-file (&optional buf)
-  "Source gpb-r-mode.R in the interpreter.
-
-Should be called from the interpreter buffer.  Returns the region file path."
-  ;; (message "gpb-r-source-R-init-file: %S" (current-buffer))
-  (let* ((buf (or buf (current-buffer)))
-         (basename "gpb-r-mode.R")
-         (local-init-script (locate-library "gpb-r-mode.R"))
-         (remote-init-script (expand-file-name (concat "." basename)))
-         path init-output region-file)
-
-    (cond
-     ;; If we are running R on a remote machine over TRAMP, we write our R
-     ;; init script to ".gpb-r-mode.R" at the root of the R repo and then
-     ;; source it.
-     ((file-remote-p remote-init-script)
-      (let ((coding-system-for-write 'us-ascii-unix))
-        (with-temp-file remote-init-script
-          (insert-file-contents local-init-script)
-          ;; Another attempt to clean up line endings.
-          (delete-trailing-whitespace)))
-      (setq path (concat "." basename)))
-
-     ;; Otherwise, we can just source the file directly.
-     (t
-      (setq path (concat "." local-init-script))))
-
-    ;; Disable the `timeout' here.  I can take a while to spin up
-    ;; an R process in some situations (e.g., you are running in
-    ;; Docker image that needs to be downloaded).
-    (gpb-r-send-command (format "source(%S)\n" path) buf
-                        #'gpb-r-source-R-init-file-1 'wait)))
-
-
-(defun gpb-r-source-R-init-file-1 (buf output complete)
-  (when complete
-    (let ((region-file (with-temp-buffer
-                         ;; (message "gpb-r-source-R-init-file:\n%s\n" init-output)
-                         (insert output)
-                         (goto-char (point-min))
-                         (re-search-forward "^region-file: +\\(.*\\)$")
-                         (match-string 1))))
-
-      ;; `gpb-r-preoutput-filter' adds a text property `current-working-dir'
-      ;; to `output'.  `gpb-r-expand-filename' uses this and
-      ;; `default-directory' to get an absolute path.  At which point, we can
-      ;; drop the text properties.
-      (setq region-file (substring-no-properties
-                         (gpb-r-expand-filename region-file)))
-      (gpb-r-message "R region file is %s" region-file)
-      (with-current-buffer buf
-        (setq-local gpb-r-region-file region-file))
-
-      region-file)))
 
 ;;
 ;; Completion
