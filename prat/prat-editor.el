@@ -113,7 +113,7 @@ output in BUFFER-OR-NAME and swithced to this buffer."
           (goto-char start)
           (cond
            (complete
-            ;; Skip the output from out editor script and show the Git
+            ;; Skip the output from our editor script and show the Git
             ;; command output.
             (when (re-search-forward "^Command output:" end t)
               (forward-line 1)
