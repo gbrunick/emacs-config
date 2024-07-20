@@ -358,14 +358,18 @@ displayed."
                    (and (string-match "^\\[\\(.+\\)\\]$" place)
                         (get-buffer (match-string 1 place)))
 
-                   (let ((filename (gpb-r-expand-filename place)))
-                     (and (file-exists-p filename)
-                          (find-file-noselect filename)))
-                   (find-file-noselect (read-file-name
-                                        (format "Find %s: "
-                                                (file-name-nondirectory filename))
-                                        (get-text-property
-                                         0 'current-working-dir filename)))))
+                   (let ((filename (gpb-r-expand-filename place)) dir)
+                     (or
+                      (and (file-exists-p filename)
+                           (find-file-noselect filename))
+                      (and (setq dir (read-directory-name
+                                      (format "Find %s: "
+                                              (file-name-nondirectory
+                                               filename))
+                                      (get-text-property
+                                       0 'current-workking-dir filename)))
+                           (find-file-noselect
+                            (concat dir (file-name-nondirectory filename))))))))
              place))
 
   (when (and buf (buffer-live-p buf))
