@@ -25,9 +25,10 @@
       evil-cross-lines t
       evil-visual-state-cursor 'hollow
       evil-emacs-state-cursor 'bar
-      evil-shift-width 2
       evil-kill-on-visual-paste nil
       evil-ex-search-persistent-highlight nil)
+
+(set-default 'evil-shift-width 1)
 
 (evil-select-search-module 'evil-select-search-mode 'evil-search)
 
@@ -214,6 +215,23 @@ This function will be called by the operator ! in programming modes.")
   (save-excursion
     (goto-char beg)
     (insert (evil-get-register (or register ?\")))))
+
+;; Don't leave visual selection mode after a shift.
+;; https://superuser.com/questions/684540
+(define-key evil-visual-state-map (kbd ">") 'gpb-evil-shift-right-visual)
+(define-key evil-visual-state-map (kbd "<") 'gpb-evil-shift-left-visual)
+
+(defun gpb-evil-shift-left-visual ()
+  (interactive)
+  (call-interactively 'evil-shift-left)
+  (evil-normal-state)
+  (evil-visual-restore))
+
+(defun gpb-evil-shift-right-visual ()
+  (interactive)
+  (call-interactively 'evil-shift-right)
+  (evil-normal-state)
+  (evil-visual-restore))
 
 (evil-define-key 'normal 'global (kbd "C-r") #'gpb-replace-operator)
 (evil-define-key 'visual 'global (kbd "C-r") #'gpb-replace-operator)
