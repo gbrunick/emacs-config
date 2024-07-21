@@ -1086,15 +1086,23 @@ Echoes `gpb-r-output-marker' from the R process.  This tells
 
 If CALLBACK is `nil', this function blocks until we have a response from R.
 
-Otherwise, CALLBACK is called once with two arguments: the buffer
-containing the inferior R process and a string containing the command
-output.  This usage is preferred to blocking when possible.  If you don't
-care about the result, pass `ignore' as CALLBACK.
+Otherwise, CALLBACK is called with the arguments: BUF, OUTPUT, COMPLETE
+plus any addition arguments in ARGS.  BUF is the buffer
+containing the inferior R process.  OUTPUT is a string containing all
+output collected from the command.  COMPLETE is t if the command is
+complete.  CALLBACK will be called exactly once with COMPLETE true and most
+CALLBACKS can ignore any previous calls.
+
+Passing a callback is much preferred to blocking when possible.  If you
+don't care about the result, pass `ignore' as CALLBACK.
 
 TIMEOUT defaults to `gpb-r-command-timeout-timer'.  If the command takes
 longer than this we send all pending output to the inferior R buffer and
 stop waiting for the command to complete.  Pass 'wait as TIMEOUT to wait as
-long as it takes."
+long as it takes.
+
+See `gpb-r-show-docs-1' for an example of a CALLBACK that checks if a
+command is blocking because it needs user input."
   (interactive "sR Command: ")
   (let* ((buf (or buf (gpb-r-get-proc-buffer)))
          (staging-buf (and buf (gpb-r-get-staging-buffer buf 'ensure)))
