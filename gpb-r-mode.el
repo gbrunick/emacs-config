@@ -176,8 +176,7 @@ At the moment, there can only be one active process")
     (with-current-buffer staging-buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (special-mode))
-      (setq-local gpb-r-found-tmpdir nil))
+        (special-mode)))
     (push staging-buffer gpb-r-all-inferior-buffers))
 
   (gpb-r-read-history)
@@ -733,10 +732,6 @@ files.")
 File used to pass code snippets to the R process. Each R process uses a
 different region file. Includes a TRAMP prefix for remote files.")
 
-(defvar-local gpb-r-found-tmpdir nil
-  "Defined in each staging buffer.
-Set to t when we see the R process echo `tempdir()`")
-
 
 (defun gpb-r-might-be-looking-at-guid-p (&optional pos buf)
   "Could the partial line starting at POS in BUF match `gpb-r-guid'?"
@@ -847,15 +842,11 @@ process."
         ;; We request `tempdir()` from the R process and pass it to
         ;; `gpb-inferior-r-mode-3'.
         (goto-char first-new-line)
-        (while (re-search-forward tmpdir-regex nil t)
+        (when (re-search-forward tmpdir-regex nil t)
           ;; Sometimes the R process writes the R_TEMP_DIR output twice.
           ;; Maybe this is related to terminal echo settings?  We only want
           ;; to call `gpb-inferior-r-mode-3' once.
-          (unless gpb-r-found-tmpdir
-            (run-at-time 0.1 nil #'gpb-inferior-r-mode-3 buf (match-string 1))
-            (setq-local gpb-r-found-tmpdir t))
-
-          ;; Remove the match from the buffer.
+          (run-at-time 0.1 nil #'gpb-inferior-r-mode-3 buf (match-string 1))
           (delete-region (match-beginning 0) (match-end 0)))
 
         ;; Look for `gpb-r-chdir-marker'
