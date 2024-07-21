@@ -95,6 +95,7 @@ before CMD is run."
         ;; Set any environment variables
         (dolist (def env-vars)
           (process-send-string proc (format "set %s\n" def)))
+        ;; echo includes any trailing space when called from cmd.exe.
         (process-send-string
          proc (format "echo:& echo %s& %s & echo:& echo %s\n"
                       prat-output-start cmd prat-output-end))
@@ -125,15 +126,13 @@ before CMD is run."
   (prat-log-call)
   (when (buffer-live-p (process-buffer proc))
     (let ((proc-buf (process-buffer proc))
-          ;; echo includes the trailing space when called from cmd.exe.
           (start-regex (format "^%s" prat-output-start))
           (end-regex (format "^%s" prat-output-end))
           ;; `start-marker' and `end-marker' are the matches to the regexs.
           start-marker end-marker
           ;; `output-start' and `output-end' will delimit complete lines.
           output-start output-end
-          ;; We set `complete' to t when we see end of output marker.
-          complete
+          callback
           (inhibit-read-only t))
 
       (with-current-buffer proc-buf
@@ -145,6 +144,7 @@ before CMD is run."
           (setq output-start (save-excursion (forward-line 0) (point)))
           (insert string)
           (set-marker (process-mark proc) (point))
+          (comint-carriage-motion output-start (point))
           (setq output-end (save-excursion (forward-line 0) (point)))
 
           ;; Look for the special output markers.
@@ -173,16 +173,21 @@ before CMD is run."
                                 (setq output-end (point))
                                 (point)))))
 
-          (when (and start-marker callback-func)
-            ;; `callback-func' is buffer-local, so we need to save it
-            ;; before we switch buffers.
-            (let ((f callback-func))
-              (with-current-buffer callback-buf
-                (when (> output-end output-start)
-                  (funcall f proc-buf output-start output-end nil))
-                (when end-marker
-                  (funcall f proc-buf start-marker end-marker t)
-                  (prat-return-or-kill-buffer proc-buf))))))))))
+          ;; `callback-func' is buffer-local in `proc-buf', so we need to
+          ;; save it before we switch buffers below.
+          (setq callback callback-func)
+
+          (when (and start-marker callback)
+            (with-current-buffer callback-buf
+              (when (> output-end output-start)
+                (funcall callback proc-buf output-start output-end nil))))
+
+          (when (and end-marker callback)
+            (with-current-buffer callback-buf
+              (funcall callback proc-buf start-marker end-marker t)))
+
+          (when end-marker
+            (prat-return-or-kill-buffer proc-buf)))))))
 
 
 (defun prat-shell-command (cmd &optional bufname env-vars dir)
@@ -346,10 +351,6 @@ caller is responsible for returning the buffer by calling
                       prat-idle-time msg))
         ;; Add back to the worker pool.
         (push `(,tramp-prefix . ,buf) prat-available-workers))
-
-       ;; If we are in debug mode, kill the process but not the buffer.
-       (prat-debug
-        (kill-process (get-buffer-process buf)))
 
        ;; Otherwise, kill the buffer.
        (t
