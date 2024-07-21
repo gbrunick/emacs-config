@@ -37,6 +37,7 @@
 
 ;; Completely stomp over `ess-r-mode-map'.
 (setq ess-r-mode-map (let ((keymap (make-sparse-keymap)))
+                       (define-key keymap [?\t] 'gpb-r-tab-command)
                        (define-key keymap "\C-c\C-b" 'gpb-r-insert-browser)
                        (define-key keymap "\C-c\C-c" 'gpb-r-save-and-exec-command)
                        (define-key keymap "\C-c\C-d" 'gpb-r-show-docs)
@@ -65,8 +66,8 @@
 
 (when (and (boundp 'evil-mode) evil-mode)
   (evil-define-key 'normal gpb-inferior-r-mode-map (kbd "TAB") 'forward-button)
-  (evil-define-key 'normal gpb-inferior-r-mode-map [(backtab)] 'backward-button))
-  ;; (evil-define-key 'insert gpb-inferior-r-mode-map [?\t] 'completion-at-point))
+  (evil-define-key 'normal gpb-inferior-r-mode-map [(backtab)] 'backward-button)
+  (evil-define-key 'insert ess-r-mode-map [?\t] 'completion-at-point))
 
 
 (defgroup gpb-r-mode nil
@@ -141,8 +142,9 @@ At the moment, there can only be one active process")
 
   (ess-set-style 'DEFAULT)
 
-  (setq-local completion-at-point-functions
-              '(tags-completion-at-point-function dabbrev-capf))
+  ;; (setq-local completion-at-point-functions
+  ;;             '(tags-completion-at-point-function dabbrev-capf))
+  (setq-local completion-at-point-functions '(gpb-r-completion-at-point))
   (setq-local eldoc-documentation-functions nil)
   (setq-local ess-idle-timer-functions nil)
 
@@ -1267,12 +1269,12 @@ command is blocking because it needs user input."
 (defun gpb-r-completion-at-point ()
   (save-excursion
     (let* ((buf (gpb-r-get-proc-buffer))
-           (proc (get-buffer-process buf))
-           (line (buffer-substring-no-properties (process-mark proc) (point)))
+           (bol (line-beginning-position))
+           (line (buffer-substring-no-properties bol (point)))
            (completion-info (gpb-r-get-completions line buf)))
       ;; (message "completion-info: %S" completion-info)
-      (list (+ (process-mark proc) (plist-get completion-info :beg))
-            (+ (process-mark proc) (plist-get completion-info :end))
+      (list (+ bol (plist-get completion-info :beg))
+            (+ bol (plist-get completion-info :end))
             (plist-get completion-info :completions)))))
 
 (defun gpb-r-minibuffer-complete (line)
