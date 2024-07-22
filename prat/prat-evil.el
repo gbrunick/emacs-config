@@ -46,9 +46,9 @@
     "gr" 'prat-show-status--refresh
     "m" 'prat-show-status--mark-file
     "u" 'prat-show-status--unmark-file
-    "a" 'prat-show-status--stage-files
-    "r" 'prat-show-status--unstage-files
-    "d" 'prat-show-status--show-diff
+    "a" 'prat-show-status--add-files
+    "r" 'prat-show-status--reset-files
+    "s" 'prat-show-status--stash-files
     "!" 'prat-shell-command)
 
   (evil-define-key 'normal prat-staged-changes-mode-map

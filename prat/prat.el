@@ -176,17 +176,17 @@ names in the UI."
        :extend t))
   "Face used for deleted lines in the marked hunk.")
 
-
 (defface prat-marked-line-face
-  `((t :foreground "#000000"
-       :background ,(prat-blend-colors "khaki2" "white" 0.72 0.22)
-       :extend t))
-  "Face used for the marked revision in a log buffer.")
+  ;; `((t :foreground "#000000"
+  ;;      :background ,(prat-blend-colors "khaki2" "white" 0.72 0.22)
+  ;;      :extend t))
+  `((t :inherit region))
+  "Face used for marked files in status buffer.")
 
 
 (define-derived-mode prat-base-mode special-mode
   "Prat Base Mode"
-  "\nBase mode for all buffers managed by the `prat' pacakge."
+  "\nBase mode for all buffers managed by the `prat' package."
   (setq-local tab-width 4))
 
 

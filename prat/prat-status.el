@@ -1,4 +1,5 @@
 (require 'prat-shell-commands)
+(require 'seq)
 
 (defvar prat-show-status-mode-map
   (let ((map (make-sparse-keymap)))
@@ -7,9 +8,9 @@
     (define-key map "g" 'prat-show-status--refresh)
     (define-key map "m" 'prat-show-status--mark-file)
     (define-key map "u" 'prat-show-status--unmark-file)
-    (define-key map "a" 'prat-show-status--stage-files)
-    (define-key map "r" 'prat-show-status--unstage-files)
-    (define-key map "d" 'prat-show-status--show-diff)
+    (define-key map "a" 'prat-show-status--add-files)
+    (define-key map "r" 'prat-show-status--reset-files)
+    (define-key map "s" 'prat-show-status--stash-files)
     (define-key map "!" 'prat-shell-command)
     map)
   "The keymap used when viewing git status output.")
@@ -21,51 +22,37 @@
 
 \\{prat-show-status-mode-map}\n"
   (read-only-mode 1)
-  (setq tab-width 4)
+  (setq tab-width 4))
 
-  ;; Delete any existing filename overlays.
-  (mapcar (lambda (ov) (let ((fn (overlay-get ov 'filename)))
-                         (when fn (delete-overlay ov))))
-          (overlays-in (point-min) (point-max))))
 
 (defun prat-show-status (&optional repo-dir)
   "Show the current Git status in a buffer."
   (interactive)
   (let* ((repo-dir (or repo-dir (prat-find-repo-root)))
-         (buf (get-buffer-create prat-status-buffer-name)))
+         (buf (get-buffer-create prat-status-buffer-name))
+         (inhibit-read-only t))
 
     (with-current-buffer buf
+      (erase-buffer)
+      (prat-erase-overlays)
       (prat-show-status-mode)
       (setq default-directory repo-dir)
+      (setq-local prat-status-command
+                  "git -c advice.statusHints=false status --show-stash")
+      (insert (format "Status in %s\n\n> git status --show-stash\n\n" repo-dir))
+      (setq-local prat-status-output-marker (point))
+      (prat-insert-placeholder "Loading status")
       (prat-show-status--refresh))
 
     (switch-to-buffer buf)))
 
 
-(defun prat-show-status--refresh (&optional buf)
+(defun prat-show-status--refresh (&rest args)
   "Update the current Git status buffer."
   (interactive)
-  (let* ((buf (or buf
-                  (and (derived-mode-p 'prat-show-status-mode)
-                       (current-buffer))
-                  (get-buffer prat-status-buffer-name)))
-         (cmd "git -c advice.statusHints=false status -u")
-         (inhibit-read-only t)
-         (root-dir (prat-abbreviate-file-name default-directory))
-         pt)
-
-    (when buf
-      (with-current-buffer buf
-        (setq pt (point))
-        (dolist (ov (prat-show-status--get-overlays 'filename))
-          (delete-overlay ov))
-        (erase-buffer)
-        (save-excursion
-          (insert (format "Repo: %s\n\n%s\n\n" root-dir cmd))
-          (setq-local original-point pt)
-          (setq-local put-status-here (point))
-          (prat-async-shell-command
-           cmd default-directory #'prat-show-status--refresh-1))))))
+  (let ((inhibit-read-only t))
+    (prat-async-shell-command
+     prat-status-command default-directory #'prat-show-status--refresh-1)))
 
 
 (defun prat-show-status--refresh-1 (buf start end complete)
@@ -75,18 +62,18 @@ Asyncronous callback that add buttons and overlays to the Git
 status output."
   (prat-log-call)
   (when complete
-    (save-excursion
-      (let ((status-text (with-current-buffer buf
-                           (buffer-substring-no-properties start end)))
-            (inhibit-read-only t))
-        (goto-char put-status-here)
+    (let ((status-text (with-current-buffer buf
+                         (buffer-substring-no-properties start end)))
+          (inhibit-read-only t))
+      (delete-region prat-status-output-marker (point-max))
+      (goto-char prat-status-output-marker)
+      (save-excursion
         (insert status-text)
-        (goto-char put-status-here)
-        (prat-markup-status-output)))
-    (goto-char original-point)
-    (forward-line 0)))
+        (goto-char prat-status-output-marker)
+        (prat-show-status--markup-output)))))
 
-(defun prat-markup-status-output ()
+
+(defun prat-show-status--markup-output ()
   "Markup git status output in the current buffer."
 
   ;; Some version of Git (e.g. 1.8.3.1) prefix the status output with
@@ -97,218 +84,196 @@ status output."
 
   (when (re-search-forward "Changes to be committed:" nil t)
     (insert " (")
-    (insert-text-button "view all"
-                        'action 'prat-show-status--show-staged-changes
-                        'repo-dir default-directory)
+    (insert-text-button "view" 'action 'prat-show-staged-changes)
     (insert ")")
     (forward-line 1)
 
     (while (looking-at "^\t[^\t]")
       (let* ((regex (concat "^\t\\(deleted:\\|modified:"
                             "\\|new file:\\|renamed:\\)?"
-                            " *\\(.*\\)$"))
-             (ov (make-overlay (point)
-                               (progn (re-search-forward regex)
-                                      (forward-line 1)
-                                      (point))))
-             (filename (match-string 2)))
+                            " *\\(.*\\)$")))
 
-        (overlay-put ov 'staged t)
-        (overlay-put ov 'filename filename)
+        ;; Put an overlay across the whole line for marking.
+        (prat-make-overlay (point)
+                           (progn (re-search-forward regex)
+                                  (forward-line 1)
+                                  (point))
+                           'prat-state "staged"
+                           'prat-filename (match-string 2))
+
+        ;; Put a button on the filename itself.
         (make-text-button
          (match-beginning 2) (match-end 2)
          'action 'prat-show-status--show-staged-file-diff
-         'filename filename))))
+         'filename (match-string 2)))))
 
   (when (re-search-forward "Changes not staged for commit:" nil t)
     (insert " (")
     (insert-text-button
-     "view all" 'action 'prat-show-status--show-unstaged-changes
-     'repo-dir default-directory)
+     "view" 'action 'prat-show-unstaged-changes)
     (insert ")")
     (forward-line 1)
 
     (while (looking-at "^\t[^\t]")
       (let* ((regex (concat "^\t\\(deleted:\\|modified:\\|new file:\\)?"
-                            " *\\(.*\\)$"))
-             (ov (make-overlay (point)
-                               (progn (re-search-forward regex)
-                                      (forward-line 1)
-                                      (point))))
-             (filename (match-string 2)))
+                            " *\\(.*\\)$")))
 
-        (overlay-put ov 'unstaged t)
-        (overlay-put ov 'filename filename)
+        ;; Put an overlay across the whole line for marking.
+        (prat-make-overlay (point)
+                           (progn (re-search-forward regex)
+                                  (forward-line 1)
+                                  (point))
+                           'prat-state "unstaged"
+                           'prat-filename (match-string 2))
+
+        ;; Put a button on the filename itself.
         (make-text-button (match-beginning 2) (match-end 2)
                           'action
                           'prat-show-status--show-unstaged-file-diff
-                          'filename filename))))
+                          'filename (match-string 2)))))
 
   (when (re-search-forward "Untracked files:" nil t)
     (forward-line 1)
 
     (while (looking-at "^\t[^\t]")
-      (let* ((regex (concat "^\t\\(.*\\)$"))
-             (ov (make-overlay (point)
-                               (progn (re-search-forward regex)
-                                      (forward-line 1)
-                                      (point))))
-             (filename (match-string 1)))
+      (let* ((regex (concat "^\t\\(.*\\)$")))
 
-        (overlay-put ov 'untracked t)
-        (overlay-put ov 'filename filename))))
+        ;; Put an overlay across the whole line for marking.
+        (prat-make-overlay (point)
+                           (progn (re-search-forward regex)
+                                  (forward-line 1)
+                                  (point))
+                           'prat-state "untracked"
+                           'prat-filename (match-string 1)))))
 
   (untabify (point-min) (point-max)))
 
+(defun prat-show-status--forward-filename (n)
+  (interactive "p")
+  (while (> n 0)
+    (goto-char (next-single-char-property-change (point) 'prat-filename))
+    ;; If we moved forward to a line with no filename, move forward one
+    ;; more time.
+    (unless (or (eobp) (get-char-property (point) 'prat-filename))
+      (goto-char (next-single-char-property-change (point) 'prat-filename)))
+    (cl-decf n))
 
-(defun prat-show-status--mark-file ()
-  "Mark the the file on the current line so other commands can refer to it."
+  (while (< n 0)
+    (goto-char (previous-single-char-property-change (point) 'prat-filename))
+    ;; If we moved back to a line with no filename, move forward one
+    ;; more time.
+    (unless (or (bobp) (get-char-property (point) 'prat-filename))
+      (goto-char (next-single-char-property-change (point) 'prat-filename)))
+    (cl-incf n)))
+
+
+(defun prat-show-status--backward-filename (n)
+  (interactive "p")
+  (prat-show-status--backward-filename (- n)))
+
+
+(defun prat-show-status--mark-file (&optional unmark)
+  "Mark the file on the current line.
+Unmarks the file if UNMARK is non-nil."
   (interactive)
   (cond
-   ;; If the region is active, mark each line in the region.
+   ;; If the region is active, toggle each line in the region.
    ((use-region-p)
     (let ((beg (region-beginning))
           (end (region-end))
           (i 0))
-    (deactivate-mark)
-    (save-excursion
-      (goto-char beg)
-      (forward-line 0)
-      (while (< (point) end)
-        (message "%S" (point))
-        (if (ignore-errors (prat-show-status--mark-file) t)
-            (cl-incf i)
-          (forward-line 1)))
-      (message "Marked %s files" i))))
+      (deactivate-mark)
+      (save-excursion
+        (goto-char beg)
+        (forward-line 0)
+        (while (< (point) end)
+          (if (ignore-errors (prat-show-status--mark-file unmark) t)
+              (cl-incf i)
+            (forward-line 1)))
+        (if unmark (message "Unmarked %s files" i)
+          (message "Marked %s files" i)))))
 
    (t
-    (let* ((filename-overlay (get-char-property-and-overlay (point) 'filename))
-           (filename (car filename-overlay))
-           (ov (cdr filename-overlay)))
-      (unless ov (error "No file at point."))
-      (overlay-put ov 'marked t)
-      (overlay-put ov 'face 'prat-marked-line-face)
-      (overlay-put ov 'priority -100)
+    (unless (get-char-property (point) 'prat-filename)
+      (prat-show-status--forward-filename 1))
 
-      ;; If you mark an unstaged file, we unmark all staged files.
-      (when (overlay-get ov 'unstaged)
-        (mapcar (lambda (ov) (when (overlay-get ov 'staged)
-                               (overlay-put ov 'marked nil)
-                               (overlay-put ov 'face nil)))
-                (overlays-in (point-min) (point-max))))
+    (let* ((mark-line (not unmark))
+           (overlay (prat-overlays-at (point) 'prat-filename :not-nil))
+           filename file-state)
+      (cl-assert (<= (length overlay) 1))
+      (when (= (length overlay) 0) (error "No file at point."))
+      (setq overlay (car overlay))
 
-      ;; If you mark a staged file, we unmark all unstaged files.
-      (when (overlay-get ov 'staged)
-        (mapcar (lambda (ov) (when (overlay-get ov 'unstaged)
-                               (overlay-put ov 'marked nil)
-                               (overlay-put ov 'face nil)))
-                (overlays-in (point-min) (point-max))))
+      (setq filename (overlay-get overlay 'prat-filename)
+            file-state (overlay-get overlay 'prat-state))
 
+      (overlay-put overlay 'prat-marked mark-line)
+      (overlay-put overlay 'face (when mark-line 'prat-marked-line-face))
 
-      (overlays-in (point-min) (point-max))
-      (message "Marked %s" filename)
-      (forward-line 1)))))
+      ;; We can only perform one type of action at a time, so we remove any
+      ;; conflicting marks.
+      (when mark-line
+        (let ((clear-states (pcase file-state
+                              ("staged"    '("unstaged" "untracked"))
+                              ("unstaged"  '("staged"))
+                              ("untracked" '("staged")))))
+          (dolist (ov (prat-filter-overlays (overlays-in (point-min) (point-max))
+                                            'prat-state clear-states))
+            (overlay-put ov 'prat-action nil)
+            (overlay-put ov 'face nil))))
+
+      ;; Emit an appropriate message
+      (if mark-line
+          (message "Marked %s" filename)
+        (message "Umarked %s" filename))
+
+      (prat-show-status--forward-filename 1)))))
 
 
 (defun prat-show-status--unmark-file ()
-  "Mark the the file on the current line so other commands can refer to it."
+  "Unmark the file on the current line."
   (interactive)
-  (let* ((filename-overlay (get-char-property-and-overlay (point) 'filename))
-        (filename (car filename-overlay))
-        (ov (cdr filename-overlay)))
-    (unless ov (error "No file at point."))
-    (overlay-put ov 'marked nil)
-    (overlay-put ov 'face nil)
-    (message "Unmarked %s" filename)
-    (forward-line 1)))
+  (prat-show-status--mark-file 'unmark))
 
 
-(defun prat-show-status--get-overlays (&rest keys)
-  (let ((overlays (sort (overlays-in (point-min) (point-max))
-                        (lambda (x y) (< (overlay-start x)
-                                         (overlay-start y))))))
-    (dolist (key (cons 'filename keys))
-      (setq overlays (seq-filter (lambda (ov) (overlay-get ov key))
-                                 overlays)))
-    overlays))
-
-
-(defun prat-show-status--get-filenames (&rest keys)
-  (mapcar (lambda (ov) (overlay-get ov 'filename))
-          (apply 'prat-show-status--get-overlays keys)))
-
-
-(defun prat-show-status--stage-files ()
+(defun prat-show-status--do-action (git-cmd file-states)
+  "Perform GIT-CMD on marked files with state in FILE-STATES."
   (interactive)
   (when (region-active-p) (prat-show-status--mark-file))
-  (let* ((filenames (append
-                     (prat-show-status--get-filenames 'unstaged 'marked)
-                     (prat-show-status--get-filenames 'untracked 'marked)))
-         (cmd (apply 'list "git" "add" "--" filenames)))
-    (message "Command: %S" cmd)
-    (apply 'process-file (car cmd) nil nil nil (cdr cmd))
-    (prat-show-status)))
+  (let* ((marked-overlays (prat-filter-overlays
+                           (overlays-in (point-min) (point-max))
+                           'prat-marked :not-nil
+                           'prat-state file-states)))
+
+    ;; If not lines have been marked, operate on the current line if it has
+    ;; the correct state.
+    (unless marked-overlays
+      (setq marked-overlays (prat-overlays-at (point) 'prat-state file-states)))
+
+    (unless marked-overlays
+      (user-error "No files to add"))
+
+    (let* ((filenames (mapcar (lambda (ov) (overlay-get ov 'prat-filename))
+                              marked-overlays))
+           (quoted-filenames (mapconcat 'shell-quote-argument filenames " "))
+           (cmd (format "git %s -- %s" git-cmd quoted-filenames)))
+
+      (message "%s" cmd)
+      (prat-async-shell-command cmd default-directory
+                                'prat-show-status--refresh))))
 
 
-(defun prat-show-status--unstage-files ()
+(defun prat-show-status--add-files ()
   (interactive)
-  (when (region-active-p) (prat-show-status--mark-file))
-  (let* ((filenames (prat-show-status--get-filenames 'staged 'marked))
-         (cmd (apply 'list "git" "reset" "--" filenames)))
-    (message "Command: %S" cmd)
-    (apply 'process-file (car cmd) nil nil nil (cdr cmd))
-    (prat-show-status)))
+  (prat-show-status--do-action "add" '("unstaged" "untracked")))
 
-
-(defun prat-show-status--show-staged-changes (button)
-  (prat-show-staged-changes))
-
-(defun prat-show-status--show-unstaged-changes (button)
-  (prat-show-unstaged-changes))
-
-
-(defun prat-show-status--show-diff ()
+(defun prat-show-status--reset-files ()
   (interactive)
-  (when (use-region-p) (prat-show-status--mark-file))
-  (let ((unstaged-filenames (prat-show-status--get-filenames
-                             'unstaged 'marked))
-        (staged-filenames (prat-show-status--get-filenames
-                           'staged 'marked))
-        filenames staged)
+  (prat-show-status--do-action "reset" '("staged")))
 
-    (when (and (null unstaged-filenames) (null staged-filenames))
-      (prat-show-status--mark-file)
-      (setq unstaged-filenames (prat-show-status--get-filenames
-                                'unstaged 'marked))
-      (setq staged-filenames (prat-show-status--get-filenames
-                              'staged 'marked)))
-
-    (cond
-     (staged-filenames
-      (cl-assert (null unstaged-filenames))
-      (setq staged t)
-      (setq filenames staged-filenames))
-     (unstaged-filenames
-      (cl-assert (null staged-filenames))
-      (setq staged nil)
-      (setq filenames unstaged-filenames)))
-
-    (when (null filenames) (error "No file at point"))
-
-    (let ((repo-dir default-directory)
-          (cmd (if staged
-                   `("git" "diff" "--cached" "--" ,@filenames)
-                 `("git" "diff" "--" ,@filenames)))
-          (buf (get-buffer-create (if staged
-                                      prat-staged-buffer-name
-                                    prat-unstaged-buffer-name)))
-          (inhibit-read-only t))
-
-      (with-current-buffer buf
-        (if staged
-            (prat-refresh-staged-changes repo-dir cmd)
-          (prat-refresh-unstaged-changes repo-dir cmd))
-        (pop-to-buffer buf)))))
+(defun prat-show-status--stash-files ()
+  (interactive)
+  (prat-show-status--do-action "stash -u" '("unstaged" "untracked")))
 
 
 (defun prat-show-status--show-unstaged-file-diff (button)
@@ -328,4 +293,3 @@ status output."
 
 
 (provide 'prat-status)
-

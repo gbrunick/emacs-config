@@ -67,9 +67,9 @@
 \\{prat-unstaged-changes-mode-map}\n"
   (setq-local staged-changes-buffer nil))
 
-(defun prat-show-unstaged-changes (&optional cmd buf repo-dir)
+(defun prat-show-unstaged-changes (&optional button cmd buf repo-dir)
   (interactive)
-  (let ((cmd (or cmd "git diff --histogram --find-renames"))
+  (let ((cmd (or cmd "git diff --histogram --find-renames --stat --patch"))
         (desc (format "Unstaged changes in %s" (prat-abbreviate-file-name
                                                 default-directory)))
         (buf (or buf (get-buffer-create prat-staged-buffer-name))))
@@ -94,9 +94,10 @@
 \\{prat-staged-changes-mode-map}\n"
   (setq-local staged-changes-buffer t))
 
-(defun prat-show-staged-changes (&optional cmd buf repo-dir)
+(defun prat-show-staged-changes (&optional button cmd buf repo-dir)
   (interactive)
-  (let ((cmd (or cmd "git diff --cached --histogram --find-renames"))
+  (let ((cmd (or cmd (concat "git diff --cached --histogram --find-renames "
+                             "--stat --patch")))
         (desc (format "Staged changes in %s" (prat-abbreviate-file-name
                                               default-directory)))
         (buf (or buf (get-buffer-create prat-staged-buffer-name))))

@@ -114,7 +114,52 @@ The argument N gives the number of additional step to skip."
           (run-at-time 0.5 nil 'prat-insert-spinner--spin m))))))
 
 
+(defun prat-filter-overlays (overlays &rest prop-values-pairs)
+  "Return a subset of the overlays in OVERLAYS.
+
+PROP-VALUES-PAIRS is a list where the odd elements are symbols giving
+overlay properties and the even elements are lists of values that are
+included."
+  (cl-flet ((apply-filter (overlay-list prop accepted-values)
+              (setq overlays (cl-remove-if-not
+                              (lambda (ov)
+                                (let ((value (overlay-get ov prop)))
+                                  (cond
+                                   ((eq accepted-values :not-nil)
+                                    value)
+                                   (t
+                                    (member value accepted-values)))))
+                              overlay-list))))
+    (while prop-values-pairs
+      (let ((prop (pop prop-values-pairs))
+            (values (pop prop-values-pairs)))
+        (setq overlays (apply-filter overlays prop values))))
+    overlays))
+
+
+(defun prat-overlays-at (&optional pos &rest prop-values-pairs)
+  "Return overlays at POS.
+
+POS defaults to the point.  Only overlays with the property 'prat-overlay
+are returned.  PROP-VALUES-PAIRS is a list where the odd elements are
+symbols giving properties and the even elements are lists of values."
+  (setq pos (or pos (point)))
+  (apply #'prat-filter-overlays (overlays-at pos) prop-values-pairs))
+
+
+
+(defun prat-make-overlay (beg end &rest prop-value-pairs)
+  (let ((ov (make-overlay beg end)) prop value)
+    (overlay-put ov 'prat-overlay t)
+    (overlay-put ov 'evaporate t)
+    (while prop-value-pairs
+      (setq prop (pop prop-value-pairs)
+            value (pop prop-value-pairs))
+      (overlay-put ov prop value))))
+
+(defun prat-erase-overlays ()
+  "Delete all prat-related overlays in the current buffer"
+  (dolist (ov (prat-filter-overlays (overlays-in (point-min) (point-max))))
+    (delete-overlay ov)))
 
 (provide 'prat-util)
-
-
