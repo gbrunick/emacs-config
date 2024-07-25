@@ -1,5 +1,6 @@
-(require 'prat-shell-commands)
 (require 'seq)
+(require 'prat-shell-commands)
+(require 'prat-stash)
 
 (defvar prat-show-status-mode-map
   (let ((map (make-sparse-keymap)))
@@ -145,6 +146,12 @@ status output."
                                   (point))
                            'prat-state "untracked"
                            'prat-filename (match-string 1)))))
+
+  (when (re-search-forward "Your stash currently has" nil t)
+    (end-of-line)
+    (insert " (")
+    (insert-text-button "view" 'action 'prat-show-stash-list)
+    (insert ")"))
 
   (untabify (point-min) (point-max)))
 

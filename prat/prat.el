@@ -189,9 +189,9 @@ names in the UI."
 ;;  Keymaps
 ;;
 (defvar prat-user-command-prefix-keymap
-
   (let ((map (make-sparse-keymap)))
     (define-key map "s" 'prat-show-status)
+    (define-key map "S" 'prat-show-stash-list)
     (define-key map "c" 'prat-commit)
     (define-key map "r" 'prat-rebase)
     (define-key map "l" 'prat-show-commit-graph)
