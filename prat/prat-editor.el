@@ -36,16 +36,22 @@ With a prefix argument, amends previous commit."
   (let ((cmd (concat "git"
                      " -c advice.waitingForEditor=false"
                      " -c advice.statusHints=false"
-                     " commit")))
-    (when amend (setq cmd (concat cmd " --amend")))
-    (prat-editor-command cmd "commit" "*Git Commit*")))
+                     " commit"))
+        ;; A more user-friendly version
+        (cmd2 "git commit"))
+
+    (when amend (setq cmd  (concat cmd " --amend")
+                      cmd2 (concat cmd2 " --amend")))
+
+    (prat-shell-command cmd "*Git Commit*" cmd2)))
 
 (defun prat-rebase (&optional interactive)
   (interactive "P")
-  (let ((cmd (if interactive "git rebase --interactive" "git rebase")))
-    (prat-editor-command
-     (read-shell-command "Rebase command: " cmd prat-rebase-command-history)
-     "rebase" "*Git Rebase*")))
+  (let ((cmd "git rebase"))
+    (when interactive (setq cmd (concat cmd " --interactive")))
+    (prat-shell-command
+     (read-shell-command "Shell command: " cmd prat-rebase-command-history)
+     "*Git Rebase*")))
 
 (defun prat-shell-command (cmd &optional bufname cmd2)
   "Execute Git command CMD that may require editing a file.
@@ -117,7 +123,7 @@ switches to this buffer."
       ;; We call `prat-async-shell-command' inside `buf' so
       ;; `prat-shell-command-1' can see `prat-edit-info'
       (prat-async-shell-command cmd default-directory
-                                #'prat-shell-command-1 env-vars)))))
+                                #'prat-shell-command-1 env-vars t)))))
 
 
 (defun prat-shell-command-1 (buf start end complete)
