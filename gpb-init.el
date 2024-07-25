@@ -85,7 +85,10 @@
       ;; Show a continuation marker in `visual-line-mode'.
       visual-line-fringe-indicators '(nil right-curly-arrow)
       ;; Don't fontify sub/superscripts in AucTex
-      font-latex-fontify-script nil)
+      font-latex-fontify-script nil
+      ;; Don't truncate lisp output in the *scratch* buffer
+      eval-expression-print-length nil
+      eval-expression-print-level nil)
 
 
 (setq-default indent-tabs-mode nil
