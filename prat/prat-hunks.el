@@ -495,7 +495,7 @@ name of this file."
   (let* ((patch-file (make-temp-file (concat default-directory "gpb-git-")
                                      nil ".patch"))
          (localname (file-relative-name patch-file))
-         (proc-output-buf prat-process-output-buffer-name)
+         (proc-output-buf prat-patch-buffer-name)
          (args (append args `(,localname)))
          (inhibit-read-only t))
 
@@ -505,6 +505,7 @@ name of this file."
 
     (with-current-buffer (get-buffer-create proc-output-buf)
       (erase-buffer)
+      (prat-base-mode)
       (insert (format "git %s\n" (mapconcat 'identity args " "))))
 
     (setq retvalue (apply 'process-file "git" nil proc-output-buf t args))
