@@ -51,14 +51,6 @@ names in the UI."
   "The name of the temporary buffer used to construct patches."
   :type 'string :group 'gitmodes)
 
-(defcustom prat-process-output-buffer-name "*git output*"
-  "The name of the buffer used to display Git output."
-  :type 'string :group 'gitmodes)
-
-(defcustom prat-commit-message-buffer-name "*commit message*"
-  "The name of the temporary buffer used to edit commit messages."
-  :type 'string :group 'gitmodes)
-
 
 (defvar prat-currently-focused-hunk nil
   "Tracks the currently focused hunk (see `prat-update-highlights').")
@@ -177,12 +169,15 @@ names in the UI."
   "Face used for deleted lines in the marked hunk.")
 
 (defface prat-marked-line-face
-  ;; `((t :foreground "#000000"
-  ;;      :background ,(prat-blend-colors "khaki2" "white" 0.72 0.22)
-  ;;      :extend t))
   `((t :inherit region))
   "Face used for marked files in status buffer.")
 
+
+(defvar prat-base-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "!" 'prat-shell-command)
+    map)
+  "The keymap for `prat-base-mode'")
 
 (define-derived-mode prat-base-mode special-mode
   "Prat Base Mode"
