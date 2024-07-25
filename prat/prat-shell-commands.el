@@ -11,7 +11,6 @@
 (defvar prat-idle-time (* 5 60)
   "The amout of time a server process waits for the next command.")
 
-
 (defvar prat-available-workers nil
   "An alist of TRAMP prefixes and buffers.
 
@@ -37,15 +36,7 @@ any command output and doesn't require any shell quoting.")
   (setq truncate-lines t)
   (setq-local kill-buffer-query-functions nil))
 
-(defvar prat-command-output-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "!" 'prat-shell-command)
-    (define-key map "q" 'quit-window)
-    map))
-
-(define-derived-mode prat-command-output-mode special-mode "Git Output")
-
-(defun prat-async-shell-command (cmd &optional dir callback env-vars)
+(defun prat-async-shell-command (cmd &optional dir callback env-vars no-check)
   "Execute CMD in DIR and call CALLBACK as output becomes available.
 
 CMD is a string that is passed through to a Bash or Windows cmd
@@ -62,7 +53,7 @@ The buffer containing process output is passed to CALLBACK as
 BUF.  START and END give the region that contains new output and
 COMPLETE is initially nil.  The new output only contains complete
 lines (i.e., newline terminated).  After all lines have been
-process, the callback is called a final time with COMPLETE equal
+processed, the callback is called a final time with COMPLETE equal
 to t.  In this case, START and END delimit all process output.
 In particular, callers that don't want to process the output in
 real-time, can wait for COMPLETE and then process all output
@@ -70,9 +61,12 @@ between START and END.
 
 If ENV-VARS is provided, it should be is a list of strings of the
 form VARNAME=VALUE and these variables are set in the shell
-before CMD is run."
+before CMD is run.
+
+If NO-CHECK is nil, we check the return code produced by CMD and show a
+buffer containing the process output if CMD failed."
   (prat-log-call)
-  (let* ((buf (current-buffer))
+  (let* ((marker (copy-marker (point)))
          (dir (or dir default-directory))
          (server-buf (prat-get-server-buf dir))
          (local-dir (file-local-name default-directory))
@@ -81,8 +75,10 @@ before CMD is run."
     (with-current-buffer server-buf
       ;; Set variables for `prat-async-shell-command--process-filter'.
       (setq proc (get-buffer-process (current-buffer)))
-      (setq-local callback-buf buf)
+      (setq-local current-command cmd)
+      (setq-local callback-marker marker)
       (setq-local callback-func callback)
+      (setq-local prat-no-check no-check)
       ;; The searches in the process filter start at `proc-start'.
       (setq-local proc-start (marker-position (process-mark proc)))
       (set-process-filter proc #'prat-async-shell-command--process-filter)
@@ -97,8 +93,9 @@ before CMD is run."
           (process-send-string proc (format "set %s\n" def)))
         ;; echo includes any trailing space when called from cmd.exe.
         (process-send-string
-         proc (format "echo:& echo %s& %s & echo:& echo %s\n"
-                      prat-output-start cmd prat-output-end))
+         proc (concat (format "(echo:& echo %s& %s)" prat-output-start cmd)
+                      (format "&& (echo:& echo %s:SUCCESS)" prat-output-end)
+                      (format "|| (echo:& echo %s:FAIL)\n" prat-output-end)))
         (process-send-string proc "exit\n"))
 
        ;; Linux
@@ -114,8 +111,9 @@ before CMD is run."
         (dolist (def env-vars)
           (process-send-string proc (format "export %s\n" def)))
         (process-send-string
-         proc (format "echo ; echo %s ; %s ; echo ; echo %s\n"
-                      prat-output-start cmd prat-output-end))
+         proc (concat (format "(echo ; echo %s ; %s)" prat-output-start cmd)
+                      (format "&& (echo ; echo %s:SUCCESS)" prat-output-end)
+                      (format "|| (echo ; echo %s:FAIL)\n" prat-output-end)))
         (process-send-string proc "exit\n")))
 
       proc)))
@@ -132,7 +130,7 @@ before CMD is run."
           start-marker end-marker
           ;; `output-start' and `output-end' will delimit complete lines.
           output-start output-end
-          callback
+          callback marker
           (inhibit-read-only t))
 
       (with-current-buffer proc-buf
@@ -141,7 +139,7 @@ before CMD is run."
           ;; beginning and end of the inserted text as `output-start` and
           ;; `output-end`.
           (goto-char (process-mark proc))
-          (setq output-start (save-excursion (forward-line 0) (point)))
+          (setq output-start (pos-bol))
           (insert string)
           (set-marker (process-mark proc) (point))
           (comint-carriage-motion output-start (point))
@@ -166,7 +164,7 @@ before CMD is run."
                                 (forward-line 0)
                                 ;; We insert a newline before the output to
                                 ;; ensure a match at the start of the line,
-                                ;; but we this shouldn't be included in the
+                                ;; but this shouldn't be included in the
                                 ;; process output.  It can matter when
                                 ;; generating diffs.
                                 (skip-chars-backward "\n" (1- (point)))
@@ -175,88 +173,50 @@ before CMD is run."
 
           ;; `callback-func' is buffer-local in `proc-buf', so we need to
           ;; save it before we switch buffers below.
-          (setq callback callback-func)
+          (setq marker callback-marker
+                callback callback-func)
 
           (when (and start-marker callback)
-            (with-current-buffer callback-buf
-              (when (> output-end output-start)
-                (funcall callback proc-buf output-start output-end nil))))
-
-          (when (and end-marker callback)
-            (with-current-buffer callback-buf
-              (funcall callback proc-buf start-marker end-marker t)))
+            (when (> output-end output-start)
+              (if (equal callback t)
+                  (let ((text (buffer-substring-no-properties
+                               output-start output-end)))
+                    (with-current-buffer (marker-buffer marker)
+                      (save-excursion
+                        (goto-char marker)
+                        (insert text)
+                        (set-marker marker (point))
+                        (set-buffer-modified-p nil))))
+                (with-current-buffer (marker-buffer callback-marker)
+                  (funcall callback proc-buf output-start output-end nil)))))
 
           (when end-marker
-            (prat-return-or-kill-buffer proc-buf)))))))
+             ;; If there was a callback, call with `complete' set to true.
+            (when callback
+              (with-current-buffer (marker-buffer callback-marker)
+                (funcall callback proc-buf start-marker end-marker t)))
 
+             ;; Show an error buffer if the command failed unless
+             ;; prat-no-check is non-nil.
+             (unless prat-no-check
+              (save-excursion
+                (goto-char end-marker)
+                (let ((regex (format "%s:FAIL" prat-output-end))
+                      (inhibit-read-only t)
+                      (proc-output (buffer-substring start-marker end-marker))
+                      (cmd current-command)
+                      error-buffer)
+                  (when (re-search-forward regex nil t)
+                    (setq error-buffer (get-buffer-create "*Command Error*"))
+                    (with-current-buffer error-buffer
+                      (erase-buffer)
+                      (prat-base-mode)
+                      (insert (format "> %s\n\n" cmd))
+                      (save-excursion (insert proc-output))
+                      (switch-to-buffer error-buffer))
+                    (message "Error during '%s'" cmd)))))
 
-(defun prat-shell-command (cmd &optional bufname env-vars dir)
-  "Execute CMD in a new buffer and pop to that buffer.
-
-CMD is a string that is passed through to an interactive bash or
-cmd.exe process.  BUFNAME is a string giving the name of the
-buffer in which the results are written.  Any current contents
-are deleted.  If ENV-VARS is provided, it is a list of strings of
-the form VARNAME=VALUE.  In this case, we run CMD in an inferior
-shell in which these environment variables have been set."
-  (interactive "sShell Command: ")
-  (prat-log-call)
-  (let* ((dir (expand-file-name (or dir default-directory)))
-         (buf (get-buffer-create (or bufname "*Shell Command Output*")))
-         (inhibit-read-only t))
-    (with-current-buffer buf
-      (erase-buffer)
-      (fundamental-mode)
-      (setq-local default-directory dir)
-      (setq-local mode-line-process ":running")
-      (insert (format "Working Directory: %s\n\n" default-directory))
-      (when env-vars
-        (insert "Environment Variables:\n")
-        (insert (mapconcat 'identity env-vars "\n"))
-        (insert "\n\n"))
-      (insert (format "> %s\n\n" cmd))
-      (save-excursion (insert "..."))
-      (setq-local output-marker (copy-marker (point) t))
-      (put 'output-marker 'permanent-local t)
-      (goto-char (point-min))
-      (prat-async-shell-command cmd dir #'prat-shell-command-1 env-vars))
-    (pop-to-buffer buf)
-    buf))
-
-
-(defun prat-shell-command-1 (buf start end complete)
-  (prat-log-call)
-  (cond
-   (complete
-    ;; Delete the ellipsis
-    (delete-region output-marker (point-max))
-    ;; (save-excursion (goto-char output-marker) (insert "Done.\n"))
-    (setq-local mode-line-process ":complete"))
-
-   (t
-    (let ((new-output (with-current-buffer buf
-                        (string-trim-right
-                         (buffer-substring-no-properties start end))))
-          (inhibit-read-only t)
-          (output-start (marker-position output-marker))
-          (move-pt (= (point) output-marker)))
-
-      ;; Insert the new text and fix up the display.
-      (unless (string-empty-p new-output)
-        (save-excursion
-          ;; The insertion moves `output-marker'
-          (goto-char output-marker)
-          (insert new-output)
-          (insert "\n")
-
-          ;; Delete output that was overwritten using carriage returns and
-          ;; process color codes.
-          (goto-char output-start)
-          (while (re-search-forward "^[^]*" nil t)
-            (delete-region (match-beginning 0) (match-end 0)))
-          (ansi-color-apply-on-region output-start output-marker))
-
-        (when move-pt (goto-char output-marker)))))))
+             (prat-return-or-kill-buffer proc-buf)))))))
 
 
 (defun prat-get-server-buf (&optional dir)

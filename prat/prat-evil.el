@@ -10,14 +10,16 @@
   ;; (evil-make-overriding-map prat-staged-changes-mode-map)
   ;; (evil-make-overriding-map prat-unstaged-changes-mode-map))
 
-  (evil-define-key 'normal prat-command-output-mode-map
+  (evil-define-key 'normal prat-base-mode-map
+    "!" 'prat-shell-command)
+
+  (evil-define-key 'normal prat-shell-command-output-mode-map
     "!" 'prat-shell-command
     "q" 'quit-window)
 
   (evil-define-key 'normal prat-commit-graph-mode-map
-    "m" 'prat-mark-line
     "d" 'prat-commit-graph-mode--show-diff
-    "gr" 'prat-refresh-buffer
+    "gr" 'prat-refresh-commit-graph
     (kbd "RET") 'prat-show-commit-graph--show-commit
     "!" 'prat-shell-command)
 
@@ -51,13 +53,20 @@
     "s" 'prat-show-status--stash-files
     "!" 'prat-shell-command)
 
+  (evil-define-key 'visual prat-show-status-mode-map
+    "a" 'prat-show-status--add-files
+    "r" 'prat-show-status--reset-files
+    "s" 'prat-show-status--stash-files)
+
   (evil-define-key 'normal prat-staged-changes-mode-map
     "r" 'prat-unstage-hunks)
 
   (evil-define-key 'normal prat-unstaged-changes-mode-map
     "a" 'prat-stage-hunks
     "d" 'prat-revert-marked-hunks
-    "w" 'prat-toggle-whitespace-diff-args))
+    "w" 'prat-toggle-whitespace-diff-args)
 
+  (evil-define-key 'visual prat-unstaged-changes-mode-map
+    "a" 'prat-stage-hunks))
 
 (provide 'prat-evil)

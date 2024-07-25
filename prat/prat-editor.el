@@ -20,6 +20,14 @@ Only one Git edit can be active at a time.")
 The key is a TRAMP prefix as returned by `file-exists-p' and the
 value is string giving the path to a copy of prat-editor.bash.")
 
+(defvar prat-shell-command-output-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "!" 'prat-shell-command)
+    ;; (define-key map "q" 'quit-window)
+    map))
+
+(define-derived-mode prat-shell-command-output-mode
+  prat-base-mode "Git Output")
 
 (defun prat-commit (&optional amend)
   "Commit currently staged changes to Git.
@@ -39,13 +47,16 @@ With a prefix argument, amends previous commit."
      (read-shell-command "Rebase command: " cmd prat-rebase-command-history)
      "rebase" "*Git Rebase*")))
 
-(defun prat-editor-command (cmd action buffer-or-name)
+(defun prat-shell-command (cmd &optional bufname cmd2)
   "Execute Git command CMD that may require editing a file.
 
-ACTION is a short description like 'commit' or 'rebase'.  It is
-used in some user dialogs.  On completion, shows the command
-output in BUFFER-OR-NAME and swithced to this buffer."
+On completion, shows the command output in a buffer named BUFNAME and
+switches to this buffer."
+  (interactive (list (read-shell-command "Shell Command: ")))
   (prat-log-call)
+
+  ;; If a previous shell command is using the Git editor, you must complete
+  ;; that command first.
   (when (and prat-pending-edit-buffer
              (buffer-live-p prat-pending-edit-buffer))
     ;; We `pop-to-buffer' in an effort to make it clear this is a
@@ -53,11 +64,13 @@ output in BUFFER-OR-NAME and swithced to this buffer."
     (pop-to-buffer prat-pending-edit-buffer)
     (error "You must first complete the current edit"))
   (setq prat-pending-edit-buffer nil)
-  (let* ((repo-root (prat-find-repo-root))
+
+  (let* ((buf (get-buffer-create (or bufname "*Shell Command Output*")))
+         (dir default-directory)
+         (cmd2 (or cmd2 cmd))
          (editor-script (prat-get-editor-script))
          ;; We use a named pipe for IPC on Linux.
-         (editor-pipe (concat (file-name-as-directory repo-root)
-                              ".prat-editor-pipe"))
+         (editor-pipe ".prat-editor-pipe")
          (env-vars
           (cond
            ((prat-use-cmd-exe-p)
@@ -77,7 +90,7 @@ output in BUFFER-OR-NAME and swithced to this buffer."
                           (file-local-name editor-pipe))
                   "GIT_PAGER="
                   "TERM=dumb"))))
-         proc)
+         (inhibit-read-only t))
 
     ;; Be robust to failures that leave a residual pipe file, but throw a
     ;; warning as this is a bug.
@@ -85,70 +98,73 @@ output in BUFFER-OR-NAME and swithced to this buffer."
       (warn (format "Deleting %s" editor-pipe))
       (delete-file editor-pipe))
 
-    ;; `prat-editor-callback' opens a buffer to edit the required file.  It
-    ;; uses the infomation we provide in `prat-edit-info'.
-    (setq proc (prat-async-shell-command
-                cmd repo-root #'prat-editor-callback env-vars))
-    (with-current-buffer (process-buffer proc)
+    (with-current-buffer buf
+      (erase-buffer)
+      (prat-shell-command-output-mode)
+      (setq default-directory dir)
+      (insert dir "\n\n")
+      (insert "> " cmd2 "\n\n")
+      (prat-insert-placeholder "Waiting for output...")
       (setq-local prat-edit-info
                   (list :command cmd
-                        :action action
-                        :output-buffer buffer-or-name
-                        :repo-root repo-root
-                        :pipe-file editor-pipe)))))
+                        :output-buffer buf
+                        :directory dir
+                        :pipe-file editor-pipe))
+
+      ;; `prat-shell-command-1' opens a buffer to edit the required file.  It
+      ;; uses the infomation we provide in `prat-edit-info'.
+      ;;
+      ;; We call `prat-async-shell-command' inside `buf' so
+      ;; `prat-shell-command-1' can see `prat-edit-info'
+      (prat-async-shell-command cmd default-directory
+                                #'prat-shell-command-1 env-vars)))))
 
 
-(defun prat-editor-callback (buf start end complete)
+(defun prat-shell-command-1 (buf start end complete)
   "Callback function for commit and interactive rebase commands"
   (prat-log-call)
-  (let ((remote-prefix (or (file-remote-p default-directory) ""))
-        ;; Remove any quotes around filenames.
-        (file-regex (format "^File: \"?\\([^\"\n]+\\)\"?$"))
-        (inhibit-read-only t)
-        info file-name)
-    (with-current-buffer buf
-      (setq info prat-edit-info)
-      (save-excursion
-        (save-match-data
-          (goto-char start)
-          (cond
-           (complete
-            ;; Skip the output from our editor script and show the Git
-            ;; command output.
-            (when (re-search-forward "^Command output:" end t)
-              (forward-line 1)
-              (setq start (point)))
-            (let ((cmd (plist-get info :command))
-                  (buf (plist-get info :output-buffer))
-                  (output-txt (buffer-substring-no-properties start end)))
-              (with-current-buffer (get-buffer-create buf)
-                (erase-buffer)
-                (special-mode)
-                (save-excursion (insert output-txt))
-                ;; git rebase uses carriage returns to overwrite lines.
-                (save-excursion
-                  (while (re-search-forward "^[^]*" nil t)
-                    (delete-region (match-beginning 0) (match-end 0))))
-                ;; Put the command at the top of the output buffer.
-                (save-excursion
-                  (insert cmd)
-                  (insert "\n\n")))
-              (when (eq prat-pending-edit-buffer (current-buffer))
-                (setq prat-pending-edit-buffer nil))
-              (switch-to-buffer buf)))
-           (t
-            ;; The process waits for the completion of editing, so we have
-            ;; to look for these string before the process completes.
-            (when (re-search-forward file-regex end t)
-              (setq file-name (match-string-no-properties 1))
-              (setq prat-pending-edit-buffer
-                    (find-file (concat remote-prefix file-name)))
+  (save-excursion
+    (save-match-data
+      (cond
+       (complete
+        (let ((output-buf (current-buffer))
+              (edit-buffer (plist-get prat-edit-info :edit-buffer))
+              (output-text (with-current-buffer buf
+                             (goto-char start)
+                             ;; Skip the output from our editor script and
+                             ;; show the Git command output.
+                             (when (re-search-forward "^Command output:" end t)
+                               (forward-line 1))
+                             (buffer-substring-no-properties (point) end))))
+          (with-current-buffer output-buf
+            (goto-char (prat-delete-placeholder))
+            (insert output-text))
+
+          ;; If this is the pending edit buffer, clear this global lock.
+          (when (eq prat-pending-edit-buffer edit-buffer)
+            (setq prat-pending-edit-buffer nil))
+
+          (switch-to-buffer output-buf)))
+
+         (t
+          (let* ((info prat-edit-info) file-name)
+            (with-current-buffer buf
+              (goto-char start)
+              ;; The process waits for the completion of editing, so we have
+              ;; to look for these string before the process completes.
+              (when (re-search-forward "^File: \"?\\([^\"\n]+\\)\"?$" end t)
+                (setq file-name (concat (or (file-remote-p default-directory) "")
+                                        (match-string-no-properties 1))
+                      prat-pending-edit-buffer (find-file file-name))
+
               (with-current-buffer prat-pending-edit-buffer
                 (prat-edit-mode)
                 (setq-local prat-edit-info info)
                 ;; This happens in a callback so call any post command
                 ;; hooks so they can respond to the updated current buffer.
                 (run-hooks 'post-command-hook))
+
+              (plist-put prat-edit-info :edit-buffer prat-pending-edit-buffer)
               (switch-to-buffer prat-pending-edit-buffer)))))))))
 
 
@@ -222,7 +238,7 @@ Expects to be called from a buffer where `prat-edit-info' is
 defined."
   (prat-log-call)
   (ignore-errors
-    (let ((repo-root (plist-get prat-edit-info :repo-root)))
+    (let ((repo-root (plist-get prat-edit-info :directory)))
       (cl-assert repo-root)
       (cond
        ((prat-use-cmd-exe-p)
@@ -248,8 +264,8 @@ defined."
   ;; We don't want Emacs to ask again because the buffer is modified.
   ;; `prat-edit-kill-buffer-hook' is just going to erase the buffer anyway.
   (set-buffer-modified-p nil)
-  (let ((action (plist-get prat-edit-info :action)))
-    (yes-or-no-p (format "Cancel %s? " action))))
+  (let ((cmd (plist-get prat-edit-info :command)))
+    (yes-or-no-p (format "Cancel %s? " cmd))))
 
 (defun prat-finish-edit ()
   "Finish edit and show Git process buffer."
