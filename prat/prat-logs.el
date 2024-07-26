@@ -1,170 +1,159 @@
+(defcustom prat-log-excluded-branches '(refs/stash)
+  "Add globs to this list to exclude branches from git log output."
+  :type '(repeat (string :tag "Commmand"))
+  :group 'prat)
+
 (defvar prat-commit-graph-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "m" 'prat-mark-line)
-    (define-key map "d" 'prat-commit-graph-mode--show-diff)
-    (define-key map "g" 'prat-refresh-buffer)
-    (define-key map (kbd "RET") 'prat-show-commit-graph--show-commit)
-    (define-key map "!" 'prat-shell-command)
-    (define-key map "\C-c\C-f" 'prat-show-commit-graph--show-files)
+    (define-key map "d" 'prat-commit-graph--show-diff)
+    (define-key map "g" 'prat-refresh-commit-graph)
+    (define-key map (kbd "RET") 'prat-commit-graph--show-commit)
+    (define-key map "\C-c\C-c" 'prat-commit-graph--checkout)
+    (define-key map "\C-c\C-r" 'prat-commit-graph--reset)
+    (define-key map "\C-c\C-d" 'prat-commit-graph--delete-branch)
+    (define-key map "\C-c\C-f" 'prat-commit-graph--list-commit-files)
     map)
   "The keymap used when viewing the commit graph.")
 
-
-(define-derived-mode prat-commit-graph-mode special-mode
+(define-derived-mode prat-commit-graph-mode prat-base-mode
   "Commit Graph"
   "\nMode for buffers displaying the Git commit graph.
 
 \\{prat-commit-graph-mode-map}\n"
-  (prat-init-marked-line-overlay)
-  (setq truncate-lines t))
-
-
-(defvar prat-show-commit-files-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "RET") 'prat-show-commit-graph--show-file-version)
-    map)
-  "The keymap used when viewing the commit graph.")
-
-
-(define-derived-mode prat-show-commit-files-mode special-mode
-  "File List"
-  "\nMode for buffers displaying the files in a Git commit.
-
-\\{prat-show-commit-files-mode-map}\n")
+  (setq truncate-lines t)
+  (read-only-mode 1))
 
 
 (defun prat-show-commit-graph (&optional repo-root)
+  "Show the Git commit graph in a buffer."
   (interactive)
-  (let* ((buf (get-buffer-create "*git log*"))
-         (repo-root (or repo-root (prat-find-repo-root))))
-    (with-current-buffer buf
-      (setq default-directory repo-root)
-      (prat-refresh-commit-graph)
-      (setq-local refresh-cmd `(prat-refresh-commit-graph)))
-    (switch-to-buffer buf)))
+  (let* ((buf (get-buffer-create "*Git commit graph*"))
+         (repo-root (or repo-root (prat-find-repo-root)))
+         (inhibit-read-only t)
+         cmd)
 
-
-(defcustom prat-log-excluded-branches nil
-  "Add globs to this list to exclude branches from git log output."
-  :type '(repeat (string :tag "Commmand"))
-  :group 'gpb-git)
-
-(defun prat-refresh-commit-graph (&optional callback)
-  (prat-log-call)
-  (let ((cmd "git log --graph --oneline --decorate --color")
-        (inhibit-read-only t))
+    (setq cmd "git log --graph --oneline --decorate --color")
     (dolist (glob prat-log-excluded-branches)
       (setq cmd (format "%s --exclude=\"%s\"" cmd glob)))
     (setq cmd (format "%s --all" cmd))
-    (read-only-mode 1)
-    (erase-buffer)
-    (remove-overlays)
-    (prat-commit-graph-mode)
-    (save-excursion
-      (insert (format "Repo: %s\n\n" default-directory))
-      (insert (format "%s\n\n" cmd))
-      (setq-local output-marker (copy-marker (point))))
-    (setq-local callback-func callback)
-    (prat-async-shell-command
-     cmd default-directory #'prat-refresh-commit-graph-1)))
+
+    (with-current-buffer buf
+      (setq default-directory repo-root)
+      (erase-buffer)
+      (prat-commit-graph-mode)
+      (insert (format "Commit graph in %s\n\n" default-directory))
+      (insert (format "> %s\n\n" cmd))
+      (setq-local shell-command cmd
+                  output-marker (copy-marker (point)))
+      (prat-refresh-commit-graph))
+
+    (switch-to-buffer buf)))
+
+
+(defun prat-refresh-commit-graph ()
+  "Update the commit graph in the current buffer."
+  (interactive)
+  (prat-log-call)
+  (let ((inhibit-read-only t))
+    (setq-local refresh t)
+    (prat-async-shell-command shell-command nil #'prat-refresh-commit-graph-1)))
+
 
 (defun prat-refresh-commit-graph-1 (buf start end complete)
   (prat-log-call)
-  (when complete
-    (let ((inhibit-read-only t))
+  (unless complete
+    (let ((new-output (with-current-buffer buf
+                        (buffer-substring-no-properties start end)))
+          (inhibit-read-only t)
+          pos)
+      (when refresh
+        (delete-region output-marker (point-max))
+        (setq-local refresh nil))
+      (setq pos (point-max))
       (save-excursion
-        (goto-char output-marker)
-        (save-excursion
-          (insert (with-current-buffer buf
-                    (buffer-substring-no-properties start end)))
-          (ansi-color-apply-on-region output-marker (point))
-          (move-marker output-marker (point)))
-        (while (re-search-forward "^[* \\|/-]+\\.? +\\([a-f0-9]+\\) " nil t)
-          (add-text-properties (progn (forward-line 0) (point))
-                               (progn (forward-line 1) (point))
-                               `(:commit-hash ,(match-string 1)))))
-      (setq-local refresh-cmd `(prat-refresh-commit-graph))
-      (when (and complete callback-func) (funcall callback-func)))))
+        (goto-char pos)
+        (insert new-output)
+        (ansi-color-apply-on-region pos (point-max))
+        (prat-commit-graph--add-text-properties pos (point-max))))))
 
 
-(defun prat-mark-line ()
-  "Mark the the current line so other commands can refer to it."
-  (interactive)
-  (let* ((bol-pt (save-excursion (forward-line 0) (point)))
-         (eol-pt (save-excursion (forward-line 1) (point))))
-    (move-overlay marked-line-overlay bol-pt eol-pt)))
+(defun prat-commit-graph--add-text-properties (beg end)
+  "Add text properties to git log output between BEG and END.
 
-
-(defun prat-get-marked-revision ()
-  "Get the hash of the currently marked revision."
-  (gpb-get--get-revision-at-point (overlay-start marked-line-overlay)))
-
-
-(defun gpb-get--get-revision-at-point (&optional pt)
-  "Find the revision hash on the current line."
-  (if pt
-      (save-excursion
-        (goto-char pt)
-        (gpb-get--get-revision-at-point))
+Adds a :commit-hash and :branch-names property to each log entry and puts
+a :branch-name property on each branch name."
+  (interactive "r")
+  (let ((inhibit-read-only t) bound name branch-names)
     (save-excursion
-      (forward-line 0)
-      (skip-chars-forward "* |/\\-\.")
-      (unless (looking-at "\\([0-9a-f]+\\) ")
-        (error "Invalid revision line"))
-      (match-string 1))))
+      (goto-char beg)
+      (while (re-search-forward "^[* \\|/-]+\\.? +\\([a-f0-9]+\\) " end t)
+        ;; Mark the whole line with the hash
+        (put-text-property (pos-bol) (pos-eol) :commit-hash
+                           (match-string-no-properties 1))
+
+        ;; Now look for branch names in the decorations.
+        (when (re-search-forward "(.*)" (pos-eol) t)
+          (setq branch-names nil)
+          (goto-char (1+ (match-beginning 0)))
+          (setq bound (match-end 0))
+          ;; If we are the line that contains HEAD, skip past this.
+          (re-search-forward "HEAD -> " bound t)
+          (while (re-search-forward " *\\([^,)]+\\)[,)] *" bound t)
+            (setq name (match-string-no-properties 1))
+            (put-text-property (match-beginning 1) (match-end 1)
+                               :branch-name name)
+            (push name branch-names))
+          (put-text-property (pos-bol) (pos-eol) :branch-names
+                             (reverse branch-names)))))))
 
 
-(defun prat-commit-graph-mode--show-diff ()
-  "Diff the marked revision with the revision at the point."
+(defun prat-commit-graph--commit-at (&optional pos branch)
+  "Find the branch or commit at position POS.
+POS defaults to the point.  If BRANCH is non-nil, we only return branch
+names (not commit hashes)."
+  (let* ((txt (if pos "POS" "point"))
+         (pos (or pos (point))))
+    (or (get-text-property pos :branch-name)
+        (car (get-text-property pos :branch-names))
+        (if branch (error "No branch at %s" txt)
+          (get-text-property pos :commit-hash))
+        (error "No commit at %s" txt))))
+
+(defun prat-commit-graph--refresh-when-complete (buf start end complete)
+  (when complete (prat-refresh-commit-graph)))
+
+(defmacro prat-commit-graph--defcmd (name base-cmd &optional alt-cmd branch-only)
+  "Define a simple command that operates on a branch or commit.
+
+NAME is the name of the function that is defined.  BASE-CMD is the Git
+command to call.  If ALT-CMD is provided, this command is invoked when the
+command has a prefix argument.  BRANCH is non-nil, the command requires a
+branch name, rather than a commit hash."
+  `(defun ,name (arg)
+     (interactive "P")
+     (let ((cmd (format "git %s %s"
+                        (if arg (or ,alt-cmd ,base-cmd) ,base-cmd)
+                        (prat-commit-graph--commit-at nil ,branch-only))))
+       (prat-async-shell-command (read-shell-command "Shell command: " cmd)
+                                 nil #'prat-commit-graph--refresh-when-complete))))
+
+;; Simple commands that operate on the current branch/commit.
+(prat-commit-graph--defcmd prat-commit-graph--checkout "checkout" nil t)
+(prat-commit-graph--defcmd prat-commit-graph--reset "reset")
+(prat-commit-graph--defcmd prat-commit-graph--delete-branch
+                           "branch -d" "branch -D" t)
+
+(defun prat-commit-graph--show-commit ()
+  "Show commit at point."
   (interactive)
-  (prat-show-commit-diff (prat-get-marked-revision)
-                            (gpb-get--get-revision-at-point)
-                            default-directory))
-
-(defun prat-init-marked-line-overlay ()
-  (let ((new-ov (make-overlay (point-min) (point-min))))
-    (overlay-put new-ov 'face 'prat-marked-line-face)
-    (setq-local marked-line-overlay new-ov)))
+  (let ((hash (prat-commit-graph--commit-at)))
+    (prat-show-tree hash)))
 
 
-(defun prat-show-commit-graph--show-commit ()
+(defun prat-commit-graph--list-commit-files (&optional pos)
   (interactive)
-  (let ((hash (get-text-property (point) :commit-hash))
-        buf)
-    (unless hash (error "No commit on line"))
-    (prat-show-commit hash)))
-
-
-(defun prat-show-commit-graph--show-files ()
-  (interactive)
-  (let* ((hash (get-text-property (point) :commit-hash))
-         (cmd `("git" "ls-tree" "--name-only" "-r" ,hash))
-         (inhibit-read-only t)
-         buf)
-    (unless hash (error "No commit on line"))
-    (setq buf (get-buffer-create (format "*ls-tree: %s*" hash)))
-
-    (setq buf (prat-shell-command (mapconcat 'identity cmd " ")
-                                  (format "*ls-tree: %s*" hash)))
-    (with-current-buffer buf
-      (goto-char (point-min))
-      (prat-show-commit-files-mode)
-      (setq-local git-commit-hash hash))))
-
-
-(defun prat-show-commit-graph--show-file-version ()
-  (interactive)
-  (let* ((filename (buffer-substring
-                    (save-excursion (forward-line 0) (point))
-                    (save-excursion (forward-line 1) (1- (point)))))
-         (cmd `("git" "show" ,(format "%s:%s" git-commit-hash filename)))
-         (inhibit-read-only t)
-         buf)
-    (unless filename (error "No file on line"))
-    (setq buf (prat-shell-command
-               (mapconcat 'identity cmd " ")
-               (format "*%s: %s*" git-commit-hash filename)))
-    (with-current-buffer buf (goto-char (point-min)))))
+  (let ((hash (prat-commit-graph--commit-at)))
+      (prat-show-file-tree hash)))
 
 
 (defun prat-show-file-history (&optional filename)

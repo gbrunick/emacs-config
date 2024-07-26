@@ -1,14 +1,5 @@
 ;; Don't cover the prat buffer bindings.  There aren't that many.
 (with-eval-after-load 'evil
-  ;; (evil-make-overriding-map prat-command-output-mode-map)
-  ;; (evil-make-overriding-map prat-commit-graph-mode-map)
-  ;; (evil-make-overriding-map prat-edit-mode-map)
-  ;; (evil-make-overriding-map prat-hunk-selection-mode-map)
-  ;; (evil-make-overriding-map prat-hunk-view-mode-map)
-  ;; (evil-make-overriding-map prat-show-commit-files-mode-map)
-  ;; (evil-make-overriding-map prat-show-status-mode-map)
-  ;; (evil-make-overriding-map prat-staged-changes-mode-map)
-  ;; (evil-make-overriding-map prat-unstaged-changes-mode-map))
 
   (evil-define-key 'normal prat-base-mode-map
     "!" 'prat-shell-command)
@@ -20,7 +11,7 @@
   (evil-define-key 'normal prat-commit-graph-mode-map
     "d" 'prat-commit-graph-mode--show-diff
     "gr" 'prat-refresh-commit-graph
-    (kbd "RET") 'prat-show-commit-graph--show-commit
+    (kbd "RET") 'prat-commit-graph--show-commit
     "!" 'prat-shell-command)
 
   (evil-define-key 'normal prat-hunk-view-mode-map
@@ -67,6 +58,10 @@
     "w" 'prat-toggle-whitespace-diff-args)
 
   (evil-define-key 'visual prat-unstaged-changes-mode-map
-    "a" 'prat-stage-hunks))
+    "a" 'prat-stage-hunks)
+
+  (evil-define-key 'normal prat-show-tree-mode-map
+    "gr" 'prat-refresh-file-tree))
+
 
 (provide 'prat-evil)
