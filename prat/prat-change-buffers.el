@@ -151,7 +151,7 @@
                     (when (re-search-forward "^diff --" nil t)
                       (buffer-substring-no-properties
                        start (match-beginning 0))))))
-          (hunks (with-current-buffer buf (prat-parse-diff buf start end)))
+          (hunks (with-current-buffer buf (prat-parse-diff start end)))
           (inhibit-read-only t))
       (goto-char (prat-delete-placeholder))
       (when info (insert info))

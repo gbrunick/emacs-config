@@ -23,7 +23,7 @@
 ;;    :diff A string or nil giving the changes to the file.  This is a
 ;;        series of line additions and deletions surrounded by context
 ;;        lines that describe the changes to be applied to the file.  Some
-;;        hunks have not diff lines (e.g., a file rename with no changes,
+;;        hunks have no diff lines (e.g., a file rename with no changes,
 ;;        the addition of an empty file to the index using git add
 ;;        --intent-to-add, or a change to a binary file).  In these case,
 ;;        :diff is nil.
@@ -892,7 +892,7 @@ associated with the given file that lies after the button."
     (setq-local hunks-available t)))
 
 
-(defun prat-parse-diff (buf beg end)
+(defun prat-parse-diff (&optional beg end)
   "Parse Git diff output.
 
 Returns a list of hunk alists.  See the comments at the top of
