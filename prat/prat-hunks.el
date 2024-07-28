@@ -888,6 +888,7 @@ associated with the given file that lies after the button."
             (overlay-put ov (car key-val) (cdr key-val)))
           (overlay-put ov :is-hunk t)
           (overlay-put ov :marked nil)
+          (overlay-put ov 'evaporate t)
           (prat-decorate-hunk ov))))
     (setq-local hunks-available t)))
 

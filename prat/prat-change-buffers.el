@@ -127,8 +127,6 @@
         (inhibit-read-only t))
     (with-current-buffer buf
       (erase-buffer)
-      ;; Delete any existing hunk overlays in the buffer. Use evaporate?
-      (dolist (ov (prat-get-hunk-overlays)) (delete-overlay ov))
       (funcall buffer-mode)
       (setq default-directory repo-dir)
       (when desc (insert (format "%s\n\n" desc)))
