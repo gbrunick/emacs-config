@@ -123,11 +123,13 @@ switches to this buffer."
       ;; We call `prat-async-shell-command' inside `buf' so
       ;; `prat-shell-command-1' can see `prat-edit-info'
       (prat-async-shell-command cmd default-directory
-                                #'prat-shell-command-1 env-vars t)))))
+                                #'prat-shell-command-1 env-vars t))))
 
 
 (defun prat-shell-command-1 (buf start end complete)
-  "Callback function for commit and interactive rebase commands"
+"Implementation detail of `prat-shell-command'
+
+Processes the output from a shell command."
   (prat-log-call)
   (save-excursion
     (save-match-data
@@ -141,14 +143,22 @@ switches to this buffer."
                              ;; show the Git command output.
                              (when (re-search-forward "^Command output:" end t)
                                (forward-line 1))
-                             (buffer-substring-no-properties (point) end))))
+                             (buffer-substring-no-properties (point) end)))
+              beg)
           (with-current-buffer output-buf
             (goto-char (prat-delete-placeholder))
+            (setq beg (point))
             (insert output-text))
 
           ;; If this is the pending edit buffer, clear this global lock.
           (when (eq prat-pending-edit-buffer edit-buffer)
             (setq prat-pending-edit-buffer nil))
+
+          (save-excursion
+            (goto-char beg)
+            (when (re-search-forward "^diff --git" nil t)
+              (prat-format-hunks (pos-bol))
+              (prat-hunk-view-mode)))
 
           (switch-to-buffer output-buf)))
 

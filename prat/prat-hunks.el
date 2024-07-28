@@ -1051,4 +1051,13 @@ the file for the structure of these alists."
 
 
 
+(defun prat-format-hunks (&optional beg end)
+  (interactive "r")
+  (setq beg (or beg (point-min))
+        end (or end (point-max)))
+  (let ((hunks (prat-parse-diff beg end))
+        (inhibit-read-only t))
+    (delete-region beg end)
+    (prat-insert-hunks hunks)))
+
 (provide 'prat-hunks)
