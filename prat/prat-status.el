@@ -39,8 +39,8 @@
       (prat-show-status-mode)
       (setq default-directory repo-dir)
       (setq-local prat-status-command
-                  "git -c advice.statusHints=false status --show-stash")
-      (insert (format "Status in %s\n\n> git status --show-stash\n\n" repo-dir))
+                  "git -c advice.statusHints=false status -u --show-stash")
+      (insert (format "Status in %s\n\n> git status -u --show-stash\n\n" repo-dir))
       (setq-local prat-status-output-marker (point))
       (prat-insert-placeholder "Loading status")
       (prat-show-status--refresh))
@@ -85,7 +85,7 @@ status output."
 
   (when (re-search-forward "Changes to be committed:" nil t)
     (insert " (")
-    (insert-text-button "view" 'action 'prat-show-staged-changes)
+    (insert-text-button "view diff" 'action 'prat-show-staged-changes)
     (insert ")")
     (forward-line 1)
 
@@ -108,10 +108,35 @@ status output."
          'action 'prat-show-status--show-staged-file-diff
          'filename (match-string 2)))))
 
+  (when (re-search-forward "Unmerged paths:" nil t)
+    (insert " (")
+    (insert-text-button
+     "view diff" 'action 'prat-show-umerged-paths)
+    (insert ")")
+    (forward-line 1)
+
+    (while (looking-at "^\t[^\t]")
+      (let* ((regex (concat "^\t\\(both modified:\\)?"
+                            " *\\([^ ].*\\)$")))
+
+        ;; Put an overlay across the whole line for marking.
+        (prat-make-overlay (point)
+                           (progn (re-search-forward regex)
+                                  (forward-line 1)
+                                  (point))
+                           'prat-state "unmerged"
+                           'prat-filename (match-string 2))
+
+        ;; Put a button on the filename itself.
+        (make-text-button (match-beginning 2) (match-end 2)
+                          'action
+                          'prat-show-status--show-unmerged-file-diff
+                          'filename (match-string 2)))))
+
   (when (re-search-forward "Changes not staged for commit:" nil t)
     (insert " (")
     (insert-text-button
-     "view" 'action 'prat-show-unstaged-changes)
+     "view diff" 'action 'prat-show-unstaged-changes)
     (insert ")")
     (forward-line 1)
 
@@ -150,7 +175,7 @@ status output."
   (when (re-search-forward "Your stash currently has" nil t)
     (end-of-line)
     (insert " (")
-    (insert-text-button "view" 'action 'prat-show-stash-list)
+    (insert-text-button "view list" 'action 'prat-show-stash-list)
     (insert ")"))
 
   (untabify (point-min) (point-max)))
@@ -298,5 +323,13 @@ Unmarks the file if UNMARK is non-nil."
          (repo-dir default-directory))
     (prat-show-changes cmd nil buf 'prat-unstaged-changes-mode repo-dir)))
 
+
+(defun prat-show-umerged-paths (button)
+ (prat-shell-command "git diff --ours" "*unmerged changes*"))
+
+(defun prat-show-status--show-unmerged-file-diff (button)
+  (let* ((filename (button-get button 'filename)))
+    (prat-shell-command (format "git diff --ours -- \"%s\"" filename)
+                        (format "*unmerged: %s*" filename))))
 
 (provide 'prat-status)
