@@ -15,7 +15,7 @@
     (define-key map "n" 'prat-forward-command)
     (define-key map "N" 'prat-forward-file-command)
     (define-key map (kbd "RET") 'prat-goto-line)
-    (define-key map "g" 'revert-buffer)
+    (define-key map "g" 'prat-shell-command-refresh)
     (fset 'prat-hunk-view-mode-map map)
     map)
   "Base keymap for hunk viewing.")

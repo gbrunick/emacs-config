@@ -23,7 +23,7 @@ value is string giving the path to a copy of prat-editor.bash.")
 (defvar prat-shell-command-output-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "!" 'prat-shell-command)
-    ;; (define-key map "q" 'quit-window)
+    (define-key map "g" 'prat-shell-command-refresh)
     map))
 
 (define-derived-mode prat-shell-command-output-mode
@@ -110,84 +110,86 @@ switches to this buffer."
       (setq default-directory dir)
       (insert (or title dir) "\n\n")
       (insert "> " cmd2 "\n\n")
-      (prat-insert-placeholder "Waiting for output...")
-      (setq-local prat-edit-info
+      (setq-local prat-shell-command-info
                   (list :command cmd
+                        :env-vars env-vars
                         :output-buffer buf
                         :directory dir
+                        :output-pos (point)
                         :pipe-file editor-pipe))
 
-      ;; (message "prat-shell-command: %S %S %S" major-mode
-      ;;          (derived-mode-p 'prat-hunk-view-mode)(current-buffer))
-
-      ;; `prat-shell-command-1' opens a buffer to edit the required file.  It
-      ;; uses the infomation we provide in `prat-edit-info'.
-      ;;
-      ;; We call `prat-async-shell-command' inside `buf' so
-      ;; `prat-shell-command-1' can see `prat-edit-info'
-      (prat-async-shell-command cmd default-directory
-                                #'prat-shell-command-1 env-vars t))))
+      ;; (prat-insert-placeholder "Waiting for output...")
+      (prat-shell-command-refresh))))
 
 
-(defun prat-shell-command-1 (buf start end complete)
-"Implementation detail of `prat-shell-command'
+(defun prat-shell-command-refresh ()
+  (interactive)
+  (let ((cmd (plist-get prat-shell-command-info :command))
+        (env-vars (plist-get prat-shell-command-info :env-vars))
+        (output-pos (plist-get prat-shell-command-info :output-pos)))
+    (prat-async-shell-command cmd nil #'prat-shell-command-refresh-1
+                              env-vars t)))
+
+(defun prat-shell-command-refresh-1 (buf start end complete)
+  "Implementation detail of `prat-shell-command'
 
 Processes the output from a shell command."
   (prat-log-call)
-  (save-excursion
-    (save-match-data
-      (cond
-       (complete
-        (let ((output-buf (current-buffer))
-              (edit-buffer (plist-get prat-edit-info :edit-buffer))
-              (output-text (with-current-buffer buf
-                             (goto-char start)
-                             ;; Skip the output from our editor script and
-                             ;; show the Git command output.
-                             (when (re-search-forward "^Command output:" end t)
-                               (forward-line 1))
-                             (buffer-substring-no-properties (point) end)))
-              beg)
-          (with-current-buffer output-buf
-            (goto-char (prat-delete-placeholder))
-            (setq beg (point))
-            (insert output-text))
+  (save-match-data
+    (cond
+     (complete
+      (let ((output-pos (plist-get prat-shell-command-info :output-pos))
+            (edit-buffer (plist-get prat-shell-command-info :edit-buffer))
+            (output-text (with-current-buffer buf
+                           (goto-char start)
+                           ;; Skip the output from our editor script and
+                           ;; show the Git command output.
+                           (when (re-search-forward "^Command output:" end t)
+                             (forward-line 1))
+                           (buffer-substring-no-properties (point) end)))
+            beg)
+
+        (save-excursion
+          (goto-char output-pos)
+          (setq beg (point))
+          (delete-region beg (point-max))
+          (insert output-text)
 
           ;; If this is the pending edit buffer, clear this global lock.
           (when (eq prat-pending-edit-buffer edit-buffer)
             (setq prat-pending-edit-buffer nil))
 
-          (save-excursion
-            (goto-char beg)
-            (when (re-search-forward "^diff --git" nil t)
-              (prat-format-hunks (pos-bol))
-              ;; (message "prat-shell-command-1: %S %S %S" major-mode
-              ;;          (derived-mode-p 'prat-hunk-view-mode) (current-buffer))
-              (unless (derived-mode-p 'prat-hunk-view-mode)
-                (prat-hunk-view-mode))))
+          (goto-char beg)
+          (when (re-search-forward "^diff --git" nil t)
+            (prat-format-hunks (pos-bol))
+            ;; (message "prat-shell-command-1: %S %S %S" major-mode
+            ;;          (derived-mode-p 'prat-hunk-view-mode) (current-buffer))
+            (unless (derived-mode-p 'prat-hunk-view-mode)
+              (prat-hunk-view-mode))))
 
-          (switch-to-buffer output-buf)))
+        (goto-char (point-min))
+        (switch-to-buffer (current-buffer))))
 
-         (t
-          (let* ((info prat-edit-info) file-name)
-            (with-current-buffer buf
-              (goto-char start)
-              ;; The process waits for the completion of editing, so we have
-              ;; to look for these string before the process completes.
-              (when (re-search-forward "^File: \"?\\([^\"\n]+\\)\"?$" end t)
-                (setq file-name (concat (or (file-remote-p default-directory) "")
-                                        (match-string-no-properties 1))
-                      prat-pending-edit-buffer (find-file file-name))
+     (t
+      (let* ((info prat-shell-command-info) file-name)
+        (with-current-buffer buf
+          (goto-char start)
+          ;; The process waits for the completion of editing, so we have
+          ;; to look for these string before the process completes.
+          (when (re-search-forward "^File: \"?\\([^\"\n]+\\)\"?$" end t)
+            (setq file-name (concat (or (file-remote-p default-directory) "")
+                                    (match-string-no-properties 1))
+                  prat-pending-edit-buffer (find-file file-name))
 
-              (with-current-buffer prat-pending-edit-buffer
-                (prat-edit-mode)
-                (setq-local prat-edit-info info)
-                ;; This happens in a callback so call any post command
-                ;; hooks so they can respond to the updated current buffer.
-                (run-hooks 'post-command-hook))
+            (with-current-buffer prat-pending-edit-buffer
+              (prat-edit-mode)
+              (setq-local prat-shell-command-info info)
+              ;; This happens in a callback so call any post command
+              ;; hooks so they can respond to the updated current buffer.
+              (run-hooks 'post-command-hook))
 
-              (plist-put prat-edit-info :edit-buffer prat-pending-edit-buffer)
-              (switch-to-buffer prat-pending-edit-buffer)))))))))
+            (plist-put prat-shell-command-info :edit-buffer prat-pending-edit-buffer)
+            (switch-to-buffer prat-pending-edit-buffer))))))))
 
 
 (defun prat-get-editor-script (&optional dir)
@@ -256,11 +258,11 @@ GIT_SEQUENCE_EDITOR."
 (defun prat-signal-editor-script ()
   "Let the editor script know the edit is done.
 
-Expects to be called from a buffer where `prat-edit-info' is
+Expects to be called from a buffer where `prat-shell-command-info' is
 defined."
   (prat-log-call)
   (ignore-errors
-    (let ((repo-root (plist-get prat-edit-info :directory)))
+    (let ((repo-root (plist-get prat-shell-command-info :directory)))
       (cl-assert repo-root)
       (cond
        ((prat-use-cmd-exe-p)
@@ -286,7 +288,7 @@ defined."
   ;; We don't want Emacs to ask again because the buffer is modified.
   ;; `prat-edit-kill-buffer-hook' is just going to erase the buffer anyway.
   (set-buffer-modified-p nil)
-  (let ((cmd (plist-get prat-edit-info :command)))
+  (let ((cmd (plist-get prat-shell-command-info :command)))
     (yes-or-no-p (format "Cancel %s? " cmd))))
 
 (defun prat-finish-edit ()

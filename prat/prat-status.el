@@ -67,8 +67,9 @@ status output."
                          (buffer-substring-no-properties start end)))
           (inhibit-read-only t))
       (delete-region prat-status-output-marker (point-max))
-      (goto-char prat-status-output-marker)
+      (goto-char (point-min))
       (save-excursion
+        (goto-char prat-status-output-marker)
         (insert status-text)
         (goto-char prat-status-output-marker)
         (prat-show-status--markup-output)))))

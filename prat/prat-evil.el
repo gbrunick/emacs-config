@@ -22,7 +22,7 @@
     "n" 'prat-forward-command
     "N" 'prat-forward-file-command
     (kbd "RET") 'prat-goto-line
-    "gr" 'revert-buffer)
+    "gr" 'prat-shell-command-refresh)
 
   (evil-define-key 'normal prat-hunk-selection-mode-map
     "m" 'prat-mark-hunk-command
