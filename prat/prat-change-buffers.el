@@ -105,7 +105,7 @@
 (defun prat-show-commit (hash)
   "Write information about the commit HASH into the current buffer."
   (prat-shell-command
-   (format "git show %s --" hash)
+   (format "git show --stat --patch %s --" hash)
    (format "*commit: %s*" hash)
    nil
    (format "Commit %s in %s" hash default-directory)))
