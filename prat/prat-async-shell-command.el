@@ -358,4 +358,4 @@ otherwise."
   (setq prat-all-workers nil))
 
 
-(provide 'prat-shell-commands)
+(provide 'prat-async-shell-command)

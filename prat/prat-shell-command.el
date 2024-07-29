@@ -1,10 +1,9 @@
-;; prat-editor.el
+;; prat-shell-command.el
 ;;
-;; Wrappers for the Git commit and interactive rebase commands that require
-;; the user to edit file.
+;; Provides the `prat-shell-command' function.
 ;;
 
-(require 'prat-shell-commands)
+(require 'prat-async-shell-command)
 
 (defvar prat-rebase-command-history nil
   "History list for rebase commands.")
@@ -301,4 +300,4 @@ defined."
   (prat-signal-editor-script)
   (kill-buffer))
 
-(provide 'prat-editor)
+(provide 'prat-shell-command)

@@ -1,5 +1,5 @@
 (require 'seq)
-(require 'prat-shell-commands)
+(require 'prat-shell-command)
 (require 'prat-stash)
 
 (defvar prat-show-status-mode-map

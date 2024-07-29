@@ -13,9 +13,9 @@
 (require 'prat-status)
 (require 'prat-logs)
 (require 'prat-hunks)
-(require 'prat-shell-commands)
+(require 'prat-shell-command)
 (require 'prat-change-buffers)
-(require 'prat-editor)
+(require 'prat-stash)
 
 (defvar prat-debug nil
   "When non-nil, enable debug mode.
@@ -228,12 +228,14 @@ User-facing; attempts to preserve window position."
 
 (defun prat-reload-all ()
   "Reload all source files."
+  (interactive)
   (load "prat-util.el")
   (load "prat-status.el")
   (load "prat-logs.el")
   (load "prat-hunks.el")
-  (load "prat-shell-commands.el")
-  (load "prat-editor.el")
+  (load "prat-async-shell-command.el")
+  (load "prat-shell-command.el")
+  (load "prat-stash.el")
   (load "prat.el"))
 
 (provide 'prat)
