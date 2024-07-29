@@ -26,8 +26,7 @@
                                       nil
                                       'grep-history)))
 
-  (let* ((compilation-ask-about-save nil)
-         (default-directory dir)
+  (let* ((default-directory dir)
          (make-args (lambda (argname globs)
                       (mapconcat (lambda (x)
                                    (format "%s=\"%s\" " argname x))
