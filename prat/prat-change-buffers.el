@@ -67,14 +67,13 @@
 \\{prat-unstaged-changes-mode-map}\n"
   (setq-local staged-changes-buffer nil))
 
-(defun prat-show-unstaged-changes (&optional button cmd buf repo-dir)
+(defun prat-show-unstaged-changes (&optional button)
   (interactive)
-  (let ((cmd (or cmd "git diff --histogram --find-renames --stat --patch"))
-        (desc (format "Unstaged changes in %s" (prat-abbreviate-file-name
-                                                default-directory)))
-        (buf (or buf (get-buffer-create prat-staged-buffer-name))))
-    (prat-show-changes cmd desc buf 'prat-unstaged-changes-mode repo-dir)))
-
+  (prat-shell-command "git diff --histogram --find-renames --stat --patch"
+                      prat-unstaged-buffer-name
+                      nil
+                      (format "Unstaged changes in %s" default-directory)
+                      'prat-unstaged-changes-mode))
 
 ;; Staged Changes
 
@@ -94,107 +93,31 @@
 \\{prat-staged-changes-mode-map}\n"
   (setq-local staged-changes-buffer t))
 
-(defun prat-show-staged-changes (&optional button cmd buf repo-dir)
+(defun prat-show-staged-changes (&optional button)
   (interactive)
-  (let ((cmd (or cmd (concat "git diff --cached --histogram --find-renames "
-                             "--stat --patch")))
-        (desc (format "Staged changes in %s" (prat-abbreviate-file-name
-                                              default-directory)))
-        (buf (or buf (get-buffer-create prat-staged-buffer-name))))
-    (prat-show-changes cmd desc buf 'prat-staged-changes-mode repo-dir)))
+  (prat-shell-command
+   "git diff --cached --histogram --find-renames --stat --patch"
+   "*staged changes*"
+   nil
+   (format "Staged changes in %s" default-directory)
+   'prat-staged-changes-mode))
 
-
-(defun prat-show-commit (hash &optional repo-dir callback)
+(defun prat-show-commit (hash)
   "Write information about the commit HASH into the current buffer."
-  (let ((cmd (format "git show %s --" hash))
-        (desc (format "Commit %s" hash))
-        (buf (get-buffer-create (format "*commit: %s*" hash))))
-    (prat-show-changes cmd nil buf 'prat-hunk-view-mode repo-dir)))
+  (prat-shell-command
+   (format "git show %s --" hash)
+   (format "*commit: %s*" hash)
+   nil
+   (format "Commit %s in %s" hash default-directory)))
 
-
-(defun prat-show-commit-diff (hash1 hash2 &optional repo-dir)
+(defun prat-show-commit-diff (hash1 hash2)
   "Display the changes from HASH1 to HASH2."
-  (let ((cmd (format "git diff --stat --patch %s %s %s --"
-                     "--histogram --find-renames" hash1 hash2))
-        (buf (get-buffer-create (format "*%s...%s*" hash1 hash2))))
-    (prat-show-changes cmd nil buf 'prat-hunk-view-mode repo-dir)))
-
-
-(defun prat-show-changes (cmd desc buf major-mode &optional repo-dir)
-  (interactive)
-  (let ((repo-dir (or repo-dir (prat-find-repo-root)))
-        (buffer-mode major-mode)
-        (inhibit-read-only t))
-    (with-current-buffer buf
-      (erase-buffer)
-      (funcall buffer-mode)
-      (setq default-directory repo-dir)
-      (when desc (insert (format "%s\n\n" desc)))
-      (insert (format "%s\n\n" cmd))
-      (setq-local prat-change-buffer-info
-                  (list :cmd cmd :repo-dir repo-dir :output-start (point)))
-      (prat-insert-placeholder "Loading hunks")
-      (prat-async-shell-command cmd repo-dir #'prat-show-changes-1))
-    (switch-to-buffer buf)))
-
-
-(defun prat-show-changes-1 (buf start end complete)
-  "Implementation detail of `prat-show-changes'."
-  (prat-log-call)
-  (when complete
-    (let ((info (with-current-buffer buf
-                  (save-excursion
-                    (goto-char start)
-                    ;; git show has info in front of the diff hunks.
-                    (when (re-search-forward "^diff --" nil t)
-                      (buffer-substring-no-properties
-                       start (match-beginning 0))))))
-          (hunks (with-current-buffer buf (prat-parse-diff start end)))
-          (inhibit-read-only t))
-      (goto-char (prat-delete-placeholder))
-      (when info (insert info))
-      (cond
-       (hunks
-        ;; Add a text button for each filename
-        (insert "Files: ")
-        (let* ((filenames (mapcar (lambda (hunk) (prat-aget hunk :filename1))
-                                  hunks))
-               (max-length (apply 'max (mapcar 'length filenames))))
-          (dolist (filename (sort (delete-dups (delq nil filenames)) 'string<))
-            (make-text-button (point)
-                              (progn (insert filename) (point))
-                              'action 'prat-jump-to-file-hunks
-                              'filename filename)
-            (insert (make-string (max (- max-length (length filename)) 0)
-                                 ?\ ))
-            (let ((file-hunks (cl-remove-if-not
-                               (lambda (h)
-                                 (equal (prat-aget h :filename1) filename))
-                               hunks)))
-              (insert (cond
-                       ((= (length file-hunks) 1) " (1 hunk)")
-                       (t (format " (%s hunks)"
-                                  (length file-hunks))))))
-            (insert "\n       ")))
-        (forward-line 0)
-        (delete-region (point) (line-end-position))
-        (insert "\n\n")
-        (prat-insert-hunks hunks))
-       (t
-        (insert "No changes")))
-      (goto-char (point-min)))))
-
-
-(defun prat-revert-changes-buffer (ignore-auto noconfirm)
-  (let ((cmd (plist-get prat-change-buffer-info :cmd))
-        (repo-dir (plist-get prat-change-buffer-info :repo-dir))
-        (output-start (plist-get prat-change-buffer-info :output-start))
-        (inhibit-read-only t))
-    (save-excursion
-      (goto-char output-start)
-      (delete-region output-start (point-max))
-      (prat-insert-placeholder "Updating hunks")
-      (prat-async-shell-command cmd repo-dir #'prat-show-changes-1))))
+  (prat-shell-command
+   (format "git diff --stat --patch --histogram --find-renames %s..%s --"
+           hash1 hash2)
+   (format "*diff %s...%s*" hash1 hash2)
+   nil
+   (format "Changes from %s to %s in %s" hash1 hash2 default-directory)))
 
 
 (provide 'prat-change-buffers)

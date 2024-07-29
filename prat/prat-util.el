@@ -22,17 +22,6 @@ Looks for the .git directory rather than calling Git."
     (concat (make-string indent ?\ )
             (propertize txt 'face '(:weight bold)))))
 
-
-(defun prat-abbreviate-file-name (dir)
-  (dolist (remote-dir prat-remote-home-dirs)
-    (when (string-prefix-p remote-dir dir)
-      (cl-assert (file-remote-p remote-dir))
-      (setq dir (replace-regexp-in-string (regexp-quote remote-dir)
-                                          (file-remote-p remote-dir)
-                                          dir))))
-  dir)
-
-
 (defun prat-log-call (&optional func args n)
   "Write tracing info `prat-debug-buffer-name'.
 

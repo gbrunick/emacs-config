@@ -138,7 +138,7 @@ branch name, rather than a commit hash."
                                  nil #'prat-commit-graph--refresh-when-complete))))
 
 ;; Simple commands that operate on the current branch/commit.
-(prat-commit-graph--defcmd prat-commit-graph--checkout "checkout" nil t)
+(prat-commit-graph--defcmd prat-commit-graph--checkout "checkout" nil)
 (prat-commit-graph--defcmd prat-commit-graph--reset "reset")
 (prat-commit-graph--defcmd prat-commit-graph--delete-branch
                            "branch -d" "branch -D" t)
@@ -147,7 +147,7 @@ branch name, rather than a commit hash."
   "Show commit at point."
   (interactive)
   (let ((hash (prat-commit-graph--commit-at)))
-    (prat-show-tree hash)))
+    (prat-show-commit hash)))
 
 
 (defun prat-commit-graph--list-commit-files (&optional pos)

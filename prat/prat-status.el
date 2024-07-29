@@ -309,20 +309,22 @@ Unmarks the file if UNMARK is non-nil."
 
 
 (defun prat-show-status--show-unstaged-file-diff (button)
-  (let* ((filename (button-get button 'filename))
-         (cmd (format "git diff -- \"%s\"" filename))
-         (buf (get-buffer-create (format "*unstaged: %s*" filename)))
-         (repo-dir default-directory))
-    (prat-show-changes cmd nil buf 'prat-unstaged-changes-mode repo-dir)))
-
+  (let* ((filename (button-get button 'filename)))
+    (prat-shell-command
+     (format "git diff -- \"%s\"" filename)
+     (format "*unstaged in %s*" filename)
+     nil
+     (format "Unstaged changes in %s" (expand-file-name filename))
+     'prat-unstaged-changes-mode)))
 
 (defun prat-show-status--show-staged-file-diff (button)
-  (let* ((filename (button-get button 'filename))
-         (cmd (format "git diff --cached -- \"%s\"" filename))
-         (buf (get-buffer-create (format "*staged: %s*" filename)))
-         (repo-dir default-directory))
-    (prat-show-changes cmd nil buf 'prat-unstaged-changes-mode repo-dir)))
-
+  (let* ((filename (button-get button 'filename)))
+    (prat-shell-command
+     (format "git diff --cached -- \"%s\"" filename)
+     (format "*staged from %s*" filename)
+     nil
+     (format "Staged changes in %s" (expand-file-name filename))
+     'prat-staged-changes-mode)))
 
 (defun prat-show-umerged-paths (button)
  (prat-shell-command "git diff --ours" "*unmerged changes*"))

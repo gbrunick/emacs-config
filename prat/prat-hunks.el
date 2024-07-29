@@ -456,8 +456,8 @@ previously highlighted hunk."
   (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (prat-apply-hunks marked-hunks "apply" "--cached")))
     (unless prat-debug (delete-file patch-file))
-    (prat-show-status--refresh)
-    (quit-window t)))
+    (quit-window t)
+    (prat-show-status)))
 
 
 (defun prat-unstage-hunks ()
@@ -467,8 +467,8 @@ previously highlighted hunk."
          (patch-file (prat-apply-hunks marked-hunks
                                        "apply" "--cached" "-R")))
     (unless prat-debug (delete-file patch-file))
-    (prat-show-status--refresh)
-    (quit-window t)))
+    (quit-window t)
+    (prat-show-status)))
 
 
 (defun prat-revert-marked-hunks ()
@@ -482,7 +482,8 @@ applying this patch file to the working directory."
   (when (y-or-n-p "Revert marked changes in the working directory? ")
     (let* ((marked-hunks (prat-get-marked-hunks))
            (patch-file (prat-apply-hunks marked-hunks "apply" "-R")))
-      (revert-buffer)
+      (quit-window t)
+      (prat-show-status)
       (message "Successfully applied %s" patch-file))))
 
 

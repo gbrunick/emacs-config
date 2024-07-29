@@ -26,15 +26,6 @@ some tracing info into `prat-debug-buffer-name'.")
 (defvar prat-debug-buffer-name "*Prat Debug*"
   "The name of the buffer used to hold debug information.")
 
-(defcustom prat-remote-home-dirs nil
-  "A list of strings giving remote directory paths.
-
-Each directory should have TRAMP-prefix.  This variable is used
-by `prat-abbreviate-file-name' to give better directory
-names in the UI."
-  :type '(repeat directory) :group 'gitmodes)
-
-
 (defcustom prat-status-buffer-name "*git status*"
   "The name of the buffer used to show Git status."
   :type 'string :group 'gitmodes)

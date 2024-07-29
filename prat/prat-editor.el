@@ -53,7 +53,7 @@ With a prefix argument, amends previous commit."
      (read-shell-command "Shell command: " cmd prat-rebase-command-history)
      "*Git Rebase*")))
 
-(defun prat-shell-command (cmd &optional bufname cmd2)
+(defun prat-shell-command (cmd &optional bufname cmd2 title major-mode-func)
   "Execute Git command CMD that may require editing a file.
 
 On completion, shows the command output in a buffer named BUFNAME and
@@ -106,9 +106,9 @@ switches to this buffer."
 
     (with-current-buffer buf
       (erase-buffer)
-      (prat-shell-command-output-mode)
+      (funcall (or major-mode-func #'prat-shell-command-output-mode))
       (setq default-directory dir)
-      (insert dir "\n\n")
+      (insert (or title dir) "\n\n")
       (insert "> " cmd2 "\n\n")
       (prat-insert-placeholder "Waiting for output...")
       (setq-local prat-edit-info
@@ -116,6 +116,9 @@ switches to this buffer."
                         :output-buffer buf
                         :directory dir
                         :pipe-file editor-pipe))
+
+      ;; (message "prat-shell-command: %S %S %S" major-mode
+      ;;          (derived-mode-p 'prat-hunk-view-mode)(current-buffer))
 
       ;; `prat-shell-command-1' opens a buffer to edit the required file.  It
       ;; uses the infomation we provide in `prat-edit-info'.
@@ -158,7 +161,10 @@ Processes the output from a shell command."
             (goto-char beg)
             (when (re-search-forward "^diff --git" nil t)
               (prat-format-hunks (pos-bol))
-              (prat-hunk-view-mode)))
+              ;; (message "prat-shell-command-1: %S %S %S" major-mode
+              ;;          (derived-mode-p 'prat-hunk-view-mode) (current-buffer))
+              (unless (derived-mode-p 'prat-hunk-view-mode)
+                (prat-hunk-view-mode))))
 
           (switch-to-buffer output-buf)))
 
