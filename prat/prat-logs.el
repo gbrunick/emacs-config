@@ -56,7 +56,7 @@
   (prat-log-call)
   (let ((inhibit-read-only t))
     (setq-local refresh t)
-    (prat-async-shell-command shell-command nil #'prat-refresh-commit-graph-1)))
+    (prat-async-shell-command shell-command #'prat-refresh-commit-graph-1)))
 
 
 (defun prat-refresh-commit-graph-1 (buf start end complete)
@@ -135,7 +135,7 @@ branch name, rather than a commit hash."
                         (if arg (or ,alt-cmd ,base-cmd) ,base-cmd)
                         (prat-commit-graph--commit-at nil ,branch-only))))
        (prat-async-shell-command (read-shell-command "Shell command: " cmd)
-                                 nil #'prat-commit-graph--refresh-when-complete))))
+                                 #'prat-commit-graph--refresh-when-complete))))
 
 ;; Simple commands that operate on the current branch/commit.
 (prat-commit-graph--defcmd prat-commit-graph--checkout "checkout" nil)

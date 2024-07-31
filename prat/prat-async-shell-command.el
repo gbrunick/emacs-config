@@ -36,17 +36,14 @@ any command output and doesn't require any shell quoting.")
   (setq truncate-lines t)
   (setq-local kill-buffer-query-functions nil))
 
-(defun prat-async-shell-command (cmd &optional dir callback env-vars no-check)
-  "Execute CMD in DIR and call CALLBACK as output becomes available.
+(defun prat-async-shell-command (cmd &optional callback env-vars no-check)
+  "Execute CMD and call CALLBACK as output becomes available.
 
-CMD is a string that is passed through to a Bash or Windows cmd
-process.  This string must be properly quoted by the caller.  DIR
-is a string giving the working directory in which the command is
-executed.  Remote TRAMP directories are supported.  CALLBACK is a
-function that accepts (BUF START END COMPLETE).  It is called in
-the buffer which was active when `prat-async-shell-command' was
-called as output become available.  If that buffer is no longer
-alive, CALLBACK is not called.
+CMD is a string that is passed through to a Bash or Windows cmd process.
+This string must be properly quoted by the caller.  CALLBACK is a function
+that accepts (BUF START END COMPLETE).  It is called in the buffer which
+was active when `prat-async-shell-command' was called as output becomes
+available.  If that buffer is no longer alive, CALLBACK is not called.
 
 CALLBACK is called as output is read from the worker process.
 The buffer containing process output is passed to CALLBACK as
@@ -59,16 +56,16 @@ In particular, callers that don't want to process the output in
 real-time, can wait for COMPLETE and then process all output
 between START and END.
 
-If ENV-VARS is provided, it should be is a list of strings of the
+If ENV-VARS is provided, it should be a list of strings of the
 form VARNAME=VALUE and these variables are set in the shell
 before CMD is run.
 
-If NO-CHECK is nil, we check the return code produced by CMD and show a
-buffer containing the process output if CMD failed."
+We normally check the return code produced by CMD and show a buffer
+containing the process output if CMD failed, but this check is omitted if
+NO-CHECK is non-nil."
   (prat-log-call)
   (let* ((marker (copy-marker (point)))
-         (dir (or dir default-directory))
-         (server-buf (prat-get-server-buf dir))
+         (server-buf (prat-get-server-buf))
          (local-dir (file-local-name default-directory))
          proc)
 
@@ -86,7 +83,7 @@ buffer containing the process output if CMD failed."
       ;; We start a new process to isolate commands.
       (cond
        ;; Windows
-       ((prat-use-cmd-exe-p dir)
+       ((prat-use-cmd-exe-p)
         (process-send-string proc "cmd\n")
         ;; Set any environment variables
         (dolist (def env-vars)

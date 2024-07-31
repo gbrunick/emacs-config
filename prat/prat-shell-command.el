@@ -261,16 +261,15 @@ Expects to be called from a buffer where `prat-shell-command-info' is
 defined."
   (prat-log-call)
   (ignore-errors
-    (let ((repo-root (plist-get prat-shell-command-info :directory)))
-      (cl-assert repo-root)
+    (let ((default-directory (plist-get prat-shell-command-info :directory)))
+      (cl-assert default-directory)
       (cond
        ((prat-use-cmd-exe-p)
         ;; prat-editor.cmd waits for this signal.
-        (prat-async-shell-command "waitfor /si EmacsEditDone" repo-root))
+        (prat-async-shell-command "waitfor /si EmacsEditDone"))
        (t
         ;; prat-editor.sh blocks while reading from this named pipe.
-        (prat-async-shell-command
-         (format "echo done. > .prat-editor-pipe") repo-root))))))
+        (prat-async-shell-command "echo done. > .prat-editor-pipe"))))))
 
 (defun prat-edit-kill-buffer-hook ()
   "Finish edit and show Git process buffer."

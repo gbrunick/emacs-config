@@ -41,7 +41,7 @@
   (prat-log-call)
   (let ((inhibit-read-only t))
     (setq-local refresh t)
-    (prat-async-shell-command shell-command nil #'prat-refresh-stash-list-1)))
+    (prat-async-shell-command shell-command #'prat-refresh-stash-list-1)))
 
 
 (defun prat-refresh-stash-list-1 (buf start end complete)

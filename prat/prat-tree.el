@@ -36,8 +36,7 @@
   (prat-log-call)
   (let ((inhibit-read-only t))
     (setq-local refresh t)
-    (prat-async-shell-command shell-command nil
-                              #'prat-refresh-file-tree-1)))
+    (prat-async-shell-command shell-command #'prat-refresh-file-tree-1)))
 
 
 (defun prat-refresh-file-tree-1 (buf start end complete)
@@ -72,8 +71,7 @@
       (prat-base-mode)
       (let ((buffer-file-name filename))
         (set-auto-mode))
-      (prat-async-shell-command cmd default-directory
-                                'prat-show-tree--show-file-1))
+      (prat-async-shell-command cmd 'prat-show-tree--show-file-1))
 
     (switch-to-buffer buf)))
 

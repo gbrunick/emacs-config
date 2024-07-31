@@ -52,8 +52,8 @@
   "Update the current Git status buffer."
   (interactive)
   (let ((inhibit-read-only t))
-    (prat-async-shell-command
-     prat-status-command default-directory #'prat-show-status--refresh-1)))
+    (prat-async-shell-command prat-status-command
+                              #'prat-show-status--refresh-1)))
 
 
 (defun prat-show-status--refresh-1 (buf start end complete)
@@ -292,8 +292,7 @@ Unmarks the file if UNMARK is non-nil."
            (cmd (format "git %s -- %s" git-cmd quoted-filenames)))
 
       (message "%s" cmd)
-      (prat-async-shell-command cmd default-directory
-                                'prat-show-status--refresh))))
+      (prat-async-shell-command cmd 'prat-show-status--refresh))))
 
 
 (defun prat-show-status--add-files ()
