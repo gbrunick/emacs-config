@@ -126,7 +126,7 @@ switches to this buffer."
   (let ((cmd (plist-get prat-shell-command-info :command))
         (env-vars (plist-get prat-shell-command-info :env-vars))
         (output-pos (plist-get prat-shell-command-info :output-pos)))
-    (prat-async-shell-command cmd nil #'prat-shell-command-refresh-1
+    (prat-async-shell-command cmd #'prat-shell-command-refresh-1
                               env-vars t)))
 
 (defun prat-shell-command-refresh-1 (buf start end complete)
