@@ -80,11 +80,10 @@ NO-CHECK is non-nil."
       (setq-local proc-start (marker-position (process-mark proc)))
       (set-process-filter proc #'prat-async-shell-command--process-filter)
 
-      ;; We start a new process to isolate commands.
       (cond
        ;; Windows
        ((prat-use-cmd-exe-p)
-        (process-send-string proc "cmd\n")
+        (process-send-string proc "setlocal\n")
         ;; Set any environment variables
         (dolist (def env-vars)
           (process-send-string proc (format "set %s\n" def)))
@@ -93,10 +92,11 @@ NO-CHECK is non-nil."
          proc (concat (format "(echo:& echo %s& %s)" prat-output-start cmd)
                       (format "&& (echo:& echo %s:SUCCESS)" prat-output-end)
                       (format "|| (echo:& echo %s:FAIL)\n" prat-output-end)))
-        (process-send-string proc "exit\n"))
+        (process-send-string proc "endlocal\n"))
 
        ;; Linux
        (t
+        ;; We start a new process to isolate commands.
         (process-send-string proc "bash --noediting --noprofile --norc\n")
         (process-send-string proc "stty -echo\n")
         ;; Hide prompts.
