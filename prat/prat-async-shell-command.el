@@ -80,6 +80,9 @@ NO-CHECK is non-nil."
       (setq-local proc-start (marker-position (process-mark proc)))
       (set-process-filter proc #'prat-async-shell-command--process-filter)
 
+      (set-process-filter proc #'prat-async-shell-command-1)
+
+
       (cond
        ;; Windows
        ((prat-use-cmd-exe-p)
@@ -116,7 +119,7 @@ NO-CHECK is non-nil."
       proc)))
 
 
-(defun prat-async-shell-command--process-filter (proc string)
+(defun prat-async-shell-command-1 (proc string)
   "Process filter for `prat-async-shell-command'."
   (prat-log-call)
   (when (buffer-live-p (process-buffer proc))
