@@ -67,18 +67,16 @@ NO-CHECK is non-nil."
   (let* ((marker (copy-marker (point)))
          (server-buf (prat-get-server-buf))
          (local-dir (file-local-name default-directory))
-         proc)
+         (proc (get-buffer-process server-buf))
+         (search-start (marker-position (process-mark proc))))
 
     (with-current-buffer server-buf
-      ;; Set variables for `prat-async-shell-command--process-filter'.
-      (setq proc (get-buffer-process (current-buffer)))
-      (setq-local current-command cmd)
-      (setq-local callback-marker marker)
-      (setq-local callback-func callback)
-      (setq-local prat-no-check no-check)
-      ;; The searches in the process filter start at `proc-start'.
-      (setq-local proc-start (marker-position (process-mark proc)))
-      (set-process-filter proc #'prat-async-shell-command--process-filter)
+      ;; Pass data to `prat-async-shell-command-1'.
+      (setq-local prat-asc-data `( :cmd ,cmd
+                                   :marker ,marker
+                                   :callback ,callback
+                                   :search-start ,search-start
+                                   :no-check ,no-check))
 
       (set-process-filter proc #'prat-async-shell-command-1)
 
@@ -123,15 +121,26 @@ NO-CHECK is non-nil."
   "Process filter for `prat-async-shell-command'."
   (prat-log-call)
   (when (buffer-live-p (process-buffer proc))
-    (let ((proc-buf (process-buffer proc))
-          (start-regex (format "^%s" prat-output-start))
-          (end-regex (format "^%s" prat-output-end))
-          ;; `start-marker' and `end-marker' are the matches to the regexs.
-          start-marker end-marker
-          ;; `output-start' and `output-end' will delimit complete lines.
-          output-start output-end
-          callback marker
-          (inhibit-read-only t))
+    (let* ((proc-buf (process-buffer proc))
+           (data (with-current-buffer proc-buf prat-asc-data))
+           ;; `prat-asc-data' is set in `prat-async-shell-command'
+           (cmd (plist-get data :cmd))
+           (callback-marker (plist-get data :marker))
+           (callback (plist-get data :callback))
+           (no-check (plist-get data :no-check))
+           (callback-buffer (marker-buffer callback-marker))
+           ;; The search for `start-regex' starts at `search-start'.
+           (search-start (plist-get data :search-start))
+
+           (start-regex (format "^%s" prat-output-start))
+           (end-regex (format "^%s" prat-output-end))
+           ;; `start-marker' and `end-marker' will hold the matches to the
+
+           ;; regexes.
+           start-marker end-marker
+           ;; `output-start' and `output-end' will delimit complete lines.
+           output-start output-end
+           (inhibit-read-only t))
 
       (with-current-buffer proc-buf
         (save-excursion
@@ -148,7 +157,7 @@ NO-CHECK is non-nil."
           ;; Look for the special output markers.
           (setq start-marker (and
                               (progn
-                                (goto-char proc-start)
+                                (goto-char search-start)
                                 (re-search-forward start-regex nil t))
                               (progn
                                 (forward-line 1)
@@ -171,49 +180,41 @@ NO-CHECK is non-nil."
                                 (setq output-end (point))
                                 (point)))))
 
-          ;; `callback-func' is buffer-local in `proc-buf', so we need to
-          ;; save it before we switch buffers below.
-          (setq marker callback-marker
-                callback callback-func)
-
           (when (and start-marker callback)
             (when (> output-end output-start)
               (if (equal callback t)
                   (let ((text (buffer-substring-no-properties
                                output-start output-end)))
-                    (with-current-buffer (marker-buffer marker)
+                    (with-current-buffer callback-buffer
                       (save-excursion
-                        (goto-char marker)
+                        (goto-char callback-marker)
                         (insert text)
-                        (set-marker marker (point))
+                        (set-marker callback-marker (point))
                         (set-buffer-modified-p nil))))
-                (with-current-buffer (marker-buffer callback-marker)
-                  (funcall callback proc-buf output-start output-end nil)))))
+            (when (and callback (buffer-live-p callback-buffer))
+              (with-current-buffer callback-buffer
+                  (funcall callback proc-buf output-start output-end nil))))))
 
           (when end-marker
              ;; If there was a callback, call with `complete' set to true.
-            (when callback
-              (with-current-buffer (marker-buffer callback-marker)
+            (when (and callback (buffer-live-p callback-buffer))
+              (with-current-buffer callback-buffer
                 (funcall callback proc-buf start-marker end-marker t)))
 
              ;; Show an error buffer if the command failed unless
-             ;; prat-no-check is non-nil.
-             (unless prat-no-check
+             ;; no-check is non-nil.
+             (unless no-check
               (save-excursion
                 (goto-char end-marker)
                 (let ((regex (format "%s:FAIL" prat-output-end))
-                      (inhibit-read-only t)
-                      (proc-output (buffer-substring start-marker end-marker))
-                      (cmd current-command)
-                      error-buffer)
+                      (proc-output (buffer-substring start-marker end-marker)))
                   (when (re-search-forward regex nil t)
-                    (setq error-buffer (get-buffer-create "*Command Error*"))
-                    (with-current-buffer error-buffer
+                    (with-current-buffer (get-buffer-create "*Command Error*")
                       (erase-buffer)
                       (prat-base-mode)
                       (insert (format "> %s\n\n" cmd))
                       (save-excursion (insert proc-output))
-                      (switch-to-buffer error-buffer))
+                      (switch-to-buffer (current-buffer)))
                     (message "Error during '%s'" cmd)))))
 
              (prat-return-or-kill-buffer proc-buf)))))))
