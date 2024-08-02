@@ -1,7 +1,7 @@
 (defvar prat-show-tree-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") 'prat-show-tree--show-file)
-    (define-key map "g" prat-refresh-file-tree)
+    (define-key map "g" 'prat-refresh-file-tree)
     map)
   "The keymap used when viewing the files associated with a commit.")
 
@@ -81,3 +81,6 @@
     (save-excursion (insert (with-current-buffer buf
                               (buffer-substring beg end))))
     (set-buffer-modified-p nil)))
+
+
+(provide 'prat-tree)

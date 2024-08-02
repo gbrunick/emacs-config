@@ -16,6 +16,7 @@
 (require 'prat-shell-command)
 (require 'prat-change-buffers)
 (require 'prat-stash)
+(require 'prat-tree)
 
 (defvar prat-debug nil
   "When non-nil, enable debug mode.
