@@ -52,6 +52,11 @@ With a prefix argument, amends previous commit."
      (read-shell-command "Shell command: " cmd prat-rebase-command-history)
      "*Git Rebase*")))
 
+(defvar-local prat-shell-command-info nil
+  "Defined in shell command output buffers.
+Copied into edit buffers that are requested by Git during interactive
+commands.")
+
 (defun prat-shell-command (cmd &optional bufname cmd2 title major-mode-func)
   "Execute Git command CMD that may require editing a file.
 
@@ -60,22 +65,12 @@ switches to this buffer."
   (interactive (list (read-shell-command "Shell Command: ")))
   (prat-log-call)
 
-  ;; If a previous shell command is using the Git editor, you must complete
-  ;; that command first.
-  (when (and prat-pending-edit-buffer
-             (buffer-live-p prat-pending-edit-buffer))
-    ;; We `pop-to-buffer' in an effort to make it clear this is a
-    ;; conflicting pending edit; not the intended edit.
-    (pop-to-buffer prat-pending-edit-buffer)
-    (error "You must first complete the current edit"))
-  (setq prat-pending-edit-buffer nil)
-
   (let* ((buf (get-buffer-create (or bufname "*Shell Command Output*")))
          (dir default-directory)
          (cmd2 (or cmd2 cmd))
          (editor-script (prat-get-editor-script))
          ;; We use a named pipe for IPC on Linux.
-         (editor-pipe ".prat-editor-pipe")
+         (editor-lock-file ".prat-editor-lock")
          (env-vars
           (cond
            ((prat-use-cmd-exe-p)
@@ -90,18 +85,10 @@ switches to this buffer."
            (t
             (list (format "GIT_EDITOR=\"bash '%s'\"" (file-local-name editor-script))
                   (format "GIT_SEQUENCE_EDITOR=\"bash '%s'\"" (file-local-name
-                                                        editor-script))
-                  (format "PRAT_EDITOR_PIPE=\"%s\""
-                          (file-local-name editor-pipe))
+                                                               editor-script))
                   "GIT_PAGER="
                   "TERM=dumb"))))
          (inhibit-read-only t))
-
-    ;; Be robust to failures that leave a residual pipe file, but throw a
-    ;; warning as this is a bug.
-    (when (file-exists-p editor-pipe)
-      (warn (format "Deleting %s" editor-pipe))
-      (delete-file editor-pipe))
 
     (with-current-buffer buf
       (erase-buffer)
@@ -114,8 +101,7 @@ switches to this buffer."
                         :env-vars env-vars
                         :output-buffer buf
                         :directory dir
-                        :output-pos (point)
-                        :pipe-file editor-pipe))
+                        :output-pos (point)))
 
       ;; (prat-insert-placeholder "Waiting for output...")
       (prat-shell-command-refresh))))
@@ -124,10 +110,10 @@ switches to this buffer."
 (defun prat-shell-command-refresh ()
   (interactive)
   (let ((cmd (plist-get prat-shell-command-info :command))
-        (env-vars (plist-get prat-shell-command-info :env-vars))
-        (output-pos (plist-get prat-shell-command-info :output-pos)))
+        (env-vars (plist-get prat-shell-command-info :env-vars)))
     (prat-async-shell-command cmd #'prat-shell-command-refresh-1
-                              env-vars t)))
+                              env-vars 'no-check)))
+
 
 (defun prat-shell-command-refresh-1 (buf start end complete)
   "Implementation detail of `prat-shell-command'
@@ -141,9 +127,13 @@ Processes the output from a shell command."
             (edit-buffer (plist-get prat-shell-command-info :edit-buffer))
             (output-text (with-current-buffer buf
                            (goto-char start)
+                           (when (and (buffer-live-p prat-pending-edit-buffer)
+                                      (re-search-forward
+                                       "^SHOW_CURRENT_EDIT_BUFFER$" end t))
+                            (display-buffer prat-pending-edit-buffer))
                            ;; Skip the output from our editor script and
                            ;; show the Git command output.
-                           (when (re-search-forward "^Command output:" end t)
+                           (when (re-search-forward "^GIT_OUTPUT_START:" end t)
                              (forward-line 1))
                            (buffer-substring-no-properties (point) end)))
             beg)
@@ -153,10 +143,6 @@ Processes the output from a shell command."
           (setq beg (point))
           (delete-region beg (point-max))
           (insert output-text)
-
-          ;; If this is the pending edit buffer, clear this global lock.
-          (when (eq prat-pending-edit-buffer edit-buffer)
-            (setq prat-pending-edit-buffer nil))
 
           (goto-char beg)
           (when (re-search-forward "^diff --git" nil t)
@@ -187,7 +173,6 @@ Processes the output from a shell command."
               ;; hooks so they can respond to the updated current buffer.
               (run-hooks 'post-command-hook))
 
-            (plist-put prat-shell-command-info :edit-buffer prat-pending-edit-buffer)
             (switch-to-buffer prat-pending-edit-buffer))))))))
 
 
@@ -269,7 +254,7 @@ defined."
         (prat-async-shell-command "waitfor /si EmacsEditDone"))
        (t
         ;; prat-editor.sh blocks while reading from this named pipe.
-        (prat-async-shell-command "echo done. > .prat-editor-pipe"))))))
+        (prat-async-shell-command "echo done. > .prat-editor-lock"))))))
 
 (defun prat-edit-kill-buffer-hook ()
   "Finish edit and show Git process buffer."
@@ -278,7 +263,11 @@ defined."
   ;; file.
   (erase-buffer)
   (save-buffer)
-  (prat-signal-editor-script))
+  (prat-signal-editor-script)
+  (let ((lock-file  ".prat-editor-lock"))
+    (when (file-exists-p lock-file)
+      (delete-file lock-file)
+      (message "Deleted %s" (expand-file-name lock-file)))))
 
 (defun prat-edit-kill-buffer-query-function ()
   "Confirm that the user want to abort the edit."
