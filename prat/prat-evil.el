@@ -17,10 +17,10 @@
   (evil-define-key 'normal prat-hunk-view-mode-map
     "\t" 'prat-forward-command
     [(backtab)] 'prat-backward-command
-    "p" 'prat-backward-command
-    "P" 'prat-backward-file-command
-    "n" 'prat-forward-command
-    "N" 'prat-forward-file-command
+    ;; "p" 'prat-backward-command
+    ;; "P" 'prat-backward-file-command
+    ;; "n" 'prat-forward-command
+    ;; "N" 'prat-forward-file-command
     (kbd "RET") 'prat-goto-line
     "gr" 'prat-shell-command-refresh)
 
