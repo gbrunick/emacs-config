@@ -69,8 +69,6 @@ switches to this buffer."
          (dir default-directory)
          (cmd2 (or cmd2 cmd))
          (editor-script (prat-get-editor-script))
-         ;; We use a named pipe for IPC on Linux.
-         (editor-lock-file ".prat-editor-lock")
          (env-vars
           (cond
            ((prat-use-cmd-exe-p)
@@ -242,19 +240,21 @@ GIT_SEQUENCE_EDITOR."
 (defun prat-signal-editor-script ()
   "Let the editor script know the edit is done.
 
-Expects to be called from a buffer where `prat-shell-command-info' is
-defined."
+Expects to be called from the buffer where are editing a file for Git."
   (prat-log-call)
   (ignore-errors
-    (let ((default-directory (plist-get prat-shell-command-info :directory)))
-      (cl-assert default-directory)
-      (cond
-       ((prat-use-cmd-exe-p)
-        ;; prat-editor.cmd waits for this signal.
-        (prat-async-shell-command "waitfor /si EmacsEditDone"))
-       (t
-        ;; prat-editor.sh blocks while reading from this named pipe.
-        (prat-async-shell-command "echo done. > .prat-editor-lock"))))))
+    (cond
+     ((prat-use-cmd-exe-p)
+      ;; prat-editor.cmd waits for this signal.
+      (prat-async-shell-command "waitfor /si EmacsEditDone"))
+     (t
+      ;; prat-editor.sh blocks while reading from this named pipe.
+      (prat-async-shell-command "echo done. > .prat-editor-lock")))
+
+    (let ((lock-file  ".prat-editor-lock"))
+      (when (file-exists-p lock-file)
+        (delete-file lock-file)
+        (message "Deleted %s" (expand-file-name lock-file))))))
 
 (defun prat-edit-kill-buffer-hook ()
   "Finish edit and show Git process buffer."
@@ -263,11 +263,7 @@ defined."
   ;; file.
   (erase-buffer)
   (save-buffer)
-  (prat-signal-editor-script)
-  (let ((lock-file  ".prat-editor-lock"))
-    (when (file-exists-p lock-file)
-      (delete-file lock-file)
-      (message "Deleted %s" (expand-file-name lock-file)))))
+  (prat-signal-editor-script))
 
 (defun prat-edit-kill-buffer-query-function ()
   "Confirm that the user want to abort the edit."
