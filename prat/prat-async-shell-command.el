@@ -191,15 +191,16 @@ NO-CHECK is non-nil."
                         (insert text)
                         (set-marker callback-marker (point))
                         (set-buffer-modified-p nil))))
-            (when (and callback (buffer-live-p callback-buffer))
-              (with-current-buffer callback-buffer
-                  (funcall callback proc-buf output-start output-end nil))))))
+                (when callback
+                  (prat-call-callback callback-buffer callback
+                                      proc-buf output-start output-end nil)))))
 
           (when end-marker
              ;; If there was a callback, call with `complete' set to true.
-            (when (and callback (buffer-live-p callback-buffer))
+            (when callback
               (with-current-buffer callback-buffer
-                (funcall callback proc-buf start-marker end-marker t)))
+                (prat-call-callback callback-buffer callback
+                                    proc-buf start-marker end-marker t)))
 
              ;; Show an error buffer if the command failed unless
              ;; no-check is non-nil.
@@ -357,6 +358,15 @@ otherwise."
       (kill-buffer buf)
       (message "Killed buffer %s" buf)))
   (setq prat-all-workers nil))
+
+
+(defun prat-call-callback (buf callback &rest args)
+  (unless (with-local-quit
+            (when (buffer-live-p buf)
+              (with-current-buffer buf
+                (apply callback args)))
+            t)
+    (message "Quit during %S %S" buf `(,callback ,@args))))
 
 
 (provide 'prat-async-shell-command)
