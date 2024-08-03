@@ -52,6 +52,9 @@
     (insert ")")
     (forward-line 1)
 
+    ;; Skip any hints
+    (while (looking-at "^ *(.*)\n") (forward-line 1))
+
     (while (looking-at "^\t[^\t]")
       (let* ((regex (concat "^\t\\(deleted:\\|modified:"
                             "\\|new file:\\|renamed:\\)?"
@@ -78,6 +81,9 @@
     (insert ")")
     (forward-line 1)
 
+    ;; Skip any hints
+    (while (looking-at "^ *(.*)\n") (forward-line 1))
+
     (while (looking-at "^\t[^\t]")
       (let* ((regex (concat "^\t\\(both modified:\\)?"
                             " *\\([^ ].*\\)$")))
@@ -103,6 +109,9 @@
     (insert ")")
     (forward-line 1)
 
+    ;; Skip any hints
+    (while (looking-at "^ *(.*)\n") (forward-line 1))
+
     (while (looking-at "^\t[^\t]")
       (let* ((regex (concat "^\t\\(deleted:\\|modified:\\|new file:\\)?"
                             " *\\(.*\\)$")))
@@ -123,6 +132,9 @@
 
   (when (re-search-forward "Untracked files:" nil t)
     (forward-line 1)
+
+    ;; Skip any hints
+    (while (looking-at "^ *(.*)\n") (forward-line 1))
 
     (while (looking-at "^\t[^\t]")
       (let* ((regex (concat "^\t\\(.*\\)$")))
