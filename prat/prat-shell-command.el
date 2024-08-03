@@ -86,29 +86,40 @@ switches to this buffer."
                                                                editor-script))
                   "GIT_PAGER="
                   "TERM=dumb"))))
-         (inhibit-read-only t))
+         (inhibit-read-only t)
+         pos)
 
     (with-current-buffer buf
       (erase-buffer)
       (funcall (or major-mode-func #'prat-shell-command-output-mode))
       (setq default-directory dir)
       (insert (or title dir) "\n\n")
-      (insert "> " cmd2 "\n\n")
+      (insert "> " cmd2)
+
       (setq-local prat-shell-command-info
                   (list :command cmd
                         :env-vars env-vars
                         :output-buffer buf
                         :directory dir
                         :output-pos (point)))
+      (put 'prat-shell-command-info 'permanent-local t)
 
       ;; (prat-insert-placeholder "Waiting for output...")
-      (prat-shell-command-refresh))))
+      (prat-shell-command-refresh)
+      (forward-line 0)
+      (switch-to-buffer buf))))
 
 
 (defun prat-shell-command-refresh ()
   (interactive)
   (let ((cmd (plist-get prat-shell-command-info :command))
-        (env-vars (plist-get prat-shell-command-info :env-vars)))
+        (env-vars (plist-get prat-shell-command-info :env-vars))
+        (output-pos (plist-get prat-shell-command-info :output-pos))
+        (inhibit-read-only t))
+    (save-excursion
+      (goto-char output-pos)
+      (insert " ")
+      (prat-insert-spinner))
     (prat-async-shell-command cmd #'prat-shell-command-refresh-1
                               env-vars 'no-check)))
 
@@ -134,44 +145,48 @@ Processes the output from a shell command."
                            (when (re-search-forward "^GIT_OUTPUT_START:" end t)
                              (forward-line 1))
                            (buffer-substring-no-properties (point) end)))
+            (inhibit-read-only t)
+            ;; Preserve the line position in the buffer.
+            (initial-line (line-number-at-pos))
             beg)
 
-        (save-excursion
-          (goto-char output-pos)
-          (setq beg (point))
-          (delete-region beg (point-max))
-          (insert output-text)
+        (message "initial-line: %S" initial-line)
+        (delete-region output-pos (point-max))
+        (goto-char (point-max))
+        (insert "\n\n")
+        (setq beg (point))
+        (insert output-text)
 
-          (goto-char beg)
-          (when (re-search-forward "^diff --git" nil t)
-            (prat-format-hunks (pos-bol))
-            ;; (message "prat-shell-command-1: %S %S %S" major-mode
-            ;;          (derived-mode-p 'prat-hunk-view-mode) (current-buffer))
-            (unless (derived-mode-p 'prat-hunk-view-mode)
-              (prat-hunk-view-mode))))
-
-        (goto-char (point-min))
-        (switch-to-buffer (current-buffer))))
+        (goto-char beg)
+        (when (re-search-forward "^diff --git" nil t)
+          (prat-format-hunks (pos-bol))
+          ;; (message "prat-shell-command-1: %S %S %S" major-mode
+          ;;          (derived-mode-p 'prat-hunk-view-mode) (current-buffer))
+          (unless (derived-mode-p 'prat-hunk-view-mode)
+            (prat-hunk-view-mode)))
+        (goto-line initial-line)
+        (run-hooks 'post-command-hook)))
 
      (t
       (let* ((info prat-shell-command-info) file-name)
         (with-current-buffer buf
-          (goto-char start)
-          ;; The process waits for the completion of editing, so we have
-          ;; to look for these string before the process completes.
-          (when (re-search-forward "^File: \"?\\([^\"\n]+\\)\"?$" end t)
-            (setq file-name (concat (or (file-remote-p default-directory) "")
-                                    (match-string-no-properties 1))
-                  prat-pending-edit-buffer (find-file file-name))
+          (save-excursion
+            (goto-char start)
+            ;; The process waits for the completion of editing, so we have
+            ;; to look for this string before the process completes.
+            (when (re-search-forward "^File: \"?\\([^\"\n]+\\)\"?$" end t)
+              (setq file-name (concat (or (file-remote-p default-directory) "")
+                                      (match-string-no-properties 1))
+                    prat-pending-edit-buffer (find-file file-name))
 
-            (with-current-buffer prat-pending-edit-buffer
-              (prat-edit-mode)
-              (setq-local prat-shell-command-info info)
-              ;; This happens in a callback so call any post command
-              ;; hooks so they can respond to the updated current buffer.
-              (run-hooks 'post-command-hook))
+              (with-current-buffer prat-pending-edit-buffer
+                (prat-edit-mode)
+                (setq-local prat-shell-command-info info)
+                ;; This happens in a callback so call any post command
+                ;; hooks so they can respond to the updated current buffer.
+                (run-hooks 'post-command-hook))
 
-            (switch-to-buffer prat-pending-edit-buffer))))))))
+              (switch-to-buffer prat-pending-edit-buffer)))))))))
 
 
 (defun prat-get-editor-script (&optional dir)
