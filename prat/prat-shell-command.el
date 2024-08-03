@@ -132,7 +132,8 @@ Processes the output from a shell command."
   (save-match-data
     (cond
      (complete
-      (let ((output-pos (plist-get prat-shell-command-info :output-pos))
+      (let ((cmd (plist-get prat-shell-command-info :command))
+            (output-pos (plist-get prat-shell-command-info :output-pos))
             (edit-buffer (plist-get prat-shell-command-info :edit-buffer))
             (output-text (with-current-buffer buf
                            (goto-char start)
@@ -164,6 +165,12 @@ Processes the output from a shell command."
           ;;          (derived-mode-p 'prat-hunk-view-mode) (current-buffer))
           (unless (derived-mode-p 'prat-hunk-view-mode)
             (prat-hunk-view-mode)))
+
+        (goto-char beg)
+        (when (string-match "^git .*status" cmd)
+          (prat-show-status-mode)
+          (prat-show-status--markup-output))
+
         (goto-line initial-line)
         (run-hooks 'post-command-hook)))
 

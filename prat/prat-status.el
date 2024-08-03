@@ -6,7 +6,6 @@
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'forward-button)
     (define-key map [(backtab)] 'backward-button)
-    (define-key map "g" 'prat-show-status--refresh)
     (define-key map "m" 'prat-show-status--mark-file)
     (define-key map "u" 'prat-show-status--unmark-file)
     (define-key map "a" 'prat-show-status--add-files)
@@ -17,7 +16,7 @@
   "The keymap used when viewing git status output.")
 
 
-(define-derived-mode prat-show-status-mode special-mode
+(define-derived-mode prat-show-status-mode prat-shell-command-output-mode
   "Git Status"
   "\nMode for buffers displaying Git status output.
 
@@ -29,50 +28,13 @@
 (defun prat-show-status (&optional repo-dir)
   "Show the current Git status in a buffer."
   (interactive)
-  (let* ((repo-dir (or repo-dir (prat-find-repo-root)))
+  (let* ((default-directory (or repo-dir (prat-find-repo-root)))
          (buf (get-buffer-create prat-status-buffer-name))
+         (cmd "git -c advice.statusHints=false status -u --show-stash")
          (inhibit-read-only t))
 
-    (with-current-buffer buf
-      (erase-buffer)
-      (prat-erase-overlays)
-      (prat-show-status-mode)
-      (setq default-directory repo-dir)
-      (setq-local prat-status-command
-                  "git -c advice.statusHints=false status -u --show-stash")
-      (insert (format "Status in %s\n\n> git status -u --show-stash\n\n" repo-dir))
-      (setq-local prat-status-output-marker (point))
-      (prat-insert-placeholder "Loading status")
-      (prat-show-status--refresh))
-
-    (switch-to-buffer buf)))
-
-
-(defun prat-show-status--refresh (&rest args)
-  "Update the current Git status buffer."
-  (interactive)
-  (let ((inhibit-read-only t))
-    (prat-async-shell-command prat-status-command
-                              #'prat-show-status--refresh-1)))
-
-
-(defun prat-show-status--refresh-1 (buf start end complete)
-  "Implementation detail of `prat-show-status--refresh'.
-
-Asyncronous callback that add buttons and overlays to the Git
-status output."
-  (prat-log-call)
-  (when complete
-    (let ((status-text (with-current-buffer buf
-                         (buffer-substring-no-properties start end)))
-          (inhibit-read-only t))
-      (delete-region prat-status-output-marker (point-max))
-      (goto-char (point-min))
-      (save-excursion
-        (goto-char prat-status-output-marker)
-        (insert status-text)
-        (goto-char prat-status-output-marker)
-        (prat-show-status--markup-output)))))
+    (prat-shell-command cmd prat-status-buffer-name nil
+                        (format "Status in %s" repo-dir))))
 
 
 (defun prat-show-status--markup-output ()
@@ -291,8 +253,12 @@ Unmarks the file if UNMARK is non-nil."
            (quoted-filenames (mapconcat 'shell-quote-argument filenames " "))
            (cmd (format "git %s -- %s" git-cmd quoted-filenames)))
 
-      (message "%s" cmd)
-      (prat-async-shell-command cmd 'prat-show-status--refresh))))
+      (message cmd)
+      (prat-async-shell-command cmd 'prat-show-status--do-action-1))))
+
+
+(defun prat-show-status--do-action-1 (buf start end complete)
+  (when complete (prat-shell-command-refresh)))
 
 
 (defun prat-show-status--add-files ()

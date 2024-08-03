@@ -6,6 +6,7 @@
 
   (evil-define-key 'normal prat-shell-command-output-mode-map
     "!" 'prat-shell-command
+    "gr" 'prat-shell-command-refresh
     "q" 'quit-window)
 
   (evil-define-key 'normal prat-commit-graph-mode-map
@@ -36,7 +37,6 @@
 
   (evil-define-key 'normal prat-show-status-mode-map
     "\t" 'forward-button
-    "gr" 'prat-show-status--refresh
     "m" 'prat-show-status--mark-file
     "u" 'prat-show-status--unmark-file
     "a" 'prat-show-status--add-files
