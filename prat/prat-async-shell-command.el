@@ -80,6 +80,13 @@ NO-CHECK is non-nil."
 
       (set-process-filter proc #'prat-async-shell-command-1)
 
+      ;; Insert any extra config settings from `prat-extra-git-config'
+      (when (and prat-extra-git-config (string-match "^git " cmd))
+        (let* ((replacement (format "git%s "
+                                    (mapconcat (lambda (var-val)
+                                                 (format " -c %s" var-val))
+                                               prat-extra-git-config))))
+          (setq cmd (replace-regexp-in-string "^git " replacement cmd))))
 
       (cond
        ;; Windows

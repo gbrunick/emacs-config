@@ -29,20 +29,25 @@ some tracing info into `prat-debug-buffer-name'.")
 
 (defcustom prat-status-buffer-name "*git status*"
   "The name of the buffer used to show Git status."
-  :type 'string :group 'gitmodes)
+  :type 'string :group 'prat)
 
 (defcustom prat-unstaged-buffer-name "*unstaged changes*"
   "The name of the buffer used to show staged changes."
-  :type 'string :group 'gitmodes)
+  :type 'string :group 'prat)
 
 (defcustom prat-staged-buffer-name "*staged changes*"
   "The name of the buffer used to show unstaged changes."
-  :type 'string :group 'gitmodes)
+  :type 'string :group 'prat)
 
 (defcustom prat-patch-buffer-name "*git patch*"
   "The name of the temporary buffer used to construct patches."
-  :type 'string :group 'gitmodes)
+  :type 'string :group 'prat)
 
+(defcustom prat-extra-git-config '("advice.statusHints=false"
+                                   "advice.waitingForEditor=false")
+  "Extra configuration setting for Git.  Mainly used to disable hints.
+Passed to Git using initial -c arguments."
+  :type '(repeat string) :group 'prat)
 
 (defvar prat-currently-focused-hunk nil
   "Tracks the currently focused hunk (see `prat-update-highlights').")

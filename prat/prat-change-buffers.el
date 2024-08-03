@@ -71,7 +71,6 @@
   (interactive)
   (prat-shell-command "git diff --histogram --find-renames --stat --patch"
                       prat-unstaged-buffer-name
-                      nil
                       (format "Unstaged changes in %s" default-directory)
                       'prat-unstaged-changes-mode))
 
@@ -98,7 +97,6 @@
   (prat-shell-command
    "git diff --cached --histogram --find-renames --stat --patch"
    "*staged changes*"
-   nil
    (format "Staged changes in %s" default-directory)
    'prat-staged-changes-mode))
 
@@ -108,7 +106,6 @@
   (prat-shell-command
    (format "git show --stat --patch %s --" hash)
    (format "*commit: %s*" hash)
-   nil
    (format "Commit %s in %s" hash default-directory)))
 
 (defun prat-show-commit-diff (hash1 hash2)
@@ -117,7 +114,6 @@
    (format "git diff --stat --patch --histogram --find-renames %s..%s --"
            hash1 hash2)
    (format "*diff %s...%s*" hash1 hash2)
-   nil
    (format "Changes from %s to %s in %s" hash1 hash2 default-directory)))
 
 

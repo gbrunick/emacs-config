@@ -32,17 +32,9 @@ value is string giving the path to a copy of prat-editor.bash.")
   "Commit currently staged changes to Git.
 With a prefix argument, amends previous commit."
   (interactive "P")
-  (let ((cmd (concat "git"
-                     " -c advice.waitingForEditor=false"
-                     " -c advice.statusHints=false"
-                     " commit"))
-        ;; A more user-friendly version
-        (cmd2 "git commit"))
-
-    (when amend (setq cmd  (concat cmd " --amend")
-                      cmd2 (concat cmd2 " --amend")))
-
-    (prat-shell-command cmd "*Git Commit*" cmd2)))
+  (let ((cmd "git commit"))
+    (when amend (setq cmd (concat cmd " --amend")))
+    (prat-shell-command cmd "*Git Commit*")))
 
 (defun prat-rebase (&optional interactive)
   (interactive "P")
@@ -57,7 +49,7 @@ With a prefix argument, amends previous commit."
 Copied into edit buffers that are requested by Git during interactive
 commands.")
 
-(defun prat-shell-command (cmd &optional bufname cmd2 title major-mode-func)
+(defun prat-shell-command (cmd &optional bufname title major-mode-func)
   "Execute Git command CMD that may require editing a file.
 
 On completion, shows the command output in a buffer named BUFNAME and
@@ -67,7 +59,6 @@ switches to this buffer."
 
   (let* ((buf (get-buffer-create (or bufname "*Shell Command Output*")))
          (dir default-directory)
-         (cmd2 (or cmd2 cmd))
          (editor-script (prat-get-editor-script))
          (env-vars
           (cond
@@ -91,17 +82,19 @@ switches to this buffer."
 
     (with-current-buffer buf
       (erase-buffer)
-      (funcall (or major-mode-func #'prat-shell-command-output-mode))
+      (when major-mode-func
+        (funcall major-mode-func)) ;; #'prat-shell-command-output-mode)))
       (setq default-directory dir)
       (insert (or title dir) "\n\n")
-      (insert "> " cmd2)
+      (insert "> " cmd)
 
       (setq-local prat-shell-command-info
                   (list :command cmd
                         :env-vars env-vars
                         :output-buffer buf
                         :directory dir
-                        :output-pos (point)))
+                        :output-pos (point)
+                        :major-mode major-mode-func))
       (put 'prat-shell-command-info 'permanent-local t)
 
       ;; (prat-insert-placeholder "Waiting for output...")
@@ -135,6 +128,7 @@ Processes the output from a shell command."
       (let ((cmd (plist-get prat-shell-command-info :command))
             (output-pos (plist-get prat-shell-command-info :output-pos))
             (edit-buffer (plist-get prat-shell-command-info :edit-buffer))
+            (major-mode-func (plist-get prat-shell-command-info :major-mode))
             (output-text (with-current-buffer buf
                            (goto-char start)
                            (when (and (buffer-live-p prat-pending-edit-buffer)
@@ -151,25 +145,27 @@ Processes the output from a shell command."
             (initial-line (line-number-at-pos))
             beg)
 
-        (message "initial-line: %S" initial-line)
+        ;; (message "initial-line: %S %S" initial-line major-mode-func)
         (delete-region output-pos (point-max))
         (goto-char (point-max))
         (insert "\n\n")
         (setq beg (point))
         (insert output-text)
 
+        ;; Look for diff output.
         (goto-char beg)
         (when (re-search-forward "^diff --git" nil t)
           (prat-format-hunks (pos-bol))
           ;; (message "prat-shell-command-1: %S %S %S" major-mode
           ;;          (derived-mode-p 'prat-hunk-view-mode) (current-buffer))
-          (unless (derived-mode-p 'prat-hunk-view-mode)
-            (prat-hunk-view-mode)))
+          (unless major-mode-func (prat-hunk-view-mode)))
 
+        ;; Look for status output
         (goto-char beg)
-        (when (string-match "^git .*status" cmd)
-          (prat-show-status-mode)
-          (prat-show-status--markup-output))
+        (when (and (string-match "^git [^\n]*status" cmd)
+                   (not major-mode-func))
+          (prat-show-status--markup-output)
+          (unless major-mode-func (prat-show-status-mode)))
 
         (goto-line initial-line)
         (run-hooks 'post-command-hook)))

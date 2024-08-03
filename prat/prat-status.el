@@ -30,11 +30,11 @@
   (interactive)
   (let* ((default-directory (or repo-dir (prat-find-repo-root)))
          (buf (get-buffer-create prat-status-buffer-name))
-         (cmd "git -c advice.statusHints=false status -u --show-stash")
+         (cmd "git status -u --show-stash")
          (inhibit-read-only t))
 
-    (prat-shell-command cmd prat-status-buffer-name nil
-                        (format "Status in %s" repo-dir))))
+    (prat-shell-command cmd prat-status-buffer-name
+                        (format "Status in %s" default-directory))))
 
 
 (defun prat-show-status--markup-output ()
@@ -291,7 +291,6 @@ Unmarks the file if UNMARK is non-nil."
     (prat-shell-command
      (format "git diff -- \"%s\"" filename)
      (format "*unstaged in %s*" filename)
-     nil
      (format "Unstaged changes in %s" (expand-file-name filename))
      'prat-unstaged-changes-mode)))
 
@@ -300,7 +299,6 @@ Unmarks the file if UNMARK is non-nil."
     (prat-shell-command
      (format "git diff --cached -- \"%s\"" filename)
      (format "*staged from %s*" filename)
-     nil
      (format "Staged changes in %s" (expand-file-name filename))
      'prat-staged-changes-mode)))
 
