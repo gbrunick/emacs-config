@@ -235,13 +235,14 @@ User-facing; attempts to preserve window position."
 (defun prat-reload-all ()
   "Reload all source files."
   (interactive)
-  (load "prat-util.el")
-  (load "prat-status.el")
-  (load "prat-logs.el")
-  (load "prat-hunks.el")
   (load "prat-async-shell-command.el")
+  (load "prat-change-buffers.el")
+  (load "prat-hunks.el")
+  (load "prat-logs.el")
   (load "prat-shell-command.el")
   (load "prat-stash.el")
+  (load "prat-status.el")
+  (load "prat-util.el")
   (load "prat.el"))
 
 (provide 'prat)

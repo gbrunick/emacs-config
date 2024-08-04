@@ -30,9 +30,26 @@ any command output and doesn't require any shell quoting.")
 (defvar prat-output-start (format "START:%s" prat-output-marker))
 (defvar prat-output-end (format "END:%s" prat-output-marker))
 
+(defvar prat-git-state-change-count 0
+  "Incremented each time a command that matches a regular expression in
+`part-git-state-change-commands' is run.")
+
+(defvar prat-git-state-change-commands '("^git add"
+                                         "^git apply"
+                                         "^git branch"
+                                         "^git commit"
+                                         "^git merge"
+                                         "^git push"
+                                         "^git rebase"
+                                         "^git reset"
+                                         "^git revert")
+  "A list of regular expressions.
+`prat-async-shell-command-1' increments `part-git-state-change-count' after
+each command that matches a regex in this list.")
+
 (define-derived-mode prat-server-mode special-mode
   "Prat-Server"
-  "\nMode for buffers containg `shpool' server processes."
+  "\nMode for buffers containg server processes."
   (setq truncate-lines t)
   (setq-local kill-buffer-query-functions nil))
 
@@ -43,7 +60,7 @@ CMD is a string that is passed through to a Bash or Windows cmd process.
 This string must be properly quoted by the caller.  CALLBACK is a function
 that accepts (BUF START END COMPLETE).  It is called in the buffer which
 was active when `prat-async-shell-command' was called as output becomes
-available.  If that buffer is no longer alive, CALLBACK is not called.
+available.  If that buffer has been killed, CALLBACK is not called.
 
 CALLBACK is called as output is read from the worker process.
 The buffer containing process output is passed to CALLBACK as
@@ -224,6 +241,17 @@ NO-CHECK is non-nil."
                       (save-excursion (insert proc-output))
                       (switch-to-buffer (current-buffer)))
                     (message "Error during '%s'" cmd)))))
+
+             ;; If we just completed a command that changes the Git state,
+             ;; we increment `prat-git-state-change-count'.
+             (let ((regexes prat-git-state-change-commands))
+               (while regexes
+                 (when (string-match (car regexes) cmd)
+                   (cl-incf prat-git-state-change-count)
+                   ;; Only increment `prat-git-state-change-count' once.
+                   (setq regexes nil)
+                   (run-with-timer 0 nil #'prat-refresh-all-buffers))
+                 (setq regexes (cdr regexes))))
 
              (prat-return-or-kill-buffer proc-buf)))))))
 

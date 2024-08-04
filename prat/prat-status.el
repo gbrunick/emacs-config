@@ -37,7 +37,7 @@
                         (format "Status in %s" default-directory))))
 
 
-(defun prat-show-status--markup-output ()
+(defun prat-markup-status-output ()
   "Markup git status output in the current buffer."
 
   ;; Some version of Git (e.g. 1.8.3.1) prefix the status output with
@@ -252,13 +252,12 @@ Unmarks the file if UNMARK is non-nil."
                            'prat-marked :not-nil
                            'prat-state file-states)))
 
-    ;; If not lines have been marked, operate on the current line if it has
-    ;; the correct state.
+    ;; If no lines have been marked, operate on the current line.
     (unless marked-overlays
       (setq marked-overlays (prat-overlays-at (point) 'prat-state file-states)))
 
     (unless marked-overlays
-      (user-error "No files to add"))
+      (user-error "No files are marked"))
 
     (let* ((filenames (mapcar (lambda (ov) (overlay-get ov 'prat-filename))
                               marked-overlays))
@@ -266,11 +265,7 @@ Unmarks the file if UNMARK is non-nil."
            (cmd (format "git %s -- %s" git-cmd quoted-filenames)))
 
       (message cmd)
-      (prat-async-shell-command cmd 'prat-show-status--do-action-1))))
-
-
-(defun prat-show-status--do-action-1 (buf start end complete)
-  (when complete (prat-shell-command-refresh)))
+      (prat-async-shell-command cmd))))
 
 
 (defun prat-show-status--add-files ()

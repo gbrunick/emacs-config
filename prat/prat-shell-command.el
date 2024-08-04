@@ -5,6 +5,16 @@
 
 (require 'prat-async-shell-command)
 
+
+(defcustom prat-auto-refresh-commands '("^git status")
+                                        ;; "^git log")
+  "A list of regular expressions.
+If a shell command matches a regular expression in this list, we configure
+the ouput buffer to automatically refresh when a Git command changes the
+current state."
+  :type '(repeat (string))
+  :group 'prat)
+
 (defvar prat-rebase-command-history nil
   "History list for rebase commands.")
 
@@ -77,27 +87,35 @@ switches to this buffer."
                                                                editor-script))
                   "GIT_PAGER="
                   "TERM=dumb"))))
+         (subcommand (prat-get-subcommand cmd))
+         (subcommand-major-mode (plist-get subcommand :major-mode))
          (inhibit-read-only t)
          pos)
 
     (with-current-buffer buf
       (erase-buffer)
-      (when major-mode-func
-        (funcall major-mode-func)) ;; #'prat-shell-command-output-mode)))
-      (setq default-directory dir)
       (insert (or title dir) "\n\n")
       (insert "> " cmd)
 
-      (setq-local prat-shell-command-info
-                  (list :command cmd
-                        :env-vars env-vars
-                        :output-buffer buf
-                        :directory dir
-                        :output-pos (point)
-                        :major-mode major-mode-func))
-      (put 'prat-shell-command-info 'permanent-local t)
+      ;; Set the major-mode.
+      (cond
+       (major-mode-func       (funcall major-mode-func))
+       (subcommand-major-mode (funcall subcommand-major-mode))
+       (t                     (prat-shell-command-output-mode)))
 
-      ;; (prat-insert-placeholder "Waiting for output...")
+      (setq-local default-directory dir)
+      (setq-local prat-shell-command-info
+                  `( :command ,cmd
+                     :env-vars ,env-vars
+                     :output-buffer ,buf
+                     :directory ,dir
+                     :output-pos ,(point)
+                     :markup-func ,(plist-get subcommand :markup-func)))
+
+      (dolist (regex prat-auto-refresh-commands)
+        (when (string-match regex cmd)
+          (setq-local prat-auto-refresh-this-buffer t)))
+
       (prat-shell-command-refresh)
       (forward-line 0)
       (switch-to-buffer buf))))
@@ -113,6 +131,14 @@ switches to this buffer."
       (goto-char output-pos)
       (insert " ")
       (prat-insert-spinner))
+
+    ;; `prat-async-shell-command-1' increments
+    ;; `prat-git-state-change-count' each time we run a Git command that
+    ;; changes the current state.
+    (setq-local prat-shell-command-info
+                (plist-put prat-shell-command-info
+                           :git-state prat-git-state-change-count))
+
     (prat-async-shell-command cmd #'prat-shell-command-refresh-1
                               env-vars 'no-check)))
 
@@ -128,7 +154,7 @@ Processes the output from a shell command."
       (let ((cmd (plist-get prat-shell-command-info :command))
             (output-pos (plist-get prat-shell-command-info :output-pos))
             (edit-buffer (plist-get prat-shell-command-info :edit-buffer))
-            (major-mode-func (plist-get prat-shell-command-info :major-mode))
+            (markup-func (plist-get prat-shell-command-info :markup-func))
             (output-text (with-current-buffer buf
                            (goto-char start)
                            (when (and (buffer-live-p prat-pending-edit-buffer)
@@ -155,19 +181,15 @@ Processes the output from a shell command."
         ;; Look for diff output.
         (goto-char beg)
         (when (re-search-forward "^diff --git" nil t)
-          (prat-format-hunks (pos-bol))
-          ;; (message "prat-shell-command-1: %S %S %S" major-mode
-          ;;          (derived-mode-p 'prat-hunk-view-mode) (current-buffer))
-          (unless major-mode-func (prat-hunk-view-mode)))
+          (prat-format-hunks (pos-bol)))
 
-        ;; Look for status output
-        (goto-char beg)
-        (when (and (string-match "^git [^\n]*status" cmd)
-                   (not major-mode-func))
-          (prat-show-status--markup-output)
-          (unless major-mode-func (prat-show-status-mode)))
+        ;; (message "markup-func: %S" markup-func)
+        (when markup-func
+          (goto-char output-pos)
+          (funcall markup-func))
 
-        (goto-line initial-line)
+        (goto-char (point-min))
+        (forward-line (1- initial-line))
         (run-hooks 'post-command-hook)))
 
      (t
@@ -301,5 +323,58 @@ Expects to be called from the buffer where are editing a file for Git."
                'prat-edit-kill-buffer-query-function t)
   (prat-signal-editor-script)
   (kill-buffer))
+
+
+;; Major-mode selection for shell output buffers.
+
+(defvar prat-shell-subcommands
+  '(("^git status" :major-mode prat-show-status-mode
+                   :markup-func prat-markup-status-output
+                   :auto-refresh t)))
+
+
+(defun prat-get-subcommand (cmd)
+  (catch 'found-subcommand
+    (dolist (subcmd prat-shell-subcommands)
+      (when (string-match (car subcmd) cmd)
+        (throw 'found-subcommand (cdr subcmd))))))
+
+
+;; Support for autorefreshing status and log buffers.
+
+;; (define-minor-mode prat-auto-refresh-mode
+;;   "When enabled, we refresh Git status and log buffers as needed."
+;;   :global t
+;;   (let ((hook 'window-buffer-change-functions)
+;;         (func #'prat-refresh-all-buffers))
+;;     (if prat-auto-refresh-mode
+;;         (add-hook hook func)
+;;       (remove-hook hook func))))
+
+(defvar-local prat-auto-refresh-this-buffer nil
+  "If non-nil, we call `prat-shell-command-refresh' on this buffer when the
+Git state changes.")
+
+(defun prat-refresh-all-buffers (&rest args)
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when prat-auto-refresh-this-buffer
+        (let ((git-state (plist-get prat-shell-command-info :git-state)))
+          (when (< git-state prat-git-state-change-count)
+            ;; (message "Refreshing %S..." (current-buffer))
+            (prat-shell-command-refresh)))))))
+
+;; (defun prat-refresh-visible-buffers (&rest args)
+;;   (let* ((windows (flatten-list (mapcar #'window-list (frame-list))))
+;;          (buffers (flatten-list (mapcar #'window-buffer windows))))
+;;     (dolist (buf (delete-dups buffers))
+;;       (with-current-buffer buf
+;;         (when prat-auto-refresh-this-buffer
+;;           (let ((git-state (plist-get prat-shell-command-info :git-state)))
+;;             (when (< git-state prat-git-state-change-count)
+;;               (message "Refreshing %S..." (current-buffer))
+;;               (prat-shell-command-refresh))))))))
+
+
 
 (provide 'prat-shell-command)

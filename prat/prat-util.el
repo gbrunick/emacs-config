@@ -129,9 +129,9 @@ included."
 (defun prat-overlays-at (&optional pos &rest prop-values-pairs)
   "Return overlays at POS.
 
-POS defaults to the point.  Only overlays with the property 'prat-overlay
-are returned.  PROP-VALUES-PAIRS is a list where the odd elements are
-symbols giving properties and the even elements are lists of values."
+POS defaults to the point.  PROP-VALUES-PAIRS is a list where the odd
+elements are symbols giving property keyword symbols and the even elements
+are lists of values."
   (setq pos (or pos (point)))
   (apply #'prat-filter-overlays (overlays-at pos) prop-values-pairs))
 

@@ -1,6 +1,6 @@
-(defcustom prat-log-excluded-branches '(refs/stash)
+(defcustom prat-log-excluded-branches '("refs/stash")
   "Add globs to this list to exclude branches from git log output."
-  :type '(repeat (string :tag "Commmand"))
+  :type '(repeat (string))
   :group 'prat)
 
 (defvar prat-commit-graph-mode-map
