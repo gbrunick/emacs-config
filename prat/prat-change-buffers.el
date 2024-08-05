@@ -31,10 +31,8 @@
 (defvar prat-hunk-selection-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "m" 'prat-mark-hunk-command)
-    (define-key map "M" 'prat-mark-file-command)
     (define-key map "r" 'prat-mark-as-rename)
     (define-key map "u" 'prat-unmark-hunk-command)
-    (define-key map "U" 'prat-unmark-file-command)
     (set-keymap-parent map 'prat-hunk-view-mode-map)
     (fset 'prat-hunk-selection-mode-map map)
     map)

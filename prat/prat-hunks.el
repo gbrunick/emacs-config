@@ -319,28 +319,6 @@ region is not active."
   (prat-mark-hunk 'unmark))
 
 
-(defun prat-mark-file-command (&optional unmark)
-  "Mark all hunks in the current file.
-If UNMARK is non-nil we unmark all hunks in the current file."
-  (interactive)
-  (let* ((hunk (or (prat-get-current-hunk)
-                   (user-error "Point is not in a hunk")))
-         (filename1 (overlay-get hunk :filename1))
-         (pt 0))
-    (dolist (hunk (prat-get-hunk-overlays filename1))
-      (goto-char (overlay-start hunk))
-      (setq pt (max pt (point)))
-      (prat-mark-hunk unmark))
-    (goto-char pt)
-    (prat-forward-command)))
-
-
-(defun prat-unmark-file-command ()
-  "Unmark all hunks in the current file."
-  (interactive)
-  (prat-mark-file-command t))
-
-
 (defun prat-mark-as-rename (new-name)
   "Mark file deletion hunk as a rename.
 

@@ -27,10 +27,8 @@
 
   (evil-define-key 'normal prat-hunk-selection-mode-map
     "m" 'prat-mark-hunk-command
-    "M" 'prat-mark-file-command
     "r" 'prat-mark-as-rename
-    "u" 'prat-unmark-hunk-command
-    "U" 'prat-unmark-file-command)
+    "u" 'prat-unmark-hunk-command)
 
   (evil-define-key 'normal prat-show-commit-files-mode-map
     (kbd "RET") 'prat-show-commit-graph--show-file-version)
