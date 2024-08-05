@@ -62,8 +62,7 @@
   "Unstaged Changes"
   "\nMode for selecting unstages changes to be added to the index.
 
-\\{prat-unstaged-changes-mode-map}\n"
-  (setq-local staged-changes-buffer nil))
+\\{prat-unstaged-changes-mode-map}\n")
 
 (defun prat-show-unstaged-changes (&optional button)
   (interactive)
@@ -87,8 +86,7 @@
   "Staged Changes"
   "\nMode for selecting stages changes to be removed from the index.
 
-\\{prat-staged-changes-mode-map}\n"
-  (setq-local staged-changes-buffer t))
+\\{prat-staged-changes-mode-map}\n")
 
 (defun prat-show-staged-changes (&optional button)
   (interactive)

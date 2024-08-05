@@ -530,10 +530,7 @@ start of the reigon, if the region is active.
 
 (defun prat-get-hunk-header (hunk)
   "Create the string which appears at the start of a hunk."
-  (let* ((staged (with-current-buffer (overlay-buffer hunk)
-                   (and (boundp 'staged-changes-buffer)
-                        staged-changes-buffer)))
-         (filename1 (overlay-get hunk :filename1))
+  (let* ((filename1 (overlay-get hunk :filename1))
          (filename2 (overlay-get hunk :filename2)))
 
     (cond
@@ -546,12 +543,12 @@ start of the reigon, if the region is active.
      ;; New file
      ((overlay-get hunk :insertion)
       (cl-assert (string= filename1 filename2))
-      (format "%s: %s\n" filename1 (if staged "added" "add")))
+      (format "add: %s\n" filename1))
 
      ;; Deleted file
      ((overlay-get hunk :deletion)
       (cl-assert (string= filename1 filename2))
-      (format "%s: %s\n" filename1 (if staged "deleted" "delete")))
+      (format "delete: %s\n" filename1))
 
      ;; A standard hunk with diff lines.
      ((ignore-errors (overlay-get hunk :diff))
