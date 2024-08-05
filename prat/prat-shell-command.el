@@ -35,8 +35,8 @@ value is string giving the path to a copy of prat-editor.bash.")
     (define-key map "g" 'prat-shell-command-refresh)
     map))
 
-(define-derived-mode prat-shell-command-output-mode
-  prat-base-mode "Git Output")
+(define-derived-mode prat-shell-command-output-mode prat-base-mode
+  "Git Output")
 
 (defun prat-commit (&optional amend)
   "Commit currently staged changes to Git.

@@ -179,7 +179,9 @@ Passed to Git using initial -c arguments."
 (define-derived-mode prat-base-mode special-mode
   "Prat Base Mode"
   "\nBase mode for all buffers managed by the `prat' package."
-  (setq-local tab-width 4))
+  (setq-local buffer-read-only t
+              tab-width 4
+              truncate-lines t))
 
 
 ;;

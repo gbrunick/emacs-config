@@ -12,36 +12,32 @@
     (define-key map [(backtab)] 'prat-backward-command)
     (define-key map "p" 'prat-backward-command)
     (define-key map "P" 'prat-backward-file-command)
+    (define-key map "\C-c\C-p" 'prat-backward-file-command)
     (define-key map "n" 'prat-forward-command)
     (define-key map "N" 'prat-forward-file-command)
+    (define-key map "\C-c\C-n" 'prat-forward-file-command)
     (define-key map (kbd "RET") 'prat-goto-line)
     (define-key map "g" 'prat-shell-command-refresh)
-    (fset 'prat-hunk-view-mode-map map)
     map)
   "Base keymap for hunk viewing.")
 
-(define-derived-mode prat-hunk-view-mode prat-base-mode
+(define-derived-mode prat-hunk-view-mode prat-shell-command-output-mode
   "Hunk Buffer"
-  "\nBase mode for buffers showing hunks."
+  "Base mode for buffers showing hunks."
   (setq-local header-line-format '(:eval (prat-compute-hunk-buffer-header)))
-  (setq-local buffer-read-only t)
-  (setq-local tab-width 4)
-  (setq-local revert-buffer-function 'prat-revert-changes-buffer))
+  (add-hook 'post-command-hook 'prat-post-command-hook nil t))
 
 (defvar prat-hunk-selection-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "m" 'prat-mark-hunk-command)
     (define-key map "r" 'prat-mark-as-rename)
     (define-key map "u" 'prat-unmark-hunk-command)
-    (set-keymap-parent map 'prat-hunk-view-mode-map)
-    (fset 'prat-hunk-selection-mode-map map)
     map)
   "Base keymap for hunk viewing and selection.")
 
 (define-derived-mode prat-hunk-selection-mode prat-hunk-view-mode
   "Hunk Buffer"
-  "\nBase mode for buffers showing hunks."
-  (add-hook 'post-command-hook 'prat-post-command-hook))
+  "Base mode for buffers allowing hunk selection.")
 
 
 ;; Unstaged changes
@@ -53,8 +49,6 @@
     ;; "delete" changes.
     (define-key map "d" 'prat-revert-marked-hunks)
     (define-key map "w" 'prat-toggle-whitespace-diff-args)
-    (set-keymap-parent map 'prat-hunk-selection-mode-map)
-    (fset 'prat-unstaged-changes-mode-map map)
     map)
   "The keymap used for unstaged hunks.")
 
@@ -77,8 +71,6 @@
   (let ((map (make-sparse-keymap)))
     ;; "reset" marked hunks
     (define-key map "r" 'prat-unstage-hunks)
-    (set-keymap-parent map 'prat-hunk-selection-mode-map)
-    (fset 'prat-staged-changes-mode-map map)
     map)
   "The keymap used for staged hunks.")
 

@@ -9,10 +9,11 @@
   "Stash List"
   "\nMode for buffers displaying the Git stash list.
 
-\\{prat-stash-list-mode-map}\n"
-  (setq truncate-lines t)
-  (read-only-mode 1))
+\\{prat-stash-list-mode-map}\n")
 
+(define-derived-mode prat-stash-pop-mode prat-shell-command-output-mode
+  "Major mode for `git stash pop` output."
+  (setq-local prat-confirm-refresh t))
 
 (defun prat-show-stash-list (&rest args)
   "Show the Git stash list."

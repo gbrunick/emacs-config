@@ -18,11 +18,8 @@
 
 (define-derived-mode prat-show-status-mode prat-shell-command-output-mode
   "Git Status"
-  "\nMode for buffers displaying Git status output.
-
-\\{prat-show-status-mode-map}\n"
-  (read-only-mode 1)
-  (setq tab-width 4))
+  "Mode for buffers displaying Git status output.
+\\{prat-show-status-mode-map}\n")
 
 
 (defun prat-show-status (&optional repo-dir)

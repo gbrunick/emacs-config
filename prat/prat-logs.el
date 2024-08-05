@@ -19,9 +19,7 @@
   "Commit Graph"
   "\nMode for buffers displaying the Git commit graph.
 
-\\{prat-commit-graph-mode-map}\n"
-  (setq truncate-lines t)
-  (read-only-mode 1))
+\\{prat-commit-graph-mode-map}\n")
 
 
 (defun prat-show-commit-graph (&optional repo-root)
