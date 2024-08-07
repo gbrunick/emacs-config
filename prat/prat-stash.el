@@ -21,7 +21,8 @@
   (let* ((buf (get-buffer-create "*Git stash list*"))
          (repo-root (prat-find-repo-root))
          (inhibit-read-only t)
-         (cmd "git stash list"))
+         ;; Show when the revision was stashed.
+         (cmd "git stash list --format=\"%gd: (%cr) %gs\""))
 
     (with-current-buffer buf
       (setq default-directory repo-root)
