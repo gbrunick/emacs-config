@@ -29,6 +29,11 @@ value is string giving the path to a copy of prat-editor.bash.")
 (define-derived-mode prat-shell-command-output-mode prat-base-mode
   "Git Output")
 
+(defvar-local prat-shell-command-markup-functions nil
+  "Buffer local collection of markup functions.
+Major modes that derive from `prat-shell-command-output-mode' can use this
+hook-like variable to markup the output from Git.")
+
 (defun prat-commit (&optional amend)
   "Commit currently staged changes to Git.
 With a prefix argument, amends previous commit."
@@ -78,8 +83,6 @@ switches to this buffer."
                                                                editor-script))
                   "GIT_PAGER="
                   "TERM=dumb"))))
-         (subcommand (prat-get-subcommand cmd))
-         (subcommand-major-mode (plist-get subcommand :major-mode))
          (inhibit-read-only t)
          pos)
 
@@ -89,19 +92,16 @@ switches to this buffer."
       (insert "> " cmd)
 
       ;; Set the major-mode.
-      (cond
-       (major-mode-func       (funcall major-mode-func))
-       (subcommand-major-mode (funcall subcommand-major-mode))
-       (t                     (prat-shell-command-output-mode)))
+      (let ((major-mode (prat-shell-command--get-major-mode cmd)))
+        ;; (message "Setting major mode: %S" major-mode)
+        (funcall major-mode))
 
-      (setq-local default-directory dir)
-      (setq-local prat-shell-command-info
-                  `( :command ,cmd
-                     :env-vars ,env-vars
-                     :output-buffer ,buf
-                     :directory ,dir
-                     :output-pos ,(point)
-                     :markup-func ,(plist-get subcommand :markup-func)))
+      (setq-local default-directory dir
+                  prat-shell-command-info `( :command ,cmd
+                                             :env-vars ,env-vars
+                                             :output-buffer ,buf
+                                             :directory ,dir
+                                             :output-pos ,(point)))
 
       (prat-shell-command-refresh)
       (forward-line 0)
@@ -149,7 +149,6 @@ Processes the output from a shell command."
       (let ((cmd (plist-get prat-shell-command-info :command))
             (output-pos (plist-get prat-shell-command-info :output-pos))
             (edit-buffer (plist-get prat-shell-command-info :edit-buffer))
-            (markup-func (plist-get prat-shell-command-info :markup-func))
             (output-text (with-current-buffer buf
                            (goto-char start)
                            (when (and (buffer-live-p prat-pending-edit-buffer)
@@ -179,9 +178,9 @@ Processes the output from a shell command."
         (when (re-search-forward "^diff --git" nil t)
           (prat-format-hunks (pos-bol)))
 
-        ;; (message "markup-func: %S" markup-func)
-        (when markup-func
+        (dolist (markup-func prat-shell-command-markup-functions)
           (goto-char output-pos)
+          ;; (message "Calling markup function: %S" markup-func)
           (funcall markup-func))
 
         (goto-char (point-min))
@@ -323,18 +322,13 @@ Expects to be called from the buffer where are editing a file for Git."
 
 ;; Major-mode selection for shell output buffers.
 
-(defvar prat-shell-subcommands
-  '(("^git status" :major-mode prat-show-status-mode
-                   :markup-func prat-markup-status-output)
-    ("^git\\( stash\\)? show" :major-mode prat-hunk-view-mode)
-    ("^git diff" :major-mode prat-hunk-view-mode)))
-
-
-(defun prat-get-subcommand (cmd)
-  (catch 'found-subcommand
-    (dolist (subcmd prat-shell-subcommands)
-      (when (string-match (car subcmd) cmd)
-        (throw 'found-subcommand (cdr subcmd))))))
+(defun prat-shell-command--get-major-mode (cmd)
+  "Determines the major mode used for shell output from `cmd'."
+  (cond
+   ((string-match "^git status" cmd)            #'prat-show-status-mode)
+   ((string-match "^git\\( stash\\)? show" cmd) #'prat-show-status-mode)
+   ((string-match "^git diff" cmd)              #'prat-hunk-view-mode)
+   (t                                           #'prat-shell-command-output-mode)))
 
 
 ;; Support for autorefreshing status and log buffers.

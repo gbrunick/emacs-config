@@ -19,7 +19,8 @@
 (define-derived-mode prat-show-status-mode prat-shell-command-output-mode
   "Git Status"
   "Mode for buffers displaying Git status output.
-\\{prat-show-status-mode-map}\n")
+\\{prat-show-status-mode-map}"
+  (push #'prat-markup-status-output prat-shell-command-markup-functions))
 
 
 (defun prat-show-status (&optional repo-dir)
