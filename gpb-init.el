@@ -162,18 +162,12 @@
 
 ;; Use bash rather than sh on remote shells.
 
-(with-eval-after-load 'files-x
-  (connection-local-set-profile-variables
-   'remote-bash
-   '((shell-file-name . "/bin/bash")
-     (shell-command-switch . "-c")))
+(connection-local-set-profile-variables
+ 'remote-bash
+ '((shell-file-name . "/bin/bash")
+   (shell-command-switch . "-c")))
 
-  (setq connection-local-criteria-alist
-        '(((:application tramp)
-           tramp-connection-local-default-system-profile remote-bash))))
-
-;; Make `shell' in a remote buffer use bash instead of sh.
-;; (setq explicit-shell-file-name "/bin/bash")
+(connection-local-set-profiles '(:application tramp) 'remote-bash)
 
 ;; Some kind of styling
 (with-eval-after-load 'poly-markdown
