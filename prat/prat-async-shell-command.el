@@ -324,8 +324,7 @@ caller is responsible for returning the buffer by calling
           (process-send-string proc "PS1=\n")
           (process-send-string proc "PS2=\n")
           ;; Don't save command history
-          (process-send-string proc "unset HISTFILE\n")
-          (accept-process-output proc nil nil t)))))
+          (process-send-string proc "unset HISTFILE\n")))))
 
     buf))
 
@@ -375,15 +374,13 @@ otherwise."
   (prat-log-call)
   (let* ((proc (get-buffer-process buf)))
     (when (and proc (process-live-p proc))
-      (accept-process-output nil 0)
       (with-current-buffer buf
         ;; After a request, the server process is waiting to read some
         ;; inputs, so we send an initial string to be ignored.
         (process-send-string proc "for read command\n")
         (process-send-string proc (format "cd \"%s\"\n" local-dir))
         (process-send-string proc "echo\n")
-        (process-send-string proc (format "echo cwd: $(pwd)\n"))
-        (accept-process-output proc))
+        (process-send-string proc (format "echo cwd: $(pwd)\n")))
       t)))
 
 
