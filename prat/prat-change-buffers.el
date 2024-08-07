@@ -88,11 +88,13 @@
    (format "Staged changes in %s" default-directory)
    'prat-staged-changes-mode))
 
-(defun prat-show-commit (hash)
+(defun prat-show-commit (hash &rest args)
   "Write information about the commit HASH into the current buffer."
   (interactive (read-string "Commit: "))
   (prat-shell-command
-   (format "git show --stat --patch %s --" hash)
+   (format "git show%s --stat --patch %s --"
+          (mapconcat (lambda (arg) (format " %s" arg)) args "")
+           hash)
    (format "*commit: %s*" hash)
    (format "Commit %s in %s" hash default-directory)))
 

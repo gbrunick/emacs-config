@@ -141,12 +141,14 @@ branch name, rather than a commit hash."
 (prat-commit-graph--defcmd prat-commit-graph--delete-branch
                            "branch -d" "branch -D" t)
 
-(defun prat-commit-graph--show-commit ()
-  "Show commit at point."
-  (interactive)
+(defun prat-commit-graph--show-commit (&optional arg)
+  "Show commit at point.
+With a prefix argument, we ignore whitespace changes."
+  (interactive "P")
   (let ((hash (prat-commit-graph--commit-at)))
-    (prat-show-commit hash)))
-
+    (if arg
+        (prat-show-commit hash "-b")
+      (prat-show-commit hash))))
 
 (defun prat-commit-graph--list-commit-files (&optional pos)
   (interactive)
