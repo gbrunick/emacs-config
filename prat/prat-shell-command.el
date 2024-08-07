@@ -163,6 +163,7 @@ Processes the output from a shell command."
                             (display-buffer prat-pending-edit-buffer))
                            ;; Skip the output from our editor script and
                            ;; show the Git command output.
+                           (goto-char start)
                            (when (re-search-forward "^GIT_OUTPUT_START:" end t)
                              (forward-line 1))
                            (buffer-substring-no-properties (point) end)))
