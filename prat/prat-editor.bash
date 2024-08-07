@@ -4,8 +4,6 @@ LOCK_FILE=${1%/*}/.prat-editor-lock
 
 echo LOCK_FILE=$LOCK_FILE
 
-ls
-
 if [ -p "$LOCK_FILE" ]; then
   echo SHOW_CURRENT_EDIT_BUFFER
   echo GIT_OUTPUT_START:
