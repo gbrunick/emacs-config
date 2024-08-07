@@ -31,23 +31,8 @@ any command output and doesn't require any shell quoting.")
 (defvar prat-output-end (format "END:%s" prat-output-marker))
 
 (defvar prat-git-state-change-count 0
-  "Incremented each time a command that matches a regular expression in
-`part-git-state-change-commands' is run.")
-
-(defvar prat-git-state-change-commands '("^git add"
-                                         "^git apply"
-                                         "^git branch"
-                                         "^git cherry-pick"
-                                         "^git commit"
-                                         "^git merge"
-                                         "^git push"
-                                         "^git rebase"
-                                         "^git reset"
-                                         "^git revert"
-                                         "^git stash")
-  "A list of regular expressions.
-`prat-async-shell-command-1' increments `part-git-state-change-count' after
-each command that matches a regex in this list.")
+  "Incremented each time a command that satisfies the
+`prat-command-changes-git-state-p' predicate is run.")
 
 (define-derived-mode prat-server-mode special-mode
   "Prat-Server"
@@ -245,15 +230,11 @@ NO-CHECK is non-nil."
                     (message "Error during '%s'" cmd)))))
 
              ;; If we just completed a command that changes the Git state,
-             ;; we increment `prat-git-state-change-count'.
-             (let ((regexes prat-git-state-change-commands))
-               (while regexes
-                 (when (string-match (car regexes) cmd)
-                   (cl-incf prat-git-state-change-count)
-                   ;; Only increment `prat-git-state-change-count' once.
-                   (setq regexes nil)
-                   (run-with-timer 0 nil #'prat-refresh-all-buffers))
-                 (setq regexes (cdr regexes))))
+             ;; we increment `prat-git-state-change-count' and schedule a
+             ;; refresh for status and log buffers.
+             (when (prat-command-changes-git-state-p cmd)
+               (cl-incf prat-git-state-change-count)
+               (run-with-timer 0 nil #'prat-refresh-all-buffers))
 
              (prat-return-or-kill-buffer proc-buf)))))))
 
@@ -401,6 +382,26 @@ otherwise."
                 (apply callback args)))
             t)
     (message "Quit during %S %S" buf `(,callback ,@args))))
+
+
+(defun prat-command-changes-git-state-p (cmd)
+  (let* ((subcommands '("add" "apply" "branch" "cherry-pick" "commit"
+                        "merge" "push" "rebase" "reset" "revert")))
+    (and
+     (catch 'result
+
+       ;; Look for a subcommand
+       (dolist (subcmd subcommands)
+         (when (string-match (format "^git +%s" subcmd) cmd)
+           (throw 'result t)))
+
+
+       ;; Not all stash variants change the state.
+       (or (string-match "^git stash\\( -u\\)?\\( -- .*\\)?$" cmd)
+           (string-match "^git stash \\(apply\\|pop\\)?$" cmd)))
+
+     ;; Return nil or t.
+     t)))
 
 
 (provide 'prat-async-shell-command)
