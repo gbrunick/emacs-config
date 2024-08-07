@@ -37,12 +37,14 @@ any command output and doesn't require any shell quoting.")
 (defvar prat-git-state-change-commands '("^git add"
                                          "^git apply"
                                          "^git branch"
+                                         "^git cherry-pick"
                                          "^git commit"
                                          "^git merge"
                                          "^git push"
                                          "^git rebase"
                                          "^git reset"
-                                         "^git revert")
+                                         "^git revert"
+                                         "^git stash")
   "A list of regular expressions.
 `prat-async-shell-command-1' increments `part-git-state-change-count' after
 each command that matches a regex in this list.")
