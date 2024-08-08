@@ -189,14 +189,18 @@ Passed to Git using initial -c arguments."
 ;;
 (defvar prat-user-command-prefix-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map "s" 'prat-show-status)
-    (define-key map "S" 'prat-show-stash-list)
+    (define-key map "d" 'prat-show-status)
     (define-key map "c" 'prat-commit)
     (define-key map "r" 'prat-rebase)
     (define-key map "l" 'prat-show-commit-graph)
     (define-key map "!" 'prat-shell-command)
     (define-key map "p" 'prat-push-changes)
-    (fset 'prat-user-command-prefix-keymap map)
+
+    ;; stash commands
+    (define-key map "sl" 'prat-show-stash-list)
+    (define-key map "s+" 'prat-push-stash)
+    (define-key map "s-" 'prat-pop-stash)
+
     map)
   "The prefix keymap for user commands.
 

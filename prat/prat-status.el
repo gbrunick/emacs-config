@@ -11,7 +11,6 @@
     (define-key map "a" 'prat-show-status--add-files)
     (define-key map "r" 'prat-show-status--reset-files)
     (define-key map "s" 'prat-show-status--stash-files)
-    (define-key map "!" 'prat-shell-command)
     map)
   "The keymap used when viewing git status output.")
 
@@ -24,7 +23,7 @@
 
 
 (defun prat-show-status (&optional repo-dir)
-  "Show the current Git status in a buffer."
+  "Show `git status ...` in a buffer."
   (interactive)
   (let* ((default-directory (or repo-dir (prat-find-repo-root)))
          (buf (get-buffer-create prat-status-buffer-name))
@@ -36,7 +35,7 @@
 
 
 (defun prat-markup-status-output ()
-  "Markup git status output in the current buffer."
+  "Markup `git status ...` output in the current buffer."
 
   ;; Some version of Git (e.g. 1.8.3.1) prefix the status output with
   ;; comment characters.
