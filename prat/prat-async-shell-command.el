@@ -398,7 +398,7 @@ otherwise."
 
        ;; Not all stash variants change the state.
        (or (string-match "^git stash\\( -u\\)?\\( -- .*\\)?$" cmd)
-           (string-match "^git stash \\(apply\\|pop\\)?$" cmd)))
+           (string-match "^git stash \\(apply\\|pop\\|drop\\)?$" cmd)))
 
      ;; Return nil or t.
      t)))
