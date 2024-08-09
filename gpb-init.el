@@ -149,6 +149,12 @@
 (remove-hook 'tramp-cleanup-connection-hook 'tramp-recentf-cleanup)
 (remove-hook 'tramp-cleanup-all-connections-hook 'tramp-recentf-cleanup-all)
 
+;; Use bash rather than sh on remote shells.
+(with-eval-after-load 'tramp-integration
+  (connection-local-update-profile-variables
+   'tramp-connection-local-default-shell-profile
+   '((shell-file-name . "/bin/bash"))))
+
 ;; Default to Unix line-endings for remote files.
 (defun gpb-find-file-hook (&rest args)
   (let ((file (buffer-file-name)))
@@ -159,15 +165,6 @@
       (setq buffer-file-coding-system 'undecided-unix))))
 
 (add-hook 'find-file-hook 'gpb-find-file-hook)
-
-;; Use bash rather than sh on remote shells.
-
-(connection-local-set-profile-variables
- 'remote-bash
- '((shell-file-name . "/bin/bash")
-   (shell-command-switch . "-c")))
-
-(connection-local-set-profiles '(:application tramp) 'remote-bash)
 
 ;; Some kind of styling
 (with-eval-after-load 'poly-markdown
