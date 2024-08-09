@@ -212,27 +212,6 @@ Bind to this to a prefix of your choosing (e.g., \"\C-cv\")")
   (let ((cmd (read-string "Git Shell Command: " "git push -u origin HEAD")))
     (prat-shell-command cmd)))
 
-(defun prat-refresh-buffer ()
-  "Implements the standard refresh on g behaviour.
-
-User-facing; attempts to preserve window position."
-  (interactive)
-  (let* ((buf (current-buffer))
-         (window (selected-window))
-         (window-buf (window-buffer window))
-         (ws (window-start))
-         (pt (point))
-         (reset-window `(lambda (&rest args)
-                          (goto-char (min ,pt (point-max)))
-                          (set-window-start ,window
-                                            (min ,ws (point-max)))
-                          (forward-line 0)
-                          (prat-post-command-hook))))
-    (cl-assert (equal buf window-buf))
-    (message "prat-refresh-buffer: %s %s" (current-buffer) major-mode)
-    (eval `(,@refresh-cmd reset-window))))
-
-
 (defun prat-reload-all ()
   "Reload all source files."
   (interactive)

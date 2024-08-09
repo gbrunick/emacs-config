@@ -48,7 +48,6 @@
     (define-key map "a" 'prat-stage-hunks)
     ;; "delete" changes.
     (define-key map "d" 'prat-revert-marked-hunks)
-    (define-key map "w" 'prat-toggle-whitespace-diff-args)
     map)
   "The keymap used for unstaged hunks.")
 

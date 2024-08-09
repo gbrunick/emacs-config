@@ -61,14 +61,6 @@
   (cdr-safe (assoc key alist)))
 
 
-(defun prat-toggle-whitespace-diff-args ()
-  (interactive)
-  (let ((val (and (boundp 'show-whitespace-changes) show-whitespace-changes)))
-    (setq-local show-whitespace-changes (not val))
-    (put 'show-whitespace-changes 'permanent-local t)
-    (prat-refresh-buffer)))
-
-
 (defun prat-decorate-hunk (hunk &optional focused)
   "Apply faces to hunk text.
 HUNK is an overlay with properties summarized at the top of this

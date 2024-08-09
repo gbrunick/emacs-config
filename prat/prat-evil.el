@@ -52,8 +52,7 @@
 
   (evil-define-key 'normal prat-unstaged-changes-mode-map
     "a" 'prat-stage-hunks
-    "d" 'prat-revert-marked-hunks
-    "w" 'prat-toggle-whitespace-diff-args)
+    "d" 'prat-revert-marked-hunks)
 
   (evil-define-key 'visual prat-unstaged-changes-mode-map
     "a" 'prat-stage-hunks)
