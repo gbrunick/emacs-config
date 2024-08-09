@@ -199,6 +199,8 @@ Passed to Git using initial -c arguments."
 
 Bind to this to a prefix of your choosing (e.g., \"\C-cv\")")
 
+;; We do this so you can bind the symbol in keymaps.
+(fset 'prat-user-command-prefix-keymap prat-user-command-prefix-keymap)
 
 ;;
 ;;  Functions
