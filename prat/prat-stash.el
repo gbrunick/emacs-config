@@ -1,3 +1,20 @@
+(require 'prat-shell-command)
+
+(defcustom prat-show-stash-command "git stash show -u --stat -p"
+  "Command used to show a stash.")
+
+(defcustom prat-stash-list-command (concat "git stash list "
+                                           "--format=\"%gd: (%cr) %gs\" ")
+  "Command used to list all stashes.")
+
+(prat-define-shell-command prat-stash-command "git stash"
+                           :confirm t)
+
+(prat-define-shell-command prat-show-stash-list
+                           prat-stash-list-command
+                           :bufname "*Stash List*"
+                           :title "Stash list in %s")
+
 (defvar prat-stash-list-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "g" 'prat-refresh-stash-list)

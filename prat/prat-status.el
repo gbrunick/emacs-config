@@ -22,18 +22,6 @@
   (push #'prat-markup-status-output prat-shell-command-markup-functions))
 
 
-(defun prat-show-status (&optional repo-dir)
-  "Show `git status ...` in a buffer."
-  (interactive)
-  (let* ((default-directory (or repo-dir (prat-find-repo-root)))
-         (buf (get-buffer-create prat-status-buffer-name))
-         (cmd "git status -u --show-stash")
-         (inhibit-read-only t))
-
-    (prat-shell-command cmd prat-status-buffer-name
-                        (format "Status in %s" default-directory))))
-
-
 (defun prat-markup-status-output ()
   "Markup `git status ...` output in the current buffer."
 
@@ -301,5 +289,9 @@ Unmarks the file if UNMARK is non-nil."
   (let* ((filename (button-get button 'filename)))
     (prat-shell-command (format "git diff --ours -- \"%s\"" filename)
                         (format "*unmerged: %s*" filename))))
+
+(prat-define-shell-command prat-show-status "git status -u --show-stash "
+                           :bufname "*Git Status*"
+                           :title "Status in %s")
 
 (provide 'prat-status)

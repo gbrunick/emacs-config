@@ -349,4 +349,32 @@ Expects to be called from the buffer where are editing a file for Git."
   (and (or (string-match "^git status" cmd))
        t))
 
+
+;; Define a bunch of shell commands for key bindings.
+
+(defmacro prat-define-shell-command (name cmd &rest kwargs)
+  "Define a function NAME that runs CMD in a shell.
+
+Keyword Arguments:
+ :buffer A string giving the name of the output buffer.  Defaults to
+   '*Shell Output*'.
+ :confirm If non-nil we let the user modify CMD before we run it.
+ :title As format string containing a single `%s' placeholder that is
+   expanded to the repo root directory."
+  (let ((bufname (plist-get kwargs :bufname))
+        (confirm (plist-get kwargs :confirm))
+        (title (plist-get kwargs :title)))
+    (when title (setq title (format title default-directory)))
+    (when confirm (setq cmd (concat cmd " ")))
+
+    `(defun ,name (&rest args)
+       (interactive)
+       (let* ((default-directory (prat-find-repo-root))
+              (cmd ,(if confirm
+                        `(read-shell-command "Shell Command: "
+                                             ,cmd)
+                      cmd)))
+         (prat-shell-command cmd ,bufname ,title)))))
+
+
 (provide 'prat-shell-command)
