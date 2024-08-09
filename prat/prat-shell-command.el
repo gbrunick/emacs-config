@@ -180,6 +180,7 @@ Processes the output from a shell command."
         (insert "\n\n")
         (setq beg (point))
         (insert output-text)
+        (ansi-color-apply-on-region beg (point-max))
 
         ;; Look for diff output.
         (goto-char beg)

@@ -1,3 +1,9 @@
+(require 'prat-shell-command)
+
+(defcustom prat-show-commit-graph-command
+  "git log --graph --oneline --decorate --color"
+  "Command used to show the commit graph.")
+
 (defcustom prat-log-excluded-branches '("refs/stash")
   "Add globs to this list to exclude branches from git log output."
   :type '(repeat (string))
@@ -6,7 +12,6 @@
 (defvar prat-commit-graph-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "d" 'prat-commit-graph--show-diff)
-    (define-key map "g" 'prat-refresh-commit-graph)
     (define-key map (kbd "RET") 'prat-commit-graph--show-commit)
     (define-key map "\C-c\C-c" 'prat-commit-graph--checkout)
     (define-key map "\C-c\C-r" 'prat-commit-graph--reset)
@@ -15,94 +20,55 @@
     map)
   "The keymap used when viewing the commit graph.")
 
-(define-derived-mode prat-commit-graph-mode prat-base-mode
+(define-derived-mode prat-commit-graph-mode prat-shell-command-output-mode
   "Commit Graph"
-  "\nMode for buffers displaying the Git commit graph.
-
-\\{prat-commit-graph-mode-map}\n")
+  "Mode for buffers displaying the Git commit graph.
+\\{prat-commit-graph-mode-map}"
+  (push #'prat-markup-commit-graph-output prat-shell-command-markup-functions))
 
 
 (defun prat-show-commit-graph (&optional repo-root)
   "Show the Git commit graph in a buffer."
   (interactive)
   (let* ((buf (get-buffer-create "*Git commit graph*"))
-         (repo-root (or repo-root (prat-find-repo-root)))
+         (default-directory (or repo-root (prat-find-repo-root)))
          (inhibit-read-only t)
-         cmd)
+         (cmd prat-show-commit-graph-command))
 
-    (setq cmd "git log --graph --oneline --decorate --color")
     (dolist (glob prat-log-excluded-branches)
       (setq cmd (format "%s --exclude=\"%s\"" cmd glob)))
     (setq cmd (format "%s --all" cmd))
 
-    (with-current-buffer buf
-      (setq default-directory repo-root)
-      (erase-buffer)
-      (prat-commit-graph-mode)
-      (insert (format "Commit graph in %s\n\n" default-directory))
-      (insert (format "> %s\n\n" cmd))
-      (setq-local shell-command cmd
-                  output-marker (copy-marker (point)))
-      (prat-refresh-commit-graph))
-
-    (switch-to-buffer buf)))
+    (prat-shell-command cmd "*Commit Graph*" (format "Commit graph in %s"
+                                                     default-directory))))
 
 
-(defun prat-refresh-commit-graph ()
-  "Update the commit graph in the current buffer."
-  (interactive)
-  (prat-log-call)
-  (let ((inhibit-read-only t))
-    (setq-local refresh t)
-    (prat-async-shell-command shell-command #'prat-refresh-commit-graph-1)))
-
-
-(defun prat-refresh-commit-graph-1 (buf start end complete)
-  (prat-log-call)
-  (unless complete
-    (let ((new-output (with-current-buffer buf
-                        (buffer-substring-no-properties start end)))
-          (inhibit-read-only t)
-          pos)
-      (when refresh
-        (delete-region output-marker (point-max))
-        (setq-local refresh nil))
-      (setq pos (point-max))
-      (save-excursion
-        (goto-char pos)
-        (insert new-output)
-        (ansi-color-apply-on-region pos (point-max))
-        (prat-commit-graph--add-text-properties pos (point-max))))))
-
-
-(defun prat-commit-graph--add-text-properties (beg end)
-  "Add text properties to git log output between BEG and END.
+(defun prat-markup-commit-graph-output ()
+  "Add text properties to git log --graph output.
 
 Adds a :commit-hash and :branch-names property to each log entry and puts
 a :branch-name property on each branch name."
   (interactive "r")
   (let ((inhibit-read-only t) bound name branch-names)
-    (save-excursion
-      (goto-char beg)
-      (while (re-search-forward "^[* \\|/-]+\\.? +\\([a-f0-9]+\\) " end t)
-        ;; Mark the whole line with the hash
-        (put-text-property (pos-bol) (pos-eol) :commit-hash
-                           (match-string-no-properties 1))
+    (while (re-search-forward "^[* \\|/-]+\\.? +\\([a-f0-9]+\\) " end t)
+      ;; Mark the whole line with the hash
+      (put-text-property (pos-bol) (pos-eol) :commit-hash
+                         (match-string-no-properties 1))
 
-        ;; Now look for branch names in the decorations.
-        (when (re-search-forward "(.*)" (pos-eol) t)
-          (setq branch-names nil)
-          (goto-char (1+ (match-beginning 0)))
-          (setq bound (match-end 0))
-          ;; If we are the line that contains HEAD, skip past this.
-          (re-search-forward "HEAD -> " bound t)
-          (while (re-search-forward " *\\([^,)]+\\)[,)] *" bound t)
-            (setq name (match-string-no-properties 1))
-            (put-text-property (match-beginning 1) (match-end 1)
-                               :branch-name name)
-            (push name branch-names))
-          (put-text-property (pos-bol) (pos-eol) :branch-names
-                             (reverse branch-names)))))))
+      ;; Now look for branch names in the decorations.
+      (when (re-search-forward "(.*)" (pos-eol) t)
+        (setq branch-names nil)
+        (goto-char (1+ (match-beginning 0)))
+        (setq bound (match-end 0))
+        ;; If we are the line that contains HEAD, skip past this.
+        (re-search-forward "HEAD -> " bound t)
+        (while (re-search-forward " *\\([^,)]+\\)[,)] *" bound t)
+          (setq name (match-string-no-properties 1))
+          (put-text-property (match-beginning 1) (match-end 1)
+                             :branch-name name)
+          (push name branch-names))
+        (put-text-property (pos-bol) (pos-eol) :branch-names
+                           (reverse branch-names))))))
 
 
 (defun prat-commit-graph--commit-at (&optional pos branch)
@@ -117,9 +83,6 @@ names (not commit hashes)."
           (get-text-property pos :commit-hash))
         (error "No commit at %s" txt))))
 
-(defun prat-commit-graph--refresh-when-complete (buf start end complete)
-  (when complete (prat-refresh-commit-graph)))
-
 (defmacro prat-commit-graph--defcmd (name base-cmd &optional alt-cmd branch-only)
   "Define a simple command that operates on a branch or commit.
 
@@ -132,8 +95,7 @@ branch name, rather than a commit hash."
      (let ((cmd (format "git %s %s"
                         (if arg (or ,alt-cmd ,base-cmd) ,base-cmd)
                         (prat-commit-graph--commit-at nil ,branch-only))))
-       (prat-async-shell-command (read-shell-command "Shell command: " cmd)
-                                 #'prat-commit-graph--refresh-when-complete))))
+       (prat-async-shell-command (read-shell-command "Shell command: " cmd)))))
 
 ;; Simple commands that operate on the current branch/commit.
 (prat-commit-graph--defcmd prat-commit-graph--checkout "checkout" nil)
@@ -173,5 +135,14 @@ With a prefix argument, we ignore whitespace changes."
       (diff-mode))
     (pop-to-buffer buf)))
 
+
+;; Register `prat-commit-graph-mode' with `prat-shell-command'.
+
+(defun prat-use-commit-graph-mode-p (cmd)
+  "Function for `prat-shell-command-major-mode-hook'"
+  (message "prat-use-commit-graph-mode: %S" cmd)
+  (when (string-match "^git log --graph --oneline" cmd) #'prat-commit-graph-mode))
+
+(add-hook 'prat-shell-command-major-mode-hook #'prat-use-commit-graph-mode-p)
 
 (provide 'prat-logs)
