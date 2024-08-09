@@ -118,8 +118,10 @@
 
 (defun prat-use-hunk-view-mode-p (cmd)
   "Function for `prat-shell-command-major-mode-hook'"
-  (message "prat-use-hunk-view-mode" cmd)
-  (when (string-match "^git diff" cmd) #'prat-hunk-view-mode))
+  (message "prat-use-hunk-view-mode: %S" cmd)
+  (when (or (string-match "^git diff" cmd)
+            (string-match "^git\\( stash\\)? show" cmd))
+    #'prat-hunk-view-mode))
 
 (add-hook 'prat-shell-command-major-mode-hook #'prat-use-hunk-view-mode-p)
 
