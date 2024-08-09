@@ -178,6 +178,7 @@ Processes the output from a shell command."
 
         (goto-char (point-min))
         (forward-line (1- initial-line))
+        (set-buffer-modified-p nil)
         (run-hooks 'post-command-hook)))
 
      (t
