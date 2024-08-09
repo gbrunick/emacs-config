@@ -33,14 +33,12 @@
 (defun prat-refresh-file-tree ()
   "Update the file tree in the current buffer."
   (interactive)
-  (prat-log-call)
   (let ((inhibit-read-only t))
     (setq-local refresh t)
     (prat-async-shell-command shell-command #'prat-refresh-file-tree-1)))
 
 
 (defun prat-refresh-file-tree-1 (buf start end complete)
-  (prat-log-call)
   (unless complete
     (let ((new-output (with-current-buffer buf
                         (buffer-substring-no-properties start end)))

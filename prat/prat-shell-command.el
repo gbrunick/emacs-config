@@ -64,7 +64,6 @@ commands.")
 On completion, shows the command output in a buffer named BUFNAME and
 switches to this buffer."
   (interactive (list (read-shell-command "Shell Command: ")))
-  (prat-log-call)
 
   (let* ((buf (get-buffer-create (or bufname "*Shell Command Output*")))
          (dir default-directory)
@@ -150,7 +149,6 @@ switches to this buffer."
   "Implementation detail of `prat-shell-command'
 
 Processes the output from a shell command."
-  (prat-log-call)
   (save-match-data
     (cond
      (complete
@@ -285,7 +283,6 @@ GIT_SEQUENCE_EDITOR."
   "Let the editor script know the edit is done.
 
 Expects to be called from the buffer where are editing a file for Git."
-  (prat-log-call)
   (ignore-errors
     (cond
      ((prat-use-cmd-exe-p)

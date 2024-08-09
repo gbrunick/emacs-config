@@ -67,7 +67,6 @@ before CMD is run.
 We normally check the return code produced by CMD and show a buffer
 containing the process output if CMD failed, but this check is omitted if
 NO-CHECK is non-nil."
-  (prat-log-call)
   (let* ((marker (copy-marker (point)))
          (server-buf (prat-get-server-buf))
          (local-dir (file-local-name default-directory))
@@ -130,7 +129,6 @@ NO-CHECK is non-nil."
 
 (defun prat-async-shell-command-1 (proc string)
   "Process filter for `prat-async-shell-command'."
-  (prat-log-call)
   (when (buffer-live-p (process-buffer proc))
     (let* ((proc-buf (process-buffer proc))
            (data (with-current-buffer proc-buf prat-asc-data))
@@ -247,7 +245,6 @@ Attempts to pop a process running on the correct machine from
 up a new process if nothing is available in the worker pool.  The
 caller is responsible for returning the buffer by calling
 `prat-return-buffer' when done."
-  (prat-log-call)
   (let* ((dir (expand-file-name (or dir default-directory)))
          (local-dir (directory-file-name
                      (file-local-name (expand-file-name dir))))
@@ -312,7 +309,6 @@ caller is responsible for returning the buffer by calling
 
 (defun prat-return-or-kill-buffer (buf)
   "Return BUF to the worker pool or kill it."
-  (prat-log-call)
   (with-current-buffer buf
     (let ((tramp-prefix (file-remote-p default-directory))
           (proc (get-buffer-process buf))
@@ -352,7 +348,6 @@ a Windows machine but working remotely via TRAMP) we use bash."
 
 Sets working directory to DIR.  Return t on success and nil
 otherwise."
-  (prat-log-call)
   (let* ((proc (get-buffer-process buf)))
     (when (and proc (process-live-p proc))
       (with-current-buffer buf

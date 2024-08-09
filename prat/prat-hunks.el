@@ -866,7 +866,6 @@ associated with the given file that lies after the button."
 
 Returns a list of hunk alists.  See the comments at the top of
 the file for the structure of these alists."
-  (prat-log-call)
   (let* ((region-beg (or beg (point-min)))
          (region-end (or end (point-max)))
          (hunk-list (list :stub))

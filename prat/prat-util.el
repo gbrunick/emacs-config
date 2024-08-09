@@ -22,33 +22,6 @@ Looks for the .git directory rather than calling Git."
     (concat (make-string indent ?\ )
             (propertize txt 'face '(:weight bold)))))
 
-(defun prat-log-call (&optional func args n)
-  "Write tracing info `prat-debug-buffer-name'.
-
-The argument N gives the number of additional step to skip."
-  (when prat-debug
-    (let* ((n (or n 0))
-           (buf (current-buffer))
-           (bufname prat-debug-buffer-name)
-           ;; If the nesting changes, the NFRAMES may change.
-           (outer-call (backtrace-frame (+ 5 n)))
-           (func (cadr outer-call))
-           (args (cddr outer-call))
-           (inhibit-read-only t))
-      (with-current-buffer (get-buffer-create bufname)
-        (special-mode)
-        (setq truncate-lines t)
-        (let ((args-string (mapconcat (lambda (y)
-                                        (truncate-string-to-width
-                                         (prin1-to-string y) 1000 nil nil t))
-                                      args "\n  ")))
-          (save-excursion
-            (goto-char (point-max))
-            (unless (bobp) (insert "\n"))
-            (insert (format "%S called in buffer %S\n  %s\n"
-                            func (buffer-name buf) args-string))))))))
-
-
 (defun prat-insert-placeholder (text)
   (add-text-properties
    (point)
