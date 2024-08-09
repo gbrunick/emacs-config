@@ -18,15 +18,6 @@
 (require 'prat-stash)
 (require 'prat-tree)
 
-(defvar prat-debug nil
-  "When non-nil, enable debug mode.
-
-In debug mode, we leave buffers around for inspection and write
-some tracing info into `prat-debug-buffer-name'.")
-
-(defvar prat-debug-buffer-name "*Prat Debug*"
-  "The name of the buffer used to hold debug information.")
-
 (defcustom prat-unstaged-buffer-name "*unstaged changes*"
   "The name of the buffer used to show staged changes."
   :type 'string :group 'prat)

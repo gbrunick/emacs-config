@@ -425,7 +425,7 @@ previously highlighted hunk."
   (interactive)
   (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (prat-apply-hunks marked-hunks "apply" "--cached")))
-    (unless prat-debug (delete-file patch-file))
+    (delete-file patch-file)
     (quit-window t)
     (prat-show-status)))
 
@@ -436,7 +436,7 @@ previously highlighted hunk."
   (let* ((marked-hunks (prat-get-marked-hunks))
          (patch-file (prat-apply-hunks marked-hunks
                                        "apply" "--cached" "-R")))
-    (unless prat-debug (delete-file patch-file))
+    (delete-file patch-file)
     (quit-window t)
     (prat-show-status)))
 
