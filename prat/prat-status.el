@@ -2,6 +2,10 @@
 (require 'prat-shell-command)
 (require 'prat-stash)
 
+(prat-define-shell-command prat-show-status "git status -u --show-stash "
+                           :bufname "*Git Status*"
+                           :title "Status in %s")
+
 (defvar prat-show-status-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'forward-button)
@@ -13,7 +17,6 @@
     (define-key map "s" 'prat-show-status--stash-files)
     map)
   "The keymap used when viewing git status output.")
-
 
 (define-derived-mode prat-show-status-mode prat-shell-command-output-mode
   "Git Status"
@@ -290,8 +293,13 @@ Unmarks the file if UNMARK is non-nil."
     (prat-shell-command (format "git diff --ours -- \"%s\"" filename)
                         (format "*unmerged: %s*" filename))))
 
-(prat-define-shell-command prat-show-status "git status -u --show-stash "
-                           :bufname "*Git Status*"
-                           :title "Status in %s")
+;; Register `prat-show-status-mode' with `prat-shell-command'.
+
+(defun prat-use-show-status-mode-p (cmd)
+  "Function for `prat-shell-command-major-mode-hook'"
+  (message "prat-use-show-status-mode" cmd)
+  (when (string-match "^git status" cmd) #'prat-show-status-mode))
+
+(add-hook 'prat-shell-command-major-mode-hook #'prat-use-show-status-mode-p)
 
 (provide 'prat-status)

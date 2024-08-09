@@ -27,10 +27,6 @@ some tracing info into `prat-debug-buffer-name'.")
 (defvar prat-debug-buffer-name "*Prat Debug*"
   "The name of the buffer used to hold debug information.")
 
-(defcustom prat-status-buffer-name "*git status*"
-  "The name of the buffer used to show Git status."
-  :type 'string :group 'prat)
-
 (defcustom prat-unstaged-buffer-name "*unstaged changes*"
   "The name of the buffer used to show staged changes."
   :type 'string :group 'prat)
@@ -189,17 +185,14 @@ Passed to Git using initial -c arguments."
 ;;
 (defvar prat-user-command-prefix-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map "d" 'prat-show-status)
+    (define-key map "s" 'prat-show-status)
     (define-key map "c" 'prat-commit)
     (define-key map "r" 'prat-rebase)
     (define-key map "l" 'prat-show-commit-graph)
     (define-key map "!" 'prat-shell-command)
     (define-key map "p" 'prat-push-changes)
 
-    ;; stash commands
-    (define-key map "sl" 'prat-show-stash-list)
-    (define-key map "s+" 'prat-push-stash)
-    (define-key map "s-" 'prat-pop-stash)
+    (define-key map "S" 'prat-stash-command)
 
     map)
   "The prefix keymap for user commands.

@@ -107,4 +107,13 @@
    (format "Changes from %s to %s in %s" hash1 hash2 default-directory)))
 
 
+;; Register `prat-hunk-view-mode' with `prat-shell-command'.
+
+(defun prat-use-hunk-view-mode-p (cmd)
+  "Function for `prat-shell-command-major-mode-hook'"
+  (message "prat-use-hunk-view-mode" cmd)
+  (when (string-match "^git diff" cmd) #'prat-hunk-view-mode))
+
+(add-hook 'prat-shell-command-major-mode-hook #'prat-use-hunk-view-mode-p)
+
 (provide 'prat-change-buffers)

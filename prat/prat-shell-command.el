@@ -20,6 +20,9 @@ Only one Git edit can be active at a time.")
 The key is a TRAMP prefix as returned by `file-exists-p' and the
 value is string giving the path to a copy of prat-editor.bash.")
 
+(defvar prat-shell-command-major-mode-hook nil
+  "A list of functions that accept CMD and return a major mode or nil.")
+
 (defvar prat-shell-command-output-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "!" 'prat-shell-command)
@@ -92,9 +95,13 @@ switches to this buffer."
       (insert "> " cmd)
 
       ;; Set the major-mode.
-      (let ((major-mode (prat-shell-command--get-major-mode cmd)))
-        ;; (message "Setting major mode: %S" major-mode)
-        (funcall major-mode))
+      (let ((major-mode-func (or major-mode-func
+                                 (run-hook-with-args-until-success
+                                  'prat-shell-command-major-mode-hook cmd)
+                                 ;; Default mode
+                                 #'prat-shell-command-output-mode)))
+        (message "Setting major mode: %S" major-mode-func)
+        (funcall major-mode-func))
 
       (setq-local default-directory dir
                   prat-shell-command-info `( :command ,cmd
@@ -129,7 +136,8 @@ switches to this buffer."
 
     ;; `prat-async-shell-command-1' increments
     ;; `prat-git-state-change-count' each time we run a Git command that
-    ;; changes the current state.
+    ;; changes the current state.  We save the current value so we can tell
+    ;; when this output is stale.
     (setq-local prat-shell-command-info
                 (plist-put prat-shell-command-info
                            :git-state prat-git-state-change-count))
@@ -318,17 +326,6 @@ Expects to be called from the buffer where are editing a file for Git."
                'prat-edit-kill-buffer-query-function t)
   (prat-signal-editor-script)
   (kill-buffer))
-
-
-;; Major-mode selection for shell output buffers.
-
-(defun prat-shell-command--get-major-mode (cmd)
-  "Determines the major mode used for shell output from `cmd'."
-  (cond
-   ((string-match "^git status" cmd)            #'prat-show-status-mode)
-   ((string-match "^git\\( stash\\)? show" cmd) #'prat-show-status-mode)
-   ((string-match "^git diff" cmd)              #'prat-hunk-view-mode)
-   (t                                           #'prat-shell-command-output-mode)))
 
 
 ;; Support for autorefreshing status and log buffers.
