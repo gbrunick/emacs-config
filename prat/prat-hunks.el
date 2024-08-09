@@ -1008,17 +1008,6 @@ the file for the structure of these alists."
                                    props-r props-a)))))))
 
 
-(defun prat-post-command-hook ()
-  "Updates hunk highlighting after each user command."
-  (when (derived-mode-p 'prat-hunk-view-mode)
-    ;; If the mark will be deactivated before the next command, we want to
-    ;; consider it to already be deactivated when we compute the highlights
-    ;; to avoid flicker.
-    (let ((mark-active (and mark-active (not deactivate-mark))))
-      (prat-update-highlights))))
-
-
-
 (defun prat-format-hunks (&optional beg end)
   (interactive "r")
   (setq beg (or beg (point-min))

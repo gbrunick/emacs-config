@@ -25,7 +25,15 @@
   "Hunk Buffer"
   "Base mode for buffers showing hunks."
   (setq-local header-line-format '(:eval (prat-compute-hunk-buffer-header)))
-  (add-hook 'post-command-hook 'prat-post-command-hook nil t))
+  (add-hook 'post-command-hook 'prat-hunk-view-post-command-hook nil t))
+
+(defun prat-hunk-view-post-command-hook ()
+  "Updates hunk highlighting after each user command."
+  ;; If the mark will be deactivated before the next command, we want to
+  ;; consider it to already be deactivated when we compute the highlights
+  ;; to avoid flicker.
+  (let ((mark-active (and mark-active (not deactivate-mark))))
+    (prat-update-highlights)))
 
 (defvar prat-hunk-selection-mode-map
   (let ((map (make-sparse-keymap)))
