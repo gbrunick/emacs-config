@@ -37,22 +37,6 @@ value is string giving the path to a copy of prat-editor.bash.")
 Major modes that derive from `prat-shell-command-output-mode' can use this
 hook-like variable to markup the output from Git.")
 
-(defun prat-commit (&optional amend)
-  "Commit currently staged changes to Git.
-With a prefix argument, amends previous commit."
-  (interactive "P")
-  (let ((cmd "git commit"))
-    (when amend (setq cmd (concat cmd " --amend")))
-    (prat-shell-command cmd "*Git Commit*")))
-
-(defun prat-rebase (&optional interactive)
-  (interactive "P")
-  (let ((cmd "git rebase"))
-    (when interactive (setq cmd (concat cmd " --interactive")))
-    (prat-shell-command
-     (read-shell-command "Shell command: " cmd prat-rebase-command-history)
-     "*Git Rebase*")))
-
 (defvar-local prat-shell-command-info nil
   "Defined in shell command output buffers.
 Copied into edit buffers that are requested by Git during interactive
@@ -110,8 +94,10 @@ switches to this buffer."
                                              :output-pos ,(point)))
 
       (prat-shell-command-refresh)
-      (forward-line 0)
-      (switch-to-buffer buf))))
+      (forward-line 0))
+
+    (switch-to-buffer buf)
+    buf))
 
 
 (defun prat-shell-command-refresh ()
@@ -347,28 +333,38 @@ Expects to be called from the buffer where are editing a file for Git."
 
 ;; Define a bunch of shell commands for key bindings.
 
-(defmacro prat-define-shell-command (name cmd &rest kwargs)
+(defmacro prat-define-shell-command (name doc &rest kwargs)
   "Define a function NAME that runs CMD in a shell.
 
 Keyword Arguments:
+ :command The shell command to run.
  :buffer A string giving the name of the output buffer.  Defaults to
    '*Shell Output*'.
  :confirm If non-nil we let the user modify CMD before we run it.
- :title As format string containing a single `%s' placeholder that is
-   expanded to the repo root directory."
-  (let ((bufname (plist-get kwargs :bufname))
+ :title An SEXP that evaluates to a string."
+  (declare (indent defun))
+  (let ((cmd (plist-get kwargs :command))
+        (prefix-arg (plist-get kwargs :prefix-arg))
+        (bufname (plist-get kwargs :bufname))
         (confirm (plist-get kwargs :confirm))
         (title (plist-get kwargs :title)))
-    (when title (setq title (format title default-directory)))
-    (when confirm (setq cmd (concat cmd " ")))
 
-    `(defun ,name (&rest args)
-       (interactive)
+
+    `(defun ,name (&optional arg &rest rest)
+       ,doc
+       (interactive "P")
        (let* ((default-directory (prat-find-repo-root))
-              (cmd ,(if confirm
-                        `(read-shell-command "Shell Command: "
-                                             ,cmd)
-                      cmd)))
+              (cmd ,cmd))
+
+         ;; when called with a prefix argument, we append :prefix-arg to
+         ;; the command.
+         (when (and arg ,prefix-arg)
+           (setq cmd (format "%s %s" cmd ,prefix-arg)))
+
+         ,@(when confirm
+             `((setq cmd (read-shell-command "Shell Command: "
+                                             (concat cmd " ")))))
+
          (prat-shell-command cmd ,bufname ,title)))))
 
 

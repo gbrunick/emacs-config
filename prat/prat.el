@@ -181,9 +181,8 @@ Passed to Git using initial -c arguments."
     (define-key map "r" 'prat-rebase)
     (define-key map "l" 'prat-show-commit-graph)
     (define-key map "!" 'prat-shell-command)
-    (define-key map "p" 'prat-push-changes)
-
-    (define-key map "S" 'prat-stash-command)
+    (define-key map "p" 'prat-push)
+    (define-key map "S" 'prat-stash)
 
     map)
   "The prefix keymap for user commands.
@@ -198,10 +197,39 @@ Bind to this to a prefix of your choosing (e.g., \"\C-cv\")")
 ;;
 
 
-(defun prat-push-changes ()
-  (interactive)
-  (let ((cmd (read-string "Git Shell Command: " "git push -u origin HEAD")))
-    (prat-shell-command cmd)))
+(prat-define-shell-command prat-stash
+  "Issue a stash command."
+  :command "git stash"
+  :confirm t)
+
+(prat-define-shell-command prat-commit
+  "Commit currently staged changes to Git.
+With a prefix argument, amends previous commit."
+  :command "git commit"
+  :prefix-arg "--amend"
+  :bufname "*Git Commit*"
+  :confirm t)
+
+(prat-define-shell-command prat-rebase
+  "Rebase current branch.
+With a prefix argument, interactive rebase."
+  :command "git rebase"
+  :prefix-arg "--interactive"
+  :bufname "*Git Rebase*"
+  :confirm t)
+
+(prat-define-shell-command prat-push
+  "Push current branch to origin"
+  :command "git push -u origin HEAD"
+  :confirm t)
+
+(prat-define-shell-command prat-show-status
+  "Show `git status` output"
+  :command "git status -u --show-stash"
+  :bufname "*Git Status*"
+  :title (format "Status in %s" default-directory))
+
+
 
 (defun prat-reload-all ()
   "Reload all source files."

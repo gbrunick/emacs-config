@@ -8,9 +8,6 @@
   "git stash list --format=\"%gd: (%cr) %gs\""
   "Command used to list all stashes.")
 
-(prat-define-shell-command prat-stash-command "git stash"
-                           :confirm t)
-
 (prat-define-shell-command prat-show-stash-list
                            prat-stash-list-command
                            :bufname "*Stash List*"

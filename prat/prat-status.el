@@ -2,10 +2,6 @@
 (require 'prat-shell-command)
 (require 'prat-stash)
 
-(prat-define-shell-command prat-show-status "git status -u --show-stash "
-                           :bufname "*Git Status*"
-                           :title "Status in %s")
-
 (defvar prat-show-status-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\t" 'forward-button)
